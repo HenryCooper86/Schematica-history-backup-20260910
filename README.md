@@ -57,6 +57,7 @@ then Settings → Pages → deploy from branch `main`, root folder.
 | BOM | BOM button — bill of materials grouped by part number (qty, refs, addresses, rails, status, flags); CSV download or Markdown copy |
 | Share | Share button — the whole board compressed into a copyable URL; opening the link loads it, no backend. Opened over a board you were working on, the link loads at once, keeps your board as a backup, and the notice offers to restore it |
 | Check | Check button — design rule checks: I2C address conflicts, unconnected power pins, floating parts, bus mismatches, lifecycle risks (the Sensor Node example passes them all) |
+| Assistant | `A` or the sparkle button — describe a board and it builds it, ask for a change and it edits the board, press Fix on a check finding or "Fix checks" and it resolves them, "Fill in details" fills part numbers from presets. Bring your own key: Claude by default, OpenAI-compatible endpoints and local Ollama too. Each reply is one undo step and what it touched glows until your next click. The key stays in this browser (only if you tick remember) and is never part of the board, autosave, or share links |
 | PDF | Export dialog — single-page PDF of the board (alongside PNG/SVG) |
 | Wire options | Select a wire — bus, label, arrowheads (→ or ↔), line style (solid, dashed, dotted, air gap), traffic flow, delete |
 
@@ -85,6 +86,7 @@ holds journey steps and camera tween math; `src/recorder.js` drives frame
 capture and MediaRecorder. `src/main.js` only boots the app; the panels,
 dialogs, and menus live in `src/ui/` (properties panel, palette, legend,
 export/BOM/DRC dialogs, journey and present mode, examples menu, recording).
+The assistant lives in `src/ai/`: `ops.js` is the atomic edit-operation batch (the only way the model changes a board), `layout.js` places whatever a batch creates, `context.js` renders the board and the palette catalogue as text for the model, `tools.js` exposes six tools over a `getDoc`/`commit` interface, `agent.js` runs the request loop, `providers/` holds the fetch adapters, and `src/ui/assistant-ui.js` is the panel. The smoke test drives it through a fake provider, so CI needs no key.
 See `docs/superpowers/specs/` for the design spec.
 
 ## Acknowledgements
