@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { applyEdits, MAX_OPS, OP_TYPES, EDIT_SCHEMA, pickPort, pickPorts } from '../src/ai/ops.js';
 import { newDoc } from '../src/state.js';
+import { MAX_TEXT } from '../src/serialize.js';
 
 function node(id, kind, x = 0, y = 0, extra = {}) {
   return {
@@ -367,4 +368,71 @@ test('update_zone changes label and colour, and members ask for a refit', () => 
   assert.deepEqual(res.layout.refit, [{ id: 'z1', members: ['t'] }]);
   res = applyEdits(doc, [{ op: 'update_zone', id: 'z1' }]);
   assert.match(res.errors[0].message, /changes nothing/);
+});
+
+test('names from Object.prototype are not ops, kinds, buses, or dispositions', () => {
+  const doc = newDoc('T');
+  doc.nodes.push(node('m', 'mcu'), node('t', 'temp'));
+  doc.wires.push(wire('w1', 'i2c', { node: 'm', port: 'i2c' }, { node: 't', port: 'i2c' }));
+  for (const name of ['constructor', 'toString', '__proto__', 'hasOwnProperty', 'valueOf']) {
+    let res = applyEdits(doc, [{ op: name }]);
+    assert.equal(res.ok, false, name);
+    assert.match(res.errors[0].message, /unknown op/, name);
+    res = applyEdits(doc, [{ op: 'add_part', ref: 'a', kind: name }]);
+    assert.match(res.errors[0].message, /unknown kind/, name);
+    res = applyEdits(doc, [{ op: 'update_wire', id: 'w1', bus: name }]);
+    assert.match(res.errors[0].message, /unknown bus/, name);
+    res = applyEdits(doc, [{ op: 'update_part', id: 'm', disposition: name }]);
+    assert.match(res.errors[0].message, /unknown disposition/, name);
+  }
+  assert.equal(doc.nodes.length, 2);
+});
+
+test('a batch may not leave a new zone without members', () => {
+  const doc = newDoc('T');
+  const res = applyEdits(doc, [
+    { op: 'add_part', ref: 'a', kind: 'mcu' },
+    { op: 'add_zone', ref: 'z', label: 'Z', members: ['a'] },
+    { op: 'remove', ids: ['a'] },
+  ]);
+  assert.equal(res.ok, false);
+  assert.equal(res.errors[0].index, 2);
+  assert.match(res.errors[0].message, /empties zone/);
+  assert.equal(doc.zones.length, 0);
+});
+
+test('the assistant edits plain zones only: swimlanes refuse members and placement', () => {
+  const doc = newDoc('T');
+  doc.nodes.push(node('m', 'mcu', 100, 100));
+  doc.zones.push({ id: 'l1', x: 0, y: 0, w: 400, h: 300, label: 'Lanes', color: '#a78bfa', kind: 'swimlane', orient: 'h', lanes: ['A', 'B'] });
+  let res = applyEdits(doc, [{ op: 'update_zone', id: 'l1', members: ['m'] }]);
+  assert.match(res.errors[0].message, /swimlane/);
+  res = applyEdits(doc, [{ op: 'add_part', ref: 'a', kind: 'temp', in: 'l1' }]);
+  assert.match(res.errors[0].message, /swimlane/);
+  res = applyEdits(doc, [{ op: 'update_zone', id: 'l1', label: 'Renamed' }]);
+  assert.equal(res.ok, true, 'label and colour still work on a swimlane');
+});
+
+test('remove scrubs wires it cascades away from the touched set', () => {
+  const doc = newDoc('T');
+  doc.nodes.push(node('m', 'mcu'), node('t', 'temp'));
+  doc.wires.push(wire('w1', 'i2c', { node: 'm', port: 'i2c' }, { node: 't', port: 'i2c' }));
+  const res = applyEdits(doc, [
+    { op: 'update_wire', id: 'w1', label: 'SDA' },
+    { op: 'remove', ids: ['t'] },
+  ]);
+  assert.equal(res.ok, true);
+  assert.ok(!res.touched.has('w1'), 'w1 no longer exists');
+  assert.ok(!res.touched.has('t'));
+  assert.equal(doc.wires.length, 0);
+});
+
+test('over-long text is cut to MAX_TEXT with a warning', () => {
+  const doc = newDoc('T');
+  const long = 'x'.repeat(MAX_TEXT + 5);
+  const res = applyEdits(doc, [{ op: 'add_part', ref: 'a', kind: 'mcu', notes: long }, { op: 'add_note', ref: 'n', text: long }]);
+  assert.equal(res.ok, true);
+  assert.equal(doc.nodes[0].notes.length, MAX_TEXT);
+  assert.equal(doc.notes[0].text.length, MAX_TEXT);
+  assert.equal(res.warnings.filter((w) => /cut to/.test(w)).length, 2);
 });

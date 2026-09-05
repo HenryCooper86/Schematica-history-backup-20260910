@@ -106,6 +106,14 @@ export function findZone(ctx, key) {
   const id = resolve(ctx, key);
   return ctx.work.zones.find((z) => z.id === id) || fail(`no zone "${key}"`);
 }
+
+// The assistant creates and refits plain zones only; a swimlane's rectangle
+// and lanes are the user's.
+function plainZone(ctx, key) {
+  const zone = findZone(ctx, key);
+  if (zone.kind === 'swimlane') fail(`zone "${key}" is a swimlane; the assistant edits plain zones only`);
+  return zone;
+}
 export function findNote(ctx, key) {
   const id = resolve(ctx, key);
   return ctx.work.notes.find((t) => t.id === id) || fail(`no note "${key}"`);
@@ -143,7 +151,7 @@ export function nodePatch(ctx, part, op, node) {
     patch.flags = [...new Set(op.flags)];
   }
   if (op.disposition !== undefined) {
-    if (op.disposition !== null && !DISPOSITIONS[op.disposition]) {
+    if (op.disposition !== null && !Object.hasOwn(DISPOSITIONS, op.disposition)) {
       fail(`unknown disposition "${op.disposition}"; one of ${Object.keys(DISPOSITIONS).join(', ')} or null`);
     }
     patch.disposition = op.disposition;
@@ -246,10 +254,10 @@ export const HANDLERS = {};
 
 HANDLERS.add_part = (ctx, op) => {
   claimRef(ctx, op.ref, 'add_part');
-  const part = PARTS[op.kind];
+  const part = Object.hasOwn(PARTS, op.kind) ? PARTS[op.kind] : null;
   if (!part) fail(`unknown kind "${op.kind}"; use search_parts to find kinds`);
   const near = op.near !== undefined ? findNode(ctx, op.near).id : null;
-  const zone = op.in !== undefined ? findZone(ctx, op.in).id : null;
+  const zone = op.in !== undefined ? plainZone(ctx, op.in).id : null;
   const node = {
     id: uid('n'), kind: part.kind, x: 0, y: 0,
     label: part.defaultLabel || part.name, sublabel: '', color: null,
@@ -306,7 +314,7 @@ HANDLERS.connect = (ctx, op) => {
   const a = findNode(ctx, op.from.node);
   const b = findNode(ctx, op.to.node);
   if (a.id === b.id) fail('cannot connect a node to itself');
-  if (op.bus !== undefined && !BUSES[op.bus]) fail(`unknown bus "${op.bus}"`);
+  if (op.bus !== undefined && !Object.hasOwn(BUSES, op.bus)) fail(`unknown bus "${op.bus}"`);
   const pick = pickPorts(ctx.work, a, b, op.from.port, op.to.port, op.bus);
   const w = {
     id: uid('w'), bus: pick.bus,
@@ -325,7 +333,7 @@ HANDLERS.update_wire = (ctx, op) => {
   const w = findWire(ctx, op.id);
   const changed = [];
   if (op.bus !== undefined) {
-    if (!BUSES[op.bus]) fail(`unknown bus "${op.bus}"`);
+    if (!Object.hasOwn(BUSES, op.bus)) fail(`unknown bus "${op.bus}"`);
     w.bus = op.bus;
     changed.push('bus');
   }
@@ -344,7 +352,7 @@ HANDLERS.update_wire = (ctx, op) => {
 
 HANDLERS.replace_part = (ctx, op) => {
   const node = findNode(ctx, op.id);
-  const part = PARTS[op.kind];
+  const part = Object.hasOwn(PARTS, op.kind) ? PARTS[op.kind] : null;
   if (!part) fail(`unknown kind "${op.kind}"; use search_parts to find kinds`);
   if (part.kind === node.kind) fail(`${node.id} is already a ${part.kind}`);
   const oldPart = getPart(node.kind);
@@ -397,12 +405,17 @@ HANDLERS.remove = (ctx, op) => {
   w.nodes = w.nodes.filter((n) => !dead.has(n.id));
   w.zones = w.zones.filter((z) => !dead.has(z.id));
   w.notes = w.notes.filter((t) => !dead.has(t.id));
-  w.wires = w.wires.filter((x) => !dead.has(x.id) && !dead.has(x.from.node) && !dead.has(x.to.node));
+  for (const x of w.wires) {
+    if (dead.has(x.from.node) || dead.has(x.to.node)) dead.add(x.id);
+  }
+  w.wires = w.wires.filter((x) => !dead.has(x.id));
   const L = ctx.layout;
   L.nodes = L.nodes.filter((id) => !dead.has(id));
   L.notes = L.notes.filter((id) => !dead.has(id));
   L.zones = L.zones.filter((z) => !dead.has(z.id)).map((z) => ({ ...z, members: z.members.filter((m) => !dead.has(m)) }));
-  L.refit = L.refit.filter((z) => !dead.has(z.id));
+  const emptied = L.zones.find((z) => !z.members.length);
+  if (emptied) fail(`removing ${op.ids.join(', ')} empties zone ${emptied.id} made in this batch; remove the zone too`);
+  L.refit = L.refit.filter((z) => !dead.has(z.id)).map((z) => ({ ...z, members: z.members.filter((m) => !dead.has(m)) }));
   for (const id of dead) { L.hints.delete(id); ctx.touched.delete(id); }
   ctx.changes.push(`removed ${[...dead].join(' ')}`);
 };
@@ -441,6 +454,7 @@ HANDLERS.update_zone = (ctx, op) => {
   if (op.label !== undefined) { zone.label = text(ctx, op.label, 'label'); changed.push('label'); }
   if (op.color !== undefined) { zone.color = zoneColor(op.color); changed.push('color'); }
   if (op.members !== undefined) {
+    if (zone.kind === 'swimlane') fail(`zone "${op.id}" is a swimlane; the assistant edits plain zones only`);
     ctx.layout.refit.push({ id: zone.id, members: zoneMemberIds(ctx, op.members) });
     changed.push('members');
   }
@@ -460,7 +474,7 @@ export function applyEdits(doc, ops) {
   const ctx = makeCtx(doc);
   ops.forEach((op, index) => {
     try {
-      const handler = op && HANDLERS[op.op];
+      const handler = op && Object.hasOwn(HANDLERS, op.op) ? HANDLERS[op.op] : null;
       if (!handler) fail(`unknown op "${op?.op}"; one of ${OP_TYPES.join(', ')}`);
       handler(ctx, op);
     } catch (err) {

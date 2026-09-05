@@ -98,4 +98,6 @@ test('unknown tools are errors and status lines are short', () => {
   assert.equal(statusLine('apply_edits', { ops: [{}, {}] }), 'applying 2 edits');
   assert.equal(statusLine('run_checks', {}), 'running checks');
   assert.equal(statusLine('search_parts', null), 'searching parts: ');
+  assert.equal(ex.run('constructor', {}).isError, true);
+  assert.equal(ex.run('list_presets', { kind: 'constructor' }).isError, true);
 });

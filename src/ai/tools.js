@@ -88,7 +88,7 @@ export function createExecutor({ getDoc, commit, selection = () => [] }) {
     },
     list_presets(input) {
       const kind = String(input.kind ?? '');
-      if (!PARTS[kind]) return err(`unknown kind "${kind}"`);
+      if (!Object.hasOwn(PARTS, kind)) return err(`unknown kind "${kind}"`);
       const list = presetsFor(kind);
       if (!list.length) return ok(`No presets for ${kind}; choose a part number yourself.`);
       return ok(list.map((p) => `${p.name} | pn=${p.sublabel} | rail=${p.rail || '-'} | ${p.notes}`).join('\n'));
@@ -121,7 +121,7 @@ export function createExecutor({ getDoc, commit, selection = () => [] }) {
   };
 
   function run(name, input = {}) {
-    const handler = handlers[name];
+    const handler = Object.hasOwn(handlers, name) ? handlers[name] : null;
     if (!handler) return err(`unknown tool "${name}"`);
     return handler(input && typeof input === 'object' ? input : {});
   }
