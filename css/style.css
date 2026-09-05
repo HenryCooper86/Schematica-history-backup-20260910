@@ -250,14 +250,16 @@ g.node:hover .ports,
 
 /* ---- Properties panel ----
    A floating card pinned to the top-right of the canvas: it hugs its content
-   instead of running the full height like the attached palette column. */
+   instead of running the full height like the attached palette column. It is
+   positioned inside the canvas area, so it always sits below the toolbar
+   however many rows the toolbar wraps to. */
 #props {
-  position: fixed;
+  position: absolute;
   z-index: 20;
-  top: 60px;
+  top: 14px;
   right: 14px;
   width: 262px;
-  max-height: calc(100vh - 84px);
+  max-height: calc(100% - 28px);
   background: rgba(13, 18, 32, 0.96);
   border: 1px solid var(--line2);
   border-radius: 14px;
@@ -385,6 +387,19 @@ g.node:hover .ports,
   pointer-events: none;
 }
 #toast[hidden] { display: none; }
+#toast button {
+  pointer-events: auto;
+  margin-left: 12px;
+  background: var(--bg2);
+  border: 1px solid var(--line2);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 3px 10px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+#toast button:hover { border-color: var(--accent); }
 /* While presenting, sit above the caption + nav instead of overlapping them. */
 #app.presenting #toast { bottom: 132px; }
 
@@ -503,12 +518,12 @@ g.node:hover .ports,
 
 /* ---- Journey panel ---- */
 #journey-panel {
-  position: fixed;
+  position: absolute;
   z-index: 20;
-  top: 60px;
+  top: 14px;
   right: 14px;
   width: 282px;
-  max-height: calc(100vh - 84px);
+  max-height: calc(100% - 28px);
   background: rgba(13, 18, 32, 0.96);
   border: 1px solid var(--line2);
   border-radius: 14px;
@@ -644,6 +659,9 @@ g.node:hover .ports,
 @keyframes rec-blink { 50% { opacity: 0.25; } }
 @media (prefers-reduced-motion: reduce) { #btn-rec.recording .rec-dot { animation: none; } }
 
+/* Native <dialog>s opened with showModal(): Escape, focus trapping, and
+   focus restore come from the browser. The element itself fills the viewport
+   as the dimmed backdrop so a click beside the card lands on the dialog. */
 #rec-dialog,
 #export-dialog,
 #bom-dialog,
@@ -651,15 +669,27 @@ g.node:hover .ports,
   position: fixed;
   inset: 0;
   z-index: 50;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: inherit;
   background: rgba(4, 6, 12, 0.6);
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
 }
-#rec-dialog[hidden],
-#export-dialog[hidden],
-#bom-dialog[hidden],
-#drc-dialog[hidden] { display: none; }
+#rec-dialog[open],
+#export-dialog[open],
+#bom-dialog[open],
+#drc-dialog[open] { display: flex; }
+#rec-dialog::backdrop,
+#export-dialog::backdrop,
+#bom-dialog::backdrop,
+#drc-dialog::backdrop { background: transparent; }
 .rec-card {
   width: 380px;
   background: var(--bg1);

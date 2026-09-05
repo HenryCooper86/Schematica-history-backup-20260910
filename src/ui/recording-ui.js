@@ -1,6 +1,6 @@
 // The Rec button, the recording dialog, and the GIF toolbar button.
 import { createRecorder } from '../recorder.js';
-import { toast } from './press.js';
+import { toast, escAttr, openModal } from './press.js';
 
 export function initRecording({ svg, store }) {
   const recorder = createRecorder(svg, { notify: toast });
@@ -10,7 +10,7 @@ export function initRecording({ svg, store }) {
   function renderFormats() {
     const formats = [...recorder.videoFormats(), { id: 'gif', label: 'GIF (animated)', ext: 'gif' }];
     document.getElementById('rec-formats').innerHTML = formats.map((f, i) => (
-      `<label><input type="radio" name="rec-format" value="${f.id}"${i === 0 ? ' checked' : ''}> ${f.label}</label>`
+      `<label><input type="radio" name="rec-format" value="${escAttr(f.id)}"${i === 0 ? ' checked' : ''}> ${escAttr(f.label)}</label>`
     )).join('');
     document.querySelectorAll('input[name="rec-format"]').forEach((r) => {
       r.addEventListener('change', () => {
@@ -50,14 +50,14 @@ export function initRecording({ svg, store }) {
     if (performance.now() - stoppedAt < 500) return;
     renderFormats();
     document.getElementById('rec-audio').classList.remove('disabled');
-    recDialog.hidden = false;
+    openModal(recDialog);
   });
 
   document.getElementById('rec-cancel').addEventListener('click', () => {
-    recDialog.hidden = true;
+    recDialog.close();
   });
   recDialog.addEventListener('pointerdown', (e) => {
-    if (e.target === recDialog) recDialog.hidden = true;
+    if (e.target === recDialog) recDialog.close();
   });
 
   document.getElementById('btn-export-gif').addEventListener('click', () => {
@@ -66,7 +66,7 @@ export function initRecording({ svg, store }) {
       return;
     }
     renderFormats();
-    recDialog.hidden = false;
+    openModal(recDialog);
     document.querySelector('input[name="rec-format"][value="gif"]').checked = true;
     document.getElementById('rec-audio').classList.add('disabled');
   });
@@ -88,7 +88,7 @@ export function initRecording({ svg, store }) {
         basename: (store.doc.title || 'schematica').replace(/[^\w-]+/g, '_'),
         onState,
       });
-      recDialog.hidden = true;
+      recDialog.close();
     } catch (err) {
       toast(err.message);
     }

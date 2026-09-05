@@ -3,6 +3,7 @@ import { CATEGORIES, CATEGORY_COLORS, PARTS, getPart } from '../palette.js';
 import { addNode } from '../state.js';
 import { snap, nodeSize } from '../geometry.js';
 import { filterParts } from '../search.js';
+import { escAttr } from './press.js';
 
 export function initPalette({ svg, store, tools }) {
   const palette = document.getElementById('palette');
@@ -31,7 +32,7 @@ export function initPalette({ svg, store, tools }) {
         : `<svg viewBox="0 0 16 16" fill="none" stroke="${color}" stroke-width="1.5"`
           + ` stroke-linecap="round" stroke-linejoin="round"><path d="${part.icon}"/></svg>`;
       item.innerHTML = `<span class="badge" style="--c:${color}">${glyph}</span>`
-        + `<span class="pi-name">${part.name}</span>`;
+        + `<span class="pi-name">${escAttr(part.name)}</span>`;
       item.draggable = true;
       item.addEventListener('dragstart', (e) => {
         e.dataTransfer.setData('text/schematica-kind', part.kind);

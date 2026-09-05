@@ -8,7 +8,7 @@ import { LOOP_MS, esc } from '../render.js';
 import { buildBOM, bomCSV, bomMarkdown } from '../bom.js';
 import { checkDoc } from '../drc.js';
 import { encodeShare } from '../share.js';
-import { toast } from './press.js';
+import { toast, openModal } from './press.js';
 
 export function initDialogs({ store }) {
   const safeName = (ext) => `${(store.doc.title || 'schematica').replace(/[^\w-]+/g, '_')}${ext}`;
@@ -41,7 +41,7 @@ export function initDialogs({ store }) {
     exportAspect = b.w / b.h;
     exportW.value = Math.round(b.w * 2);
     exportH.value = Math.round(b.h * 2);
-    exportDialog.hidden = false;
+    openModal(exportDialog);
   });
   exportW.addEventListener('input', () => {
     if (document.getElementById('export-lock').checked) {
@@ -60,19 +60,19 @@ export function initDialogs({ store }) {
   document.getElementById('export-png-go').addEventListener('click', () => {
     const width = clampPx(exportW.value);
     const height = clampPx(exportH.value);
-    exportDialog.hidden = true;
+    exportDialog.close();
     exportPNG(buildExportSVG(store.doc, exportOpts()), (blob) => {
       if (blob) download(safeName('.png'), blob);
       else toast('PNG export failed in this browser. The SVG export still works.');
     }, { width, height });
   });
   document.getElementById('export-svg-go').addEventListener('click', () => {
-    exportDialog.hidden = true;
+    exportDialog.close();
     download(safeName('.svg'), buildExportSVG(store.doc, exportOpts()), 'image/svg+xml');
   });
   document.getElementById('export-pdf-go').addEventListener('click', () => {
     const width = clampPx(exportW.value);
-    exportDialog.hidden = true;
+    exportDialog.close();
     exportPDF(buildExportSVG(store.doc), (blob) => {
       if (blob) download(safeName('.pdf'), blob);
       else toast('PDF export failed in this browser. PNG and SVG still work.');
@@ -85,7 +85,7 @@ export function initDialogs({ store }) {
   document.getElementById('export-gifloop-go').addEventListener('click', async () => {
     if (loopBusy) return;
     loopBusy = true;
-    exportDialog.hidden = true;
+    exportDialog.close();
     toast('Rendering the seamless loop GIF…');
     try {
       const b = exportBounds(store.doc);
@@ -125,10 +125,10 @@ export function initDialogs({ store }) {
     }
   });
   document.getElementById('export-cancel').addEventListener('click', () => {
-    exportDialog.hidden = true;
+    exportDialog.close();
   });
   exportDialog.addEventListener('pointerdown', (e) => {
-    if (e.target === exportDialog) exportDialog.hidden = true;
+    if (e.target === exportDialog) exportDialog.close();
   });
 
   // ---- BOM dialog ----
@@ -146,7 +146,7 @@ export function initDialogs({ store }) {
         + '<th>Addresses</th><th>Rails</th><th>Status</th><th>Flags</th><th>Notes</th></tr></thead>'
         + `<tbody>${body}</tbody></table>`
       : '<p style="padding:12px">The board is empty - add some parts first.</p>';
-    bomDialog.hidden = false;
+    openModal(bomDialog);
   });
   // Rows are re-derived at click time so exports always match the live board,
   // even if it was edited (e.g. via undo) while the dialog was open.
@@ -159,10 +159,10 @@ export function initDialogs({ store }) {
       .catch(() => toast('Could not access the clipboard - use Download CSV instead.'));
   });
   document.getElementById('bom-close').addEventListener('click', () => {
-    bomDialog.hidden = true;
+    bomDialog.close();
   });
   bomDialog.addEventListener('pointerdown', (e) => {
-    if (e.target === bomDialog) bomDialog.hidden = true;
+    if (e.target === bomDialog) bomDialog.close();
   });
 
   // ---- Design rule check ----
@@ -181,17 +181,17 @@ export function initDialogs({ store }) {
       list.querySelectorAll('[data-drc]').forEach((btn) => {
         btn.addEventListener('click', () => {
           store.setSelection(findings[Number(btn.dataset.drc)].ids);
-          drcDialog.hidden = true;
+          drcDialog.close();
         });
       });
     }
-    drcDialog.hidden = false;
+    openModal(drcDialog);
   });
   document.getElementById('drc-close').addEventListener('click', () => {
-    drcDialog.hidden = true;
+    drcDialog.close();
   });
   drcDialog.addEventListener('pointerdown', (e) => {
-    if (e.target === drcDialog) drcDialog.hidden = true;
+    if (e.target === drcDialog) drcDialog.close();
   });
 
   // ---- Share link ----

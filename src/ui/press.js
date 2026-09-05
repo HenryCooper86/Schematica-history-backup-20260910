@@ -27,12 +27,31 @@ export function escAttr(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-// Non-blocking notice in the corner of the canvas, in place of alert().
+// Non-blocking notice in the corner of the canvas, in place of alert(). An
+// optional action ({ label, run }) adds a button and keeps the toast up
+// longer, in place of confirm(): the default happens at once and the button
+// is the way back.
 let toastTimer = null;
-export function toast(message) {
+export function toast(message, { action = null } = {}) {
   const t = document.getElementById('toast');
   t.textContent = message;
+  if (action) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = action.label;
+    btn.addEventListener('click', () => {
+      clearTimeout(toastTimer);
+      t.hidden = true;
+      action.run();
+    });
+    t.append(btn);
+  }
   t.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { t.hidden = true; }, 3600);
+  toastTimer = setTimeout(() => { t.hidden = true; }, action ? 9000 : 3600);
+}
+
+// showModal() throws on a dialog that is already open.
+export function openModal(dialog) {
+  if (!dialog.open) dialog.showModal();
 }

@@ -118,13 +118,13 @@
       <div id="bus-popover" hidden></div>
       <div id="examples-menu" hidden></div>
       <input id="inline-editor" type="text" spellcheck="false" hidden>
-      <div id="toast" hidden></div>
+      <div id="toast" role="status" aria-live="polite" hidden></div>
+      <aside id="props" hidden></aside>
+      <aside id="journey-panel" hidden></aside>
     </main>
-    <aside id="props" hidden></aside>
-    <aside id="journey-panel" hidden></aside>
   </div>
   <input type="file" id="file-input" accept=".json,application/json" hidden>
-  <div id="rec-dialog" hidden>
+  <dialog id="rec-dialog">
     <div class="rec-card">
       <h3>Record diagram</h3>
       <p>Captures the canvas live while you present — pan, zoom, select, connect. Journey captions are included.</p>
@@ -142,8 +142,8 @@
         <button id="rec-cancel">Cancel</button>
       </div>
     </div>
-  </div>
-  <div id="export-dialog" hidden>
+  </dialog>
+  <dialog id="export-dialog">
     <div class="rec-card">
       <h3>Export image</h3>
       <p>Cropped to the diagram plus a margin. PNG renders at the pixel size below.</p>
@@ -169,8 +169,8 @@
         <button id="export-cancel">Cancel</button>
       </div>
     </div>
-  </div>
-  <div id="drc-dialog" hidden>
+  </dialog>
+  <dialog id="drc-dialog">
     <div class="rec-card bom-card">
       <h3>Design rule check</h3>
       <p>I2C address conflicts, unconnected power pins, floating parts, bus mismatches, and lifecycle risks.</p>
@@ -179,8 +179,8 @@
         <button id="drc-close">Close</button>
       </div>
     </div>
-  </div>
-  <div id="bom-dialog" hidden>
+  </dialog>
+  <dialog id="bom-dialog">
     <div class="rec-card bom-card">
       <h3>Bill of materials</h3>
       <p>Grouped by part number. Quantities, references, addresses, rails, status, and flags come straight from the board.</p>
@@ -191,7 +191,7 @@
         <button id="bom-close">Close</button>
       </div>
     </div>
-  </div>
+  </dialog>
   <script type="module" src="src/main.js"></script>
 </body>
 </html>
