@@ -86,3 +86,65 @@ export async function runRequest({
   }
   return { text, messages, touched: new Set(executor.touched), usage, stop, rounds, applied, cutOff, error };
 }
+
+// The first {...} that parses, fences stripped: models without tool calling
+// are asked for one JSON object and tend to wrap it in prose anyway.
+export function extractJson(text) {
+  const s = String(text ?? '').replace(/```(?:json)?/gi, '');
+  const start = s.indexOf('{');
+  const end = s.lastIndexOf('}');
+  if (start < 0 || end <= start) return null;
+  try { return JSON.parse(s.slice(start, end + 1)); } catch { return null; }
+}
+
+// For a provider whose probe showed no tool calling: one reply carrying
+// { summary, ops }, one repair round if it is not JSON, then the ops go
+// through apply_edits like any other batch.
+export async function runSingleShot({
+  provider, executor, system, history = [], userText, boardText,
+  store = null, signal = null, onText = null, onStatus = null,
+}) {
+  const messages = [
+    ...history,
+    { role: 'user', content: [{ type: 'text', text: `${userText}\n\n---\n${boardText}` }] },
+  ];
+  const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+  let text = '';
+  let stop = 'end';
+  let applied = 0;
+  let rounds = 0;
+  let error;
+  executor.resetTouched();
+  store?.beginBatch();
+  try {
+    let plan = null;
+    for (let attempt = 0; attempt < 2 && !plan; attempt++) {
+      rounds += 1;
+      const res = await provider.chat({ system, messages, tools: [], signal, onText: attempt === 0 ? onText : null });
+      addUsage(usage, res.usage);
+      messages.push({ role: 'assistant', content: [{ type: 'text', text: res.text }], raw: res.raw });
+      stop = res.stop;
+      plan = extractJson(res.text);
+      if (!plan || !Array.isArray(plan.ops)) {
+        plan = null;
+        if (attempt === 0) {
+          messages.push({ role: 'user', content: [{ type: 'text', text: 'Your reply was not valid JSON. Reply with only the JSON object: {"summary": "...", "ops": [...]}.' }] });
+        }
+      }
+    }
+    if (!plan) throw new Error('The model did not return a valid plan.');
+    text = String(plan.summary || '').trim();
+    if (plan.ops.length) {
+      onStatus?.(statusLine('apply_edits', { ops: plan.ops }));
+      const r = executor.run('apply_edits', { ops: plan.ops });
+      if (r.isError) text += `\n\nThe edits were rejected:\n${r.text.replace(/^Batch rejected, nothing applied:\n/, '')}`;
+      else applied += 1;
+    }
+  } catch (err) {
+    if (err?.name === 'AbortError' || signal?.aborted) stop = 'aborted';
+    else error = err;
+  } finally {
+    store?.endBatch();
+  }
+  return { text, messages, touched: new Set(executor.touched), usage, stop, rounds, applied, cutOff: stop === 'aborted', error };
+}

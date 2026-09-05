@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { runRequest, MAX_ROUNDS } from '../src/ai/agent.js';
+import { runRequest, MAX_ROUNDS, runSingleShot, extractJson } from '../src/ai/agent.js';
 import { createExecutor } from '../src/ai/tools.js';
 import { newDoc, Store } from '../src/state.js';
+import { makeProvider } from '../src/ai/providers/index.js';
 
 // A provider that replays scripted replies and records what it was sent.
 function scripted(replies) {
@@ -151,4 +152,57 @@ test('a tool that throws is answered with an error result, reported, and leaves 
   assert.equal(last.content[0].isError, true);
   assert.match(last.content[0].text, /run_checks failed: layout bug/);
   assert.equal(provider.calls.length, 1, 'no further round after the failure');
+});
+
+test('extractJson finds the object in fenced or chatty text', () => {
+  assert.deepEqual(extractJson('```json\n{"summary":"s","ops":[]}\n```'), { summary: 's', ops: [] });
+  assert.deepEqual(extractJson('Sure! {"summary":"s","ops":[{"op":"set_title","title":"T"}]} done'), { summary: 's', ops: [{ op: 'set_title', title: 'T' }] });
+  assert.equal(extractJson('no json here'), null);
+  assert.equal(extractJson('{"broken":'), null);
+});
+
+test('single-shot mode parses one JSON reply, applies its ops, and repairs bad JSON once', async () => {
+  const { store, executor, provider } = setup([
+    { text: 'here you go {"summary": "Titled.", "ops": [{"op":"set_title","title":"Rover"}]}', stop: 'end' },
+  ]);
+  const res = await runSingleShot({ provider, executor, store, system: SYSTEM, history: [], userText: 'name it rover', boardText: 'b' });
+  assert.equal(res.error, undefined);
+  assert.equal(res.text, 'Titled.');
+  assert.equal(res.applied, 1);
+  assert.equal(store.doc.title, 'Rover');
+  assert.equal(provider.calls[0].tools.length, 0, 'no tools are offered');
+  assert.equal(store.undoStack.length, 1);
+
+  const bad = setup([
+    { text: 'not json', stop: 'end' },
+    { text: '{"summary":"Fixed.","ops":[]}', stop: 'end' },
+  ]);
+  const r2 = await runSingleShot({ provider: bad.provider, executor: bad.executor, store: bad.store, system: SYSTEM, history: [], userText: 'x', boardText: 'b' });
+  assert.equal(bad.provider.calls.length, 2, 'one repair round');
+  assert.match(bad.provider.calls[1].messages.at(-1).content[0].text, /not valid JSON/);
+  assert.equal(r2.text, 'Fixed.');
+  assert.equal(r2.applied, 0);
+
+  const hopeless = setup([{ text: 'nope', stop: 'end' }, { text: 'still nope', stop: 'end' }]);
+  const r3 = await runSingleShot({ provider: hopeless.provider, executor: hopeless.executor, store: hopeless.store, system: SYSTEM, history: [], userText: 'x', boardText: 'b' });
+  assert.match(r3.error.message, /did not return a valid plan/);
+});
+
+test('single-shot reports rejected edits in the reply instead of failing', async () => {
+  const { store, executor, provider } = setup([
+    { text: '{"summary":"Tried.","ops":[{"op":"add_part","ref":"a","kind":"nope"}]}', stop: 'end' },
+  ]);
+  const res = await runSingleShot({ provider, executor, store, system: SYSTEM, history: [], userText: 'x', boardText: 'b' });
+  assert.equal(res.applied, 0);
+  assert.match(res.text, /Tried\.\n\nThe edits were rejected:\n#0: unknown kind "nope"/);
+  assert.equal(store.doc.nodes.length, 0);
+});
+
+test('makeProvider builds the adapter the settings name', () => {
+  const s = (provider, extra = {}) => ({ provider, model: 'm', baseUrl: 'http://x', effort: 'low', ...extra });
+  for (const provider of ['anthropic', 'openai', 'ollama']) {
+    const p = makeProvider(s(provider), 'k', async () => new Response('{}', { status: 500 }));
+    assert.equal(typeof p.chat, 'function', provider);
+  }
+  assert.throws(() => makeProvider(s('carrier-pigeon'), 'k'), /unknown provider/);
 });
