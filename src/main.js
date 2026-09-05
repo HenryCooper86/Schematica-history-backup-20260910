@@ -14,6 +14,7 @@ import { initJourney } from './ui/journey-ui.js';
 import { initExamplesMenu } from './ui/examples-menu.js';
 import { initRecording } from './ui/recording-ui.js';
 import { initLayoutToggles } from './ui/panels.js';
+import { initAssistant } from './ui/assistant-ui.js';
 
 const svg = document.getElementById('canvas');
 
@@ -192,6 +193,7 @@ const recorder = initRecording({ svg, store });
 initJourney({ svg, store, tools, render, recorder, propsPanel });
 initExamplesMenu({ store });
 initLayoutToggles();
+initAssistant({ store, tools, render, svg });
 
 render();
 syncAnimation();

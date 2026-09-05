@@ -489,6 +489,33 @@ try {
   await sleep(200);
   const restored = await js(`(() => ({ title: document.getElementById('title').value, nodes: document.querySelectorAll('#canvas g.node').length }))()`);
   check('restoring brings the previous board back', restored.title === weather.title && restored.nodes === weather.nodes.length, JSON.stringify(restored));
+
+  // ---- Assistant panel: toggle, fold, settings, key handling ----
+  await loadBoard(weather);
+  const panelOpen = await js(`(() => { const p = document.getElementById('assistant'); return { exists: !!p, hidden: p && p.hidden, inCanvas: p && p.closest('#canvas-wrap') !== null }; })()`);
+  check('the assistant panel exists inside the canvas area and starts hidden', panelOpen.exists && panelOpen.hidden === true && panelOpen.inCanvas, JSON.stringify(panelOpen));
+  await key('a', 'KeyA', 65);
+  await sleep(100);
+  const afterA = await js(`(() => { const p = document.getElementById('assistant'); return { hidden: p.hidden, settingsShown: getComputedStyle(document.getElementById('ai-settings')).display !== 'none', btnActive: document.getElementById('btn-assistant').classList.contains('active') }; })()`);
+  check('A opens the panel, and with no key configured the settings form shows', afterA.hidden === false && afterA.settingsShown && afterA.btnActive, JSON.stringify(afterA));
+  await js(`(() => { document.getElementById('ai-key').value = 'sk-test-123'; document.getElementById('ai-remember').checked = false; document.getElementById('ai-save').click(); return true; })()`);
+  await sleep(100);
+  const saved = await js(`(() => ({ stored: localStorage.getItem('schematica.ai.key.anthropic'), settings: JSON.parse(localStorage.getItem('schematica.ai.settings') || '{}'), meta: document.getElementById('ai-meta').textContent, settingsShown: getComputedStyle(document.getElementById('ai-settings')).display !== 'none' }))()`);
+  check('a key saved without "remember" stays out of storage and the panel shows the model', saved.stored === null && saved.settings.remember === false && /claude-opus-5/.test(saved.meta) && !saved.settingsShown, JSON.stringify(saved));
+  await js(`(() => { document.getElementById('ai-gear').click(); document.getElementById('ai-key').value = 'sk-test-456'; document.getElementById('ai-remember').checked = true; document.getElementById('ai-save').click(); return true; })()`);
+  await sleep(100);
+  const remembered = await js(`localStorage.getItem('schematica.ai.key.anthropic')`);
+  check('ticking "remember" stores the key on this device', remembered === 'sk-test-456', String(remembered));
+  await js(`(() => { document.getElementById('ai-gear').click(); document.getElementById('ai-forget').click(); return true; })()`);
+  await sleep(100);
+  const forgotten = await js(`localStorage.getItem('schematica.ai.key.anthropic')`);
+  check('forget clears the stored key', forgotten === null, String(forgotten));
+  const foldedAi = await js(`(() => { const p = document.getElementById('assistant'); p.querySelector('.panel-toggle').click(); const out = p.classList.contains('collapsed'); p.querySelector('.panel-toggle').click(); return out; })()`);
+  check('the assistant panel folds like the others', foldedAi === true, String(foldedAi));
+  await js(`document.activeElement && document.activeElement.blur(); true`);
+  await key('a', 'KeyA', 65);
+  await sleep(100);
+  check('A closes the panel again', (await js(`document.getElementById('assistant').hidden`)) === true);
 } catch (err) {
   failed += 1;
   results.push(`FAIL script error — ${err.message}`);
