@@ -51,12 +51,13 @@ export const TOOLS = [
 ];
 
 export function statusLine(name, input = {}) {
+  const i = input && typeof input === 'object' ? input : {};
   switch (name) {
-    case 'search_parts': return `searching parts: ${input.query ?? ''}`;
+    case 'search_parts': return `searching parts: ${i.query ?? ''}`;
     case 'get_board': return 'reading the board';
     case 'run_checks': return 'running checks';
-    case 'list_presets': return `presets for ${input.kind ?? ''}`;
-    case 'apply_edits': return `applying ${Array.isArray(input.ops) ? input.ops.length : 0} edits`;
+    case 'list_presets': return `presets for ${i.kind ?? ''}`;
+    case 'apply_edits': return `applying ${Array.isArray(i.ops) ? i.ops.length : 0} edits`;
     case 'arrange': return 'arranging the board';
     default: return name;
   }

@@ -120,3 +120,35 @@ test('history is passed through and text streams to onText', async () => {
   assert.equal(provider.calls[0].messages.length, 3);
   assert.equal(res.messages.length, 4);
 });
+
+test('tool calls in a reply that stopped for max_tokens are answered with errors, not run', async () => {
+  const { store, executor, provider } = setup([{ text: 'partial', toolCalls: [build], stop: 'max_tokens' }]);
+  const res = await runRequest({ provider, executor, store, system: SYSTEM, history: [], userText: 'x', boardText: 'b' });
+  assert.equal(res.stop, 'max_tokens');
+  assert.equal(res.cutOff, true);
+  assert.equal(res.applied, 0);
+  assert.equal(store.doc.nodes.length, 0, 'the cut-off call was not run');
+  const last = res.messages.at(-1);
+  assert.equal(last.role, 'user');
+  assert.equal(last.content[0].type, 'tool_result');
+  assert.equal(last.content[0].id, 'c1');
+  assert.equal(last.content[0].isError, true);
+  assert.equal(provider.calls.length, 1);
+});
+
+test('a tool that throws is answered with an error result, reported, and leaves a valid history and a closed batch', async () => {
+  const { store, executor, provider } = setup([
+    { toolCalls: [{ id: 'c1', name: 'run_checks', input: {} }], stop: 'tool_use' },
+    { text: 'never', stop: 'end' },
+  ]);
+  const boom = { ...executor, run: () => { throw new Error('layout bug'); } };
+  const res = await runRequest({ provider, executor: boom, store, system: SYSTEM, history: [], userText: 'x', boardText: 'b' });
+  assert.equal(res.error.message, 'layout bug');
+  assert.equal(store.inBatch(), false);
+  const last = res.messages.at(-1);
+  assert.equal(last.role, 'user');
+  assert.equal(last.content[0].type, 'tool_result');
+  assert.equal(last.content[0].isError, true);
+  assert.match(last.content[0].text, /run_checks failed: layout bug/);
+  assert.equal(provider.calls.length, 1, 'no further round after the failure');
+});

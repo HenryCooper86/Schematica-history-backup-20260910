@@ -41,18 +41,37 @@ export async function runRequest({
         content.push({ type: 'text', text: res.text });
         text += (text ? '\n\n' : '') + res.text;
       }
-      for (const tc of res.toolCalls || []) content.push({ type: 'tool_use', id: tc.id, name: tc.name, input: tc.input });
+      const calls = res.toolCalls || [];
+      for (const tc of calls) content.push({ type: 'tool_use', id: tc.id, name: tc.name, input: tc.input });
       messages.push({ role: 'assistant', content, raw: res.raw });
       stop = res.stop;
-      if (res.stop !== 'tool_use' || !res.toolCalls?.length) break;
+      if (stop === 'aborted' || stop === 'max_tokens') cutOff = true;
+      if (!calls.length) break;
+      // Every tool_use gets a tool_result, or the history is unusable for the
+      // next request: calls the model made before being cut off are answered
+      // with an error instead of being run, and a tool that throws (a bug in
+      // our own code) is answered with an error and then reported.
       const results = [];
-      for (const tc of res.toolCalls) {
-        onStatus?.(statusLine(tc.name, tc.input));
-        const r = executor.run(tc.name, tc.input);
+      let failure = null;
+      for (const tc of calls) {
+        if (stop !== 'tool_use') {
+          results.push({ type: 'tool_result', id: tc.id, text: `Not run: the reply stopped before this call completed (${stop}).`, isError: true });
+          continue;
+        }
+        let r;
+        try {
+          onStatus?.(statusLine(tc.name, tc.input));
+          r = executor.run(tc.name, tc.input);
+        } catch (err) {
+          failure = failure || err;
+          r = { text: `Tool ${tc.name} failed: ${err?.message || err}`, isError: true };
+        }
         if (tc.name === 'apply_edits' && !r.isError) applied += 1;
         results.push({ type: 'tool_result', id: tc.id, text: r.text, isError: !!r.isError });
       }
       messages.push({ role: 'user', content: results });
+      if (failure) throw failure;
+      if (stop !== 'tool_use') break;
       if (round === maxRounds - 1) { cutOff = true; stop = 'rounds'; }
     }
   } catch (err) {
