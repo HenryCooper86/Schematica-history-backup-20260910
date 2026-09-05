@@ -32,8 +32,8 @@ line with the observed result.
 11. Settings → model `claude-haiku-4-5`, save, send a build. Expect: the
     request runs (no 400 from the API) and the reply arrives without thinking.
     Observed: __
-12. Open the app in a browser with site data blocked for this origin. Expect:
-    it boots, the assistant opens, and the panel warns that storage is
-    unavailable only when a key is saved. Observed: __
+12. Open the app with site data blocked. Expect: it boots and every
+    non-assistant feature works; a key entered in the panel is kept for the
+    session only and the thread does not persist across reload. Observed: __
 13. Ollama: watch the server log while a build runs. Expect: no `truncating
     input prompt` line — the request asks for num_ctx 16384. Observed: __
