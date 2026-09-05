@@ -2491,7 +2491,7 @@ git commit -m "ai: the six tools and their executor"
 
 **Interfaces:**
 - Consumes: `TOOLS`, `statusLine` from `src/ai/tools.js`; an executor from `createExecutor`; a provider object `{ chat({ system, messages, tools, signal, onText }) => Promise<{ text, toolCalls: [{ id, name, input }], usage: { input, output, cacheRead, cacheWrite }, stop: 'end'|'tool_use'|'max_tokens'|'refusal'|'aborted', raw?: any }> }`; a store with `beginBatch()`/`endBatch()` (optional).
-- Produces: `runRequest({ provider, executor, system, history, userText, boardText, store, signal, onText, onStatus, maxRounds })` resolving to `{ text, messages, touched: Set, usage, stop, rounds, applied, cutOff, error }`; `MAX_ROUNDS = 8`; the internal message format: `{ role: 'user'|'assistant', content: Block[], raw? }` with blocks `{ type: 'text', text }`, `{ type: 'tool_use', id, name, input }`, `{ type: 'tool_result', id, text, isError }`.
+- Produces: `runRequest({ provider, executor, system, history, userText, boardText, store, signal, onText, onStatus, maxRounds })` resolving to `{ text, messages, touched: Set, usage, stop: 'end'|'tool_use'|'max_tokens'|'refusal'|'aborted'|'rounds', rounds, applied, cutOff, error }`; `MAX_ROUNDS = 8`; the internal message format: `{ role: 'user'|'assistant', content: Block[], raw? }` with blocks `{ type: 'text', text }`, `{ type: 'tool_use', id, name, input }`, `{ type: 'tool_result', id, text, isError }`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -2832,4 +2832,6 @@ git commit -m "canvas: highlight the items the assistant touched until the next 
 - **What the model sees:** board text format (Task 10), catalogue with shared/point-to-point/untyped buses and preset names (Task 11), rules and per-request block with the single-shot instructions (Task 11), selected and checks lines only when non-empty (Task 10).
 - **Tools:** six tools, terse id-bearing results, strict on four (Task 12; the `apply_edits` deviation is in Global Constraints).
 - **Agent loop:** rounds, results returned together, cap, abort keeps edits, one batch per request (Task 13). Fit/pan and highlight setting are done by the panel in the second plan; the overlay and clearing are Task 14.
+- The catalogue groups kinds under `## Category` headings; `search_parts` lines omit the category (a token-cheaper form of the spec's per-line category).
+- `pushApart` orders zones by id as the spec says (the plan's earlier "list order" wording was a deviation, now removed).
 - **Not in this plan, by design:** providers, settings, the panel, the DRC Fix button, thread persistence, the e2e fake endpoint. See `2026-09-05-ai-copilot-providers-panel.md`.
