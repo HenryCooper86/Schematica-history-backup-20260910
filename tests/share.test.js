@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { encodeShare, decodeShare } from '../src/share.js';
+import { encodeShare, decodeShare, MAX_SHARE_BYTES } from '../src/share.js';
 import { serialize, deserialize } from '../src/serialize.js';
 import { Store, addNode, addWire } from '../src/state.js';
 
@@ -37,4 +37,17 @@ test('compressed links are much smaller than raw JSON for a real board', async (
   if (fragment.startsWith('d=')) {
     assert.ok(fragment.length < serialize(doc).length, 'deflate should beat pretty JSON');
   }
+});
+
+test('decodeShare refuses a link that inflates past the size cap', async () => {
+  // A few kilobytes of deflated zeros expand to gigabytes; the decoder must
+  // stop at the cap instead of handing the tab a decompression bomb.
+  const zeros = new Uint8Array(MAX_SHARE_BYTES + 1);
+  const stream = new Blob([zeros]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+  const bytes = Buffer.from(await new Response(stream).arrayBuffer());
+  const fragment = `d=${bytes.toString('base64url')}`;
+  assert.ok(fragment.length < 100_000, `bomb should be small: ${fragment.length}`);
+  await assert.rejects(() => decodeShare(fragment), /too large/);
+  const raw = `j=${Buffer.from(zeros).toString('base64url')}`;
+  await assert.rejects(() => decodeShare(raw), /too large/);
 });

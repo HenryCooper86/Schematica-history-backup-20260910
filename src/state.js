@@ -1,14 +1,25 @@
 import { getPart } from './palette.js';
 
-let counter = 0;
+// Ids are random so that two tabs, two peers, or a script minting ids in the
+// same millisecond never collide: 12 base36 characters (~62 bits) after the
+// prefix. getRandomValues works outside secure contexts, unlike randomUUID.
+const ID_CHARS = '0123456789abcdefghijklmnopqrstuvwxyz';
+const ID_LENGTH = 12;
 
 export function uid(prefix = 'id') {
-  counter += 1;
-  return `${prefix}${Date.now().toString(36)}${counter.toString(36)}`;
+  const bytes = crypto.getRandomValues(new Uint8Array(ID_LENGTH));
+  let body = '';
+  for (const b of bytes) body += ID_CHARS[b % 36];
+  return prefix + body;
 }
 
+// The document format version this app writes. Bump it when a saved field
+// changes meaning or shape, and add the matching step to MIGRATIONS in
+// src/serialize.js so older files are upgraded on load.
+export const SCHEMA_VERSION = 1;
+
 export function newDoc(title = 'Untitled Board') {
-  return { schema: 1, title, nodes: [], wires: [], zones: [], notes: [], journey: [] };
+  return { schema: SCHEMA_VERSION, title, nodes: [], wires: [], zones: [], notes: [], journey: [] };
 }
 
 const MAX_UNDO = 100;
@@ -71,6 +82,10 @@ export class Store {
       this.emit();
     }
   }
+
+  // True while a pointer drag is moving or resizing items: every pointermove
+  // emits, so subscribers can skip work that only matters once the drag ends.
+  isDragging() { return this._dragSnap !== null; }
 
   canUndo() { return this.undoStack.length > 0; }
   canRedo() { return this.redoStack.length > 0; }

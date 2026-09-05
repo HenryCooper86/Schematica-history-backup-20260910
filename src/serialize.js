@@ -1,10 +1,34 @@
 import { BUSES, DEFAULT_BUS } from './buses.js';
-import { PARTS, getPart, DISPOSITIONS } from './palette.js';
-import { newDoc, NODE_STATUSES, NODE_FLAGS } from './state.js';
+import { PARTS, getPart, DISPOSITIONS, PORT_ALIASES } from './palette.js';
+import { newDoc, NODE_STATUSES, NODE_FLAGS, SCHEMA_VERSION } from './state.js';
 import { nodeSize } from './geometry.js';
 
 export function serialize(doc) {
   return JSON.stringify(doc, null, 2);
+}
+
+// One entry per schema step: MIGRATIONS[n] takes a raw schema-n file and
+// returns its schema-(n+1) shape. The runner stamps the new version, so a
+// step only rewrites the fields that changed. Tolerant field-level upgrades
+// that never bumped the version (card sizes, journey views) stay inline below.
+export const MIGRATIONS = {};
+
+// Caps on what a file may carry: a text field longer than this is cut, a
+// position or size beyond this is pulled back into range. Real boards sit
+// orders of magnitude below both; the limits keep a hostile or corrupt file
+// from stalling the renderer or the panels.
+export const MAX_TEXT = 20000;
+export const MAX_COORD = 1e6;
+
+export function migrateRaw(raw, migrations = MIGRATIONS, target = SCHEMA_VERSION) {
+  let version = Number.isInteger(raw.schema) && raw.schema >= 1 ? raw.schema : 1;
+  while (version < target) {
+    const step = migrations[version];
+    if (!step) break;
+    raw = { ...step(raw), schema: version + 1 };
+    version += 1;
+  }
+  return raw;
 }
 
 export function deserialize(text) {
@@ -24,11 +48,28 @@ export function deserialize(text) {
   }
 
   const warnings = [];
-  if (typeof raw.schema === 'number' && raw.schema > 1) {
-    warnings.push(`File schema ${raw.schema} is newer than this app understands (1); loading best-effort.`);
+  if (typeof raw.schema === 'number' && raw.schema > SCHEMA_VERSION) {
+    warnings.push(`File schema ${raw.schema} is newer than this app understands (${SCHEMA_VERSION}); loading best-effort.`);
   }
+  raw = migrateRaw(raw);
 
-  const doc = newDoc(typeof raw.title === 'string' && raw.title.trim() ? raw.title : 'Untitled Board');
+  let clampedText = 0;
+  let clampedCoord = 0;
+  // A string field, cut to MAX_TEXT; anything else becomes the fallback.
+  const str = (v, fallback = '') => {
+    if (typeof v !== 'string') return fallback;
+    if (v.length <= MAX_TEXT) return v;
+    clampedText += 1;
+    return v.slice(0, MAX_TEXT);
+  };
+  // A finite coordinate or size, pulled back to +-MAX_COORD.
+  const coord = (v) => {
+    if (v > MAX_COORD) { clampedCoord += 1; return MAX_COORD; }
+    if (v < -MAX_COORD) { clampedCoord += 1; return -MAX_COORD; }
+    return v;
+  };
+
+  const doc = newDoc(typeof raw.title === 'string' && raw.title.trim() ? str(raw.title) : 'Untitled Board');
   const seen = new Set();
   const validId = (v) => typeof v === 'string' && v.length > 0;
   const HEX_COLOR = /^#[0-9a-fA-F]{3,8}$/;
@@ -69,13 +110,13 @@ export function deserialize(text) {
       warnings.push(`Dropped unknown flags on node "${n.id}".`);
     }
     const node = {
-      id: n.id, kind, x: n.x, y: n.y,
-      label: typeof n.label === 'string' ? n.label : part.name,
-      sublabel: typeof n.sublabel === 'string' ? n.sublabel : '',
+      id: n.id, kind, x: coord(n.x), y: coord(n.y),
+      label: str(n.label, part.name),
+      sublabel: str(n.sublabel),
       color,
-      addr: typeof n.addr === 'string' ? n.addr : '',
-      rail: typeof n.rail === 'string' ? n.rail : '',
-      notes: typeof n.notes === 'string' ? n.notes : '',
+      addr: str(n.addr),
+      rail: str(n.rail),
+      notes: str(n.notes),
       status,
       flags,
     };
@@ -94,7 +135,7 @@ export function deserialize(text) {
             warnings.push(`Dropped unknown field "${k}" on node "${n.id}".`);
             continue;
           }
-          if (typeof v === 'string' && v.trim()) fields[k] = v;
+          if (typeof v === 'string' && v.trim()) fields[k] = str(v);
         }
         if (Object.keys(fields).length) node.fields = fields;
       }
@@ -107,8 +148,8 @@ export function deserialize(text) {
     // so shift the top-left corner to keep the card centered where it was.
     if (Number.isFinite(n.w) && n.w > 0 && Number.isFinite(n.h) && n.h > 0) {
       const { w, h } = nodeSize(node);
-      node.x = n.x + (n.w - w) / 2;
-      node.y = n.y + (n.h - h) / 2;
+      node.x = coord(node.x + (coord(n.w) - w) / 2);
+      node.y = coord(node.y + (coord(n.h) - h) / 2);
     }
     doc.nodes.push(node);
   }
@@ -120,8 +161,10 @@ export function deserialize(text) {
     if (!ref || typeof ref !== 'object') return null;
     const node = nodeById.get(ref.node);
     if (!node) return null;
-    if (getPart(node.kind).ports.some((p) => p.id === ref.port)) {
-      return { node: ref.node, port: ref.port, remapped: false };
+    // A renamed port keeps its wires through the alias table.
+    const port = PORT_ALIASES[node.kind]?.[ref.port] ?? ref.port;
+    if (getPart(node.kind).ports.some((p) => p.id === port)) {
+      return { node: ref.node, port, remapped: false };
     }
     if (coerced.has(ref.node)) return { node: ref.node, port: fallbackPort, remapped: true };
     return null;
@@ -147,7 +190,7 @@ export function deserialize(text) {
       id: w.id, bus,
       from: { node: from.node, port: from.port },
       to: { node: to.node, port: to.port },
-      label: typeof w.label === 'string' ? w.label : '',
+      label: str(w.label),
       arrow: w.arrow === 'fwd' || w.arrow === 'both' ? w.arrow : null,
       style: ['solid', 'dashed', 'dotted', 'sneakernet'].includes(w.style) ? w.style : null,
       flow: w.flow === 'on' || w.flow === 'off' ? w.flow : null,
@@ -166,8 +209,8 @@ export function deserialize(text) {
       warnings.push(`Replaced invalid color on zone "${z.id}".`);
     }
     const zone = {
-      id: z.id, x: z.x, y: z.y, w: z.w, h: z.h,
-      label: typeof z.label === 'string' ? z.label : 'Zone',
+      id: z.id, x: coord(z.x), y: coord(z.y), w: coord(z.w), h: coord(z.h),
+      label: str(z.label, 'Zone'),
       color: zColor,
     };
     // Swimlanes carry extra fields; plain zones keep their exact old shape.
@@ -175,7 +218,7 @@ export function deserialize(text) {
       zone.kind = 'swimlane';
       zone.orient = z.orient === 'v' ? 'v' : 'h';
       const lanes = Array.isArray(z.lanes)
-        ? z.lanes.filter((l) => typeof l === 'string' && l.length > 0) : [];
+        ? z.lanes.filter((l) => typeof l === 'string' && l.length > 0).map((l) => str(l)) : [];
       if (Array.isArray(z.lanes) && lanes.length !== z.lanes.length) {
         warnings.push(`Dropped invalid lanes on swimlane "${z.id}".`);
       }
@@ -190,7 +233,7 @@ export function deserialize(text) {
       continue;
     }
     seen.add(t.id);
-    doc.notes.push({ id: t.id, x: t.x, y: t.y, text: typeof t.text === 'string' ? t.text : '' });
+    doc.notes.push({ id: t.id, x: coord(t.x), y: coord(t.y), text: str(t.text) });
   }
 
   for (const s of raw.journey ?? []) {
@@ -207,15 +250,17 @@ export function deserialize(text) {
     // Legacy views stored raw screen offsets; convert to an approximate world
     // center assuming the historical ~1280x800 canvas.
     const view = modern
-      ? { cx: v.cx, cy: v.cy, zoom }
-      : { cx: (640 - v.x) / zoom, cy: (400 - v.y) / zoom, zoom };
+      ? { cx: coord(v.cx), cy: coord(v.cy), zoom }
+      : { cx: coord((640 - v.x) / zoom), cy: coord((400 - v.y) / zoom), zoom };
     doc.journey.push({
       id: s.id,
-      label: typeof s.label === 'string' ? s.label : 'Step',
+      label: str(s.label, 'Step'),
       view,
-      caption: typeof s.caption === 'string' ? s.caption : '',
+      caption: str(s.caption),
     });
   }
 
+  if (clampedText) warnings.push(`Clamped ${clampedText} over-long text field(s) to ${MAX_TEXT} characters.`);
+  if (clampedCoord) warnings.push(`Clamped ${clampedCoord} out-of-range position(s) or size(s).`);
   return { doc, warnings };
 }

@@ -12,6 +12,30 @@ test('uid is unique and prefixed', () => {
   assert.ok(a.startsWith('n'));
 });
 
+test('uid bodies are random, not a clock plus a per-page counter', () => {
+  // Two tabs (or two peers) minting ids in the same millisecond must not
+  // collide, so the body carries ~62 bits of randomness and nothing else.
+  const ids = new Set();
+  for (let i = 0; i < 5000; i++) {
+    const id = uid('w');
+    assert.match(id, /^w[0-9a-z]{12}$/, id);
+    ids.add(id);
+  }
+  assert.equal(ids.size, 5000);
+});
+
+test('isDragging is true only between beginDrag and endDrag or cancelDrag', () => {
+  const store = new Store();
+  assert.equal(store.isDragging(), false);
+  store.beginDrag();
+  assert.equal(store.isDragging(), true);
+  store.endDrag();
+  assert.equal(store.isDragging(), false);
+  store.beginDrag();
+  store.cancelDrag();
+  assert.equal(store.isDragging(), false);
+});
+
 test('newDoc shape', () => {
   const doc = newDoc('X');
   assert.deepEqual(doc, { schema: 1, title: 'X', nodes: [], wires: [], zones: [], notes: [], journey: [] });

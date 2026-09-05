@@ -350,3 +350,8 @@ export const PARTS = {
 export function getPart(kind) {
   return PARTS[kind] ?? PARTS.generic;
 }
+
+// Old port ids that saved files may still reference, per kind. Renaming a
+// port above must add its old id here or every wire on it in existing files
+// is dropped on load. Shape: { [kind]: { [oldPortId]: newPortId } }.
+export const PORT_ALIASES = {};

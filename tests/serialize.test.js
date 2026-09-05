@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { serialize, deserialize } from '../src/serialize.js';
+import { serialize, deserialize, migrateRaw, MAX_TEXT, MAX_COORD } from '../src/serialize.js';
+import { SCHEMA_VERSION } from '../src/state.js';
+import { PORT_ALIASES } from '../src/palette.js';
 import { Store, addNode, addWire, addZone, addNote } from '../src/state.js';
 
 function sampleDoc() {
@@ -344,4 +346,72 @@ test('threat fields and disposition round-trip; unknown fields, blanks, and bad 
   const again = deserialize(serialize(doc));
   assert.deepEqual(again.doc, doc);
   assert.deepEqual(again.warnings, []);
+});
+
+test('a wire on a renamed port follows the alias instead of being dropped', () => {
+  // Renaming a port on a known part must not silently strip every wire that
+  // older files attached to the old id; the alias table remaps them.
+  PORT_ALIASES.mcu = { twi: 'i2c' };
+  try {
+    const { doc, warnings } = deserialize(JSON.stringify({
+      schema: 1,
+      nodes: [
+        { id: 'a', kind: 'mcu', x: 0, y: 0 },
+        { id: 'b', kind: 'temp', x: 300, y: 0 },
+      ],
+      wires: [{ id: 'w', bus: 'i2c', from: { node: 'a', port: 'twi' }, to: { node: 'b', port: 'i2c' } }],
+    }));
+    assert.deepEqual(warnings, []);
+    assert.equal(doc.wires.length, 1);
+    assert.equal(doc.wires[0].from.port, 'i2c');
+  } finally {
+    delete PORT_ALIASES.mcu;
+  }
+});
+
+test('migrateRaw upgrades a file one schema step at a time up to the target', () => {
+  const steps = [];
+  const migrations = {
+    1: (raw) => { steps.push(1); return { ...raw, a: true }; },
+    2: (raw) => { steps.push(2); return { ...raw, b: true }; },
+  };
+  const out = migrateRaw({ schema: 1, title: 'x' }, migrations, 3);
+  assert.deepEqual(steps, [1, 2]);
+  assert.deepEqual(out, { schema: 3, title: 'x', a: true, b: true });
+  // A file without a schema is schema 1; a current file is untouched; a newer
+  // file is left for the best-effort loader rather than "migrated" backwards.
+  assert.deepEqual(migrateRaw({ title: 'y' }, migrations, 1), { title: 'y' });
+  assert.deepEqual(migrateRaw({ schema: 5 }, migrations, 3), { schema: 5 });
+});
+
+test('the newer-schema warning names the version this app writes', () => {
+  const { warnings } = deserialize(JSON.stringify({ schema: SCHEMA_VERSION + 1 }));
+  assert.ok(warnings.some((w) => w.includes(`(${SCHEMA_VERSION})`)), warnings.join('\n'));
+  const { doc } = deserialize('{}');
+  assert.equal(doc.schema, SCHEMA_VERSION);
+});
+
+test('over-long text and out-of-range positions are clamped with a warning', () => {
+  const long = 'x'.repeat(MAX_TEXT + 50);
+  const { doc, warnings } = deserialize(JSON.stringify({
+    schema: 1,
+    nodes: [{ id: 'a', kind: 'mcu', x: MAX_COORD * 10, y: -MAX_COORD * 10, label: long, notes: long }],
+    zones: [{ id: 'z', x: 0, y: 0, w: MAX_COORD * 10, h: 10, label: long }],
+    notes: [{ id: 't', x: 1e300, y: 0, text: long }],
+  }));
+  assert.equal(doc.nodes[0].label.length, MAX_TEXT);
+  assert.equal(doc.nodes[0].notes.length, MAX_TEXT);
+  assert.equal(doc.nodes[0].x, MAX_COORD);
+  assert.equal(doc.nodes[0].y, -MAX_COORD);
+  assert.equal(doc.zones[0].w, MAX_COORD);
+  assert.equal(doc.zones[0].label.length, MAX_TEXT);
+  assert.equal(doc.notes[0].x, MAX_COORD);
+  assert.equal(doc.notes[0].text.length, MAX_TEXT);
+  assert.ok(warnings.some((w) => /Clamped/.test(w)), warnings.join('\n'));
+  // Ordinary values are untouched.
+  const { doc: ok, warnings: none } = deserialize(JSON.stringify({
+    schema: 1, nodes: [{ id: 'a', kind: 'mcu', x: -5000.5, y: 7000, label: 'MCU' }],
+  }));
+  assert.equal(ok.nodes[0].x, -5000.5);
+  assert.deepEqual(none, []);
 });
