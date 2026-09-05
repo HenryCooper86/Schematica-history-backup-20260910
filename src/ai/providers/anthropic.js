@@ -131,7 +131,9 @@ export function anthropicProvider({ baseUrl, apiKey, model, effort, fetchImpl = 
       const body = toAnthropicRequest({ model, effort, system, messages, tools });
       let res = await post(body, signal);
       if (res.status === 429) {
-        const after = Math.min(10, Number(res.headers.get('retry-after')) || 5);
+        const header = res.headers.get('retry-after');
+        const parsed = header === null ? NaN : Number(header);
+        const after = Number.isFinite(parsed) ? Math.min(10, Math.max(0, parsed)) : 5;
         await sleep(after * 1000);
         res = await post(body, signal);
       }

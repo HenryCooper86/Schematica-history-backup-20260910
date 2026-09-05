@@ -132,11 +132,13 @@ test('http errors become ProviderErrors with a code, and 429 retries once', asyn
     return new Response('{"error":{"type":"authentication_error","message":"bad key"}}', { status: 401 });
   };
   const p = anthropicProvider({ baseUrl: 'https://api.anthropic.com', apiKey: 'sk', model: 'm', effort: 'low', fetchImpl });
+  const t0 = Date.now();
   await assert.rejects(
     () => p.chat({ system: SYSTEM, messages: [{ role: 'user', content: [{ type: 'text', text: 'x' }] }], tools: [] }),
     (err) => err instanceof ProviderError && err.code === 'auth' && err.status === 401 && /bad key/.test(err.message),
   );
   assert.equal(calls, 2, 'the 429 was retried once');
+  assert.ok(Date.now() - t0 < 2000, 'retry-after: 0 means an immediate retry');
   const down = anthropicProvider({ baseUrl: 'https://x', apiKey: 'sk', model: 'm', effort: 'low', fetchImpl: async () => { throw new TypeError('Failed to fetch'); } });
   await assert.rejects(() => down.chat({ system: SYSTEM, messages: [], tools: [] }), (err) => err.code === 'network');
 });
