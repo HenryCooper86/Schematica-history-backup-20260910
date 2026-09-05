@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { runRequest, MAX_ROUNDS, runSingleShot, extractJson } from '../src/ai/agent.js';
 import { createExecutor } from '../src/ai/tools.js';
 import { newDoc, Store } from '../src/state.js';
-import { makeProvider } from '../src/ai/providers/index.js';
+import { makeProvider, probeTools } from '../src/ai/providers/index.js';
 
 // A provider that replays scripted replies and records what it was sent.
 function scripted(replies) {
@@ -196,6 +196,31 @@ test('single-shot reports rejected edits in the reply instead of failing', async
   assert.equal(res.applied, 0);
   assert.match(res.text, /Tried\.\n\nThe edits were rejected:\n#0: unknown kind "nope"/);
   assert.equal(store.doc.nodes.length, 0);
+});
+
+test('a refusal is reported with its explanation instead of passing as an empty reply', async () => {
+  const { store, executor, provider } = setup([{ text: '', stop: 'refusal', stopDetails: { type: 'refusal', explanation: 'nope' } }]);
+  const res = await runRequest({ provider, executor, store, system: SYSTEM, history: [], userText: 'x', boardText: 'b' });
+  assert.equal(res.stop, 'refusal');
+  assert.equal(res.stopDetails.explanation, 'nope');
+  assert.equal(res.error, undefined);
+});
+
+test('single-shot records no empty text block when the reply had no text', async () => {
+  const { store, executor, provider } = setup([{ text: '', stop: 'end' }]);
+  const res = await runSingleShot({ provider, executor, store, system: SYSTEM, history: [], userText: 'x', boardText: 'b' });
+  assert.match(res.error.message, /did not return a valid plan/);
+  assert.deepEqual(res.messages.filter((m) => m.role === 'assistant').map((m) => m.content), [[], []]);
+});
+
+test('probeTools offers one tool, sends no empty system text, and reads the answer', async () => {
+  const yes = scripted([{ toolCalls: [{ id: 'p', name: 'ping', input: {} }], stop: 'tool_use' }]);
+  assert.equal(await probeTools(yes), true);
+  assert.equal(yes.calls[0].system.some((s) => !s), false, `no empty system strings: ${JSON.stringify(yes.calls[0].system)}`);
+  assert.equal(yes.calls[0].tools.length, 1);
+  assert.equal(yes.calls[0].tools[0].name, 'ping');
+  const no = scripted([{ text: 'pong!', stop: 'end' }]);
+  assert.equal(await probeTools(no), false);
 });
 
 test('makeProvider builds the adapter the settings name', () => {

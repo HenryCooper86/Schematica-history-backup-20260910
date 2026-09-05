@@ -14,7 +14,7 @@ export function makeProvider(settings, key, fetchImpl = globalThis.fetch) {
 // text instead gets the single-shot mode.
 export async function probeTools(provider) {
   const res = await provider.chat({
-    system: ['You are a test harness. Call the ping tool now and say nothing else.', ''],
+    system: ['You are a test harness. Call the ping tool now and say nothing else.'],
     messages: [{ role: 'user', content: [{ type: 'text', text: 'Call ping.' }] }],
     tools: [{ name: 'ping', description: 'Replies pong.', input_schema: { type: 'object', properties: {}, additionalProperties: false }, strict: true }],
   });

@@ -4,6 +4,8 @@
 import { ndjsonParser, readStream } from './stream.js';
 import { ProviderError, mapHttpError, networkError, MAX_TOOL_INPUT } from './errors.js';
 
+const NUM_CTX = 16384;
+
 export function toOllamaRequest({ model, system, messages, tools }) {
   const out = [{ role: 'system', content: system.filter(Boolean).join('\n\n') }];
   for (const m of messages) {
@@ -22,7 +24,9 @@ export function toOllamaRequest({ model, system, messages, tools }) {
     }
     out.push({ role: 'user', content: m.content.filter((b) => b.type === 'text').map((b) => b.text).join('\n') });
   }
-  const body = { model, stream: true, messages: out };
+  // Ollama's default context is 2k-4k tokens and it truncates silently: the
+  // system prompt alone is about 3.5k, so ask for room.
+  const body = { model, stream: true, messages: out, options: { num_ctx: NUM_CTX } };
   if (tools.length) {
     body.tools = tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.input_schema } }));
   }

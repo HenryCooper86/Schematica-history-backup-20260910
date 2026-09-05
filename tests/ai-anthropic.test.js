@@ -28,6 +28,15 @@ test('the request body carries streaming, adaptive thinking, effort, cached syst
   assert.equal('tools' in toAnthropicRequest({ model: 'm', effort: 'low', system: SYSTEM, messages: [], tools: [] }), false, 'no tools key when the list is empty');
 });
 
+test('haiku 4.5 gets neither adaptive thinking nor an effort, other models get both', () => {
+  const haiku = toAnthropicRequest({ model: 'claude-haiku-4-5', effort: 'high', system: SYSTEM, messages: [], tools: [] });
+  assert.equal('thinking' in haiku, false, 'haiku rejects adaptive thinking');
+  assert.equal('output_config' in haiku, false, 'haiku rejects an effort');
+  const opus = toAnthropicRequest({ model: 'claude-opus-5', effort: 'high', system: SYSTEM, messages: [], tools: [] });
+  assert.deepEqual(opus.thinking, { type: 'adaptive' });
+  assert.deepEqual(opus.output_config, { effort: 'high' });
+});
+
 test('assistant turns replay their raw blocks and tool results map to tool_result', () => {
   const raw = [{ type: 'thinking', thinking: '', signature: 'sig' }, { type: 'tool_use', id: 'c1', name: 'get_board', input: {} }];
   const body = toAnthropicRequest({ model: 'm', effort: 'low', system: SYSTEM, tools: TOOLS, messages: [
@@ -41,6 +50,23 @@ test('assistant turns replay their raw blocks and tool results map to tool_resul
   assert.deepEqual(body.messages[2].content, [{ type: 'tool_result', tool_use_id: 'c1', content: 'board' }]);
   assert.deepEqual(body.messages[3].content, [{ type: 'text', text: 'a' }, { type: 'tool_use', id: 'c2', name: 'apply_edits', input: { ops: [] } }]);
   assert.deepEqual(body.messages[4].content, [{ type: 'tool_result', tool_use_id: 'c2', content: 'bad', is_error: true }]);
+});
+
+test('empty text never reaches the wire: no blank system block, no blank assistant block', () => {
+  const one = toAnthropicRequest({ model: 'm', effort: 'low', system: ['S', ''], tools: [], messages: [] });
+  assert.deepEqual(one.system, [{ type: 'text', text: 'S', cache_control: { type: 'ephemeral' } }], 'one block, and it carries the cache breakpoint');
+  const built = toAnthropicRequest({ model: 'm', effort: 'low', system: SYSTEM, tools: TOOLS, messages: [
+    { role: 'user', content: [{ type: 'text', text: 'q' }] },
+    { role: 'assistant', content: [{ type: 'text', text: '' }, { type: 'tool_use', id: 'c1', name: 'get_board', input: {} }] },
+  ] });
+  assert.deepEqual(built.messages[1].content, [{ type: 'tool_use', id: 'c1', name: 'get_board', input: {} }]);
+  const rawed = toAnthropicRequest({ model: 'm', effort: 'low', system: SYSTEM, tools: TOOLS, messages: [
+    { role: 'user', content: [{ type: 'text', text: 'q' }] },
+    { role: 'assistant', content: [], raw: [{ type: 'text', text: '' }, { type: 'tool_use', id: 'c1', name: 'get_board', input: {} }] },
+    { role: 'assistant', content: [{ type: 'text', text: '' }] },
+  ] });
+  assert.deepEqual(rawed.messages[1].content, [{ type: 'tool_use', id: 'c1', name: 'get_board', input: {} }], 'raw blocks are filtered too');
+  assert.equal(rawed.messages.length, 2, 'an assistant turn left with no blocks is dropped');
 });
 
 test('the accumulator assembles text, tool input json, usage, and the stop reason', () => {
@@ -84,6 +110,18 @@ test('stop reasons map and an empty tool input parses as an empty object', () =>
     a.push({ event: 'message_delta', data: { delta: { stop_reason: wire }, usage: {} } });
     assert.equal(a.result().stop, ours);
   }
+});
+
+test('a refusal carries its stop details out of the accumulator', () => {
+  const acc = createAnthropicAccumulator(() => {});
+  acc.push({ event: 'message_delta', data: { delta: { stop_reason: 'refusal', stop_details: { type: 'refusal', category: 'cyber', explanation: 'nope' } }, usage: { output_tokens: 3 } } });
+  const r = acc.result();
+  assert.equal(r.stop, 'refusal');
+  assert.equal(r.stopDetails.explanation, 'nope');
+  assert.equal(r.stopDetails.category, 'cyber');
+  const plain = createAnthropicAccumulator(() => {});
+  plain.push({ event: 'message_delta', data: { delta: { stop_reason: 'end_turn' }, usage: {} } });
+  assert.equal(plain.result().stopDetails, null);
 });
 
 test('a tool input past 256 KB fails the reply instead of being parsed', () => {

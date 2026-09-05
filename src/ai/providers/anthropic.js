@@ -8,9 +8,23 @@ const VERSION = '2023-06-01';
 const MAX_TOKENS = 16000;
 const STOP = { end_turn: 'end', tool_use: 'tool_use', max_tokens: 'max_tokens', refusal: 'refusal', stop_sequence: 'end' };
 
+// The API rejects a text block with an empty string, and a streamed reply
+// that only called tools leaves one behind: drop them, and drop an assistant
+// turn that has nothing left to say.
+const nonEmpty = (blocks) => blocks.filter((b) => !(b.type === 'text' && !b.text));
+
 export function anthropicMessages(messages) {
-  return messages.map((m) => {
-    if (m.role === 'assistant' && Array.isArray(m.raw) && m.raw.length) return { role: 'assistant', content: m.raw };
+  const out = [];
+  for (const m of messages) {
+    if (m.role === 'assistant') {
+      const raw = Array.isArray(m.raw) && m.raw.length ? m.raw : null;
+      const content = raw || m.content.map((b) => (b.type === 'tool_use'
+        ? { type: 'tool_use', id: b.id, name: b.name, input: b.input }
+        : { type: 'text', text: b.text }));
+      const kept = nonEmpty(content);
+      if (kept.length) out.push({ role: 'assistant', content: kept });
+      continue;
+    }
     const content = m.content.map((b) => {
       if (b.type === 'text') return { type: 'text', text: b.text };
       if (b.type === 'tool_use') return { type: 'tool_use', id: b.id, name: b.name, input: b.input };
@@ -18,8 +32,9 @@ export function anthropicMessages(messages) {
       if (b.isError) r.is_error = true;
       return r;
     });
-    return { role: m.role, content };
-  });
+    out.push({ role: m.role, content });
+  }
+  return out;
 }
 
 export function toAnthropicRequest({ model, effort, system, messages, tools }) {
@@ -27,14 +42,17 @@ export function toAnthropicRequest({ model, effort, system, messages, tools }) {
     model,
     max_tokens: MAX_TOKENS,
     stream: true,
-    thinking: { type: 'adaptive' },
-    output_config: { effort },
-    system: [
-      { type: 'text', text: system[0], cache_control: { type: 'ephemeral' } },
-      { type: 'text', text: system[1] || '' },
-    ],
+    system: system.filter((s) => typeof s === 'string' && s.length).map((text, i) => (i === 0
+      ? { type: 'text', text, cache_control: { type: 'ephemeral' } }
+      : { type: 'text', text })),
     messages: anthropicMessages(messages),
   };
+  // Haiku 4.5 has no adaptive thinking and no effort control; sending either
+  // is a 400.
+  if (!/haiku-4/.test(model)) {
+    body.thinking = { type: 'adaptive' };
+    body.output_config = { effort };
+  }
   if (tools.length) {
     body.tools = tools.map((t) => {
       const w = { name: t.name, description: t.description, input_schema: t.input_schema };
@@ -51,6 +69,7 @@ export function createAnthropicAccumulator(onText) {
   const partial = [];
   const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
   let stopReason = null;
+  let stopDetails = null;
   let failure = null;
   return {
     push({ event, data }) {
@@ -85,6 +104,7 @@ export function createAnthropicAccumulator(onText) {
         }
       } else if (type === 'message_delta') {
         stopReason = data.delta?.stop_reason || stopReason;
+        stopDetails = data.delta?.stop_details || null;
         usage.output = data.usage?.output_tokens ?? usage.output;
       } else if (type === 'error') {
         failure = new ProviderError(data.error?.message || 'stream error', { code: 'request' });
@@ -98,6 +118,7 @@ export function createAnthropicAccumulator(onText) {
         toolCalls: raw.filter((b) => b.type === 'tool_use').map((b) => ({ id: b.id, name: b.name, input: b.input })),
         usage,
         stop: STOP[stopReason] || 'end',
+        stopDetails,
         raw,
       };
     },

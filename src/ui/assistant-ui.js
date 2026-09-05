@@ -17,7 +17,8 @@ import { panelHeader, bindCollapsible } from './collapsible.js';
 import { escAttr, toast, onPress } from './press.js';
 
 const PRIVACY = 'The board\'s text is sent to the provider you choose. Keys stay in this browser.';
-const OLLAMA_HELP = 'For browser access, start Ollama with OLLAMA_ORIGINS including this site\'s origin (or "*").';
+const OLLAMA_HELP = 'For browser access, start Ollama with OLLAMA_ORIGINS including this site\'s origin (or "*").'
+  + ' Requests ask for a 16k context (num_ctx); the model must support tool calling or Test will switch the assistant to single-shot mode.';
 
 export function initAssistant({ store, tools, render, svg }) {
   const panel = document.getElementById('assistant');
@@ -365,6 +366,9 @@ export function initAssistant({ store, tools, render, svg }) {
       visible.push({ role: 'error', text: errorText(res.error) });
       if (res.error instanceof ProviderError && (res.error.code === 'auth' || res.error.code === 'model')) showSettings(true);
     }
+    // A refusal is not an error on the wire: the reply simply stops. Say so,
+    // with whatever explanation the model gave.
+    if (res.stop === 'refusal') visible.push({ role: 'error', text: errorText(new ProviderError(res.stopDetails?.explanation || 'The model declined this request.', { code: 'refusal' })) });
     for (const k of Object.keys(totals)) totals[k] += res.usage[k] || 0;
     usageEl.textContent = `last: ${usageText(res.usage, s.provider === 'anthropic' ? estimateCost(s.model, res.usage) : null)}`;
     // A removed part must not linger in the selection.

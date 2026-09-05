@@ -18,6 +18,7 @@ test('the request uses Ollama chat shapes with object tool arguments', () => {
   assert.deepEqual(body.messages[2], { role: 'assistant', content: '', tool_calls: [{ function: { name: 'get_board', arguments: { a: 1 } } }] });
   assert.deepEqual(body.messages[3], { role: 'tool', content: 'board' });
   assert.deepEqual(body.tools[0], { type: 'function', function: { name: 'get_board', description: 'd', parameters: TOOLS[0].input_schema } });
+  assert.equal(body.options.num_ctx, 16384, 'the default context would truncate the system prompt');
 });
 
 test('the accumulator joins streamed lines, mints tool-call ids, and maps done_reason', () => {

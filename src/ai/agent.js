@@ -25,6 +25,7 @@ export async function runRequest({
   const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
   let text = '';
   let stop = 'end';
+  let stopDetails = null;
   let cutOff = false;
   let applied = 0;
   let rounds = 0;
@@ -45,6 +46,7 @@ export async function runRequest({
       for (const tc of calls) content.push({ type: 'tool_use', id: tc.id, name: tc.name, input: tc.input });
       messages.push({ role: 'assistant', content, raw: res.raw });
       stop = res.stop;
+      stopDetails = res.stopDetails || null;
       if (stop === 'aborted' || stop === 'max_tokens') cutOff = true;
       if (!calls.length) break;
       // Every tool_use gets a tool_result, or the history is unusable for the
@@ -84,7 +86,7 @@ export async function runRequest({
   } finally {
     store?.endBatch();
   }
-  return { text, messages, touched: new Set(executor.touched), usage, stop, rounds, applied, cutOff, error };
+  return { text, messages, touched: new Set(executor.touched), usage, stop, stopDetails, rounds, applied, cutOff, error };
 }
 
 // The first {...} that parses, fences stripped: models without tool calling
@@ -111,6 +113,7 @@ export async function runSingleShot({
   const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
   let text = '';
   let stop = 'end';
+  let stopDetails = null;
   let applied = 0;
   let rounds = 0;
   let error;
@@ -122,8 +125,9 @@ export async function runSingleShot({
       rounds += 1;
       const res = await provider.chat({ system, messages, tools: [], signal, onText: attempt === 0 ? onText : null });
       addUsage(usage, res.usage);
-      messages.push({ role: 'assistant', content: [{ type: 'text', text: res.text }], raw: res.raw });
+      messages.push({ role: 'assistant', content: res.text ? [{ type: 'text', text: res.text }] : [], raw: res.raw });
       stop = res.stop;
+      stopDetails = res.stopDetails || null;
       plan = extractJson(res.text);
       if (!plan || !Array.isArray(plan.ops)) {
         plan = null;
@@ -146,5 +150,5 @@ export async function runSingleShot({
   } finally {
     store?.endBatch();
   }
-  return { text, messages, touched: new Set(executor.touched), usage, stop, rounds, applied, cutOff: stop === 'aborted', error };
+  return { text, messages, touched: new Set(executor.touched), usage, stop, stopDetails, rounds, applied, cutOff: stop === 'aborted', error };
 }
