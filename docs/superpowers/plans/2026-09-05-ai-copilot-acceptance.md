@@ -26,3 +26,14 @@ line with the observed result.
    `localStorage` holds no `schematica.ai.key.*`. Observed: __
 9. Settings → Ollama with a local model, Test. Expect: either "calls tools" or
    the single-shot notice; a build works in the mode reported. Observed: __
+10. Ask for something the model declines (a request outside what it will help
+    with). Expect: no silent empty reply — an error bubble in the thread
+    carrying the model's own explanation. Observed: __
+11. Settings → model `claude-haiku-4-5`, save, send a build. Expect: the
+    request runs (no 400 from the API) and the reply arrives without thinking.
+    Observed: __
+12. Open the app in a browser with site data blocked for this origin. Expect:
+    it boots, the assistant opens, and the panel warns that storage is
+    unavailable only when a key is saved. Observed: __
+13. Ollama: watch the server log while a build runs. Expect: no `truncating
+    input prompt` line — the request asks for num_ctx 16384. Observed: __
