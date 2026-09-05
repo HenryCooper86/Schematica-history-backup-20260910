@@ -174,6 +174,74 @@ export function assignPatch(node, patch) {
   }
 }
 
+const RAILS = new Set(['power', 'gnd']);
+const portList = (ports) => ports.map((p) => `${p.id}(${p.bus})`).join(', ');
+const busList = (ports) => [...new Set(ports.map((p) => p.bus))].join(', ');
+
+// The port on `node` that a wire of `bus` should use: the first port of that
+// bus when the bus is shared, the first free one otherwise, a side port for
+// the untyped buses when the part has none of that bus.
+export function pickPort(doc, node, bus) {
+  const ports = getPart(node.kind).ports;
+  const ofBus = ports.filter((p) => p.bus === bus);
+  if (!ofBus.length) {
+    if (UNTYPED_BUSES.has(bus)) {
+      const side = ports.find((p) => p.side === 'right') || ports.find((p) => p.side === 'left') || ports[0];
+      if (side) return side.id;
+    }
+    fail(`node ${node.id} (${node.kind}) has no ${bus} port; ports: ${portList(ports)}`);
+  }
+  if (SHARED_BUSES.has(bus) || UNTYPED_BUSES.has(bus)) return ofBus[0].id;
+  const used = new Set();
+  for (const w of doc.wires) {
+    if (w.from.node === node.id) used.add(w.from.port);
+    if (w.to.node === node.id) used.add(w.to.port);
+  }
+  const free = ofBus.find((p) => !used.has(p.id));
+  if (!free) fail(`every ${bus} port on ${node.id} is in use (${ofBus.map((p) => p.id).join(', ')})`);
+  return free.id;
+}
+
+// Resolves the two ends of a connect op. Explicit ports must exist; they
+// may differ in bus only when the op names the bus, which warns. Without
+// ports the bus is given, or inferred when the parts share exactly one bus
+// besides power and ground.
+export function pickPorts(doc, a, b, portA, portB, bus) {
+  const pa = getPart(a.kind).ports;
+  const pb = getPart(b.kind).ports;
+  if (portA !== undefined || portB !== undefined) {
+    if (portA === undefined || portB === undefined) fail('give both ports or neither');
+    const A = pa.find((p) => p.id === portA) || fail(`node ${a.id} has no port "${portA}"; ports: ${portList(pa)}`);
+    const B = pb.find((p) => p.id === portB) || fail(`node ${b.id} has no port "${portB}"; ports: ${portList(pb)}`);
+    if (A.bus === B.bus) {
+      if (bus && bus !== A.bus && !UNTYPED_BUSES.has(bus)) fail(`ports ${portA} and ${portB} carry ${A.bus}, not ${bus}`);
+      return { from: A.id, to: B.id, bus: bus || A.bus, warning: null };
+    }
+    if (!bus) fail(`ports ${portA} (${A.bus}) and ${portB} (${B.bus}) differ; name the bus to connect them anyway`);
+    return { from: A.id, to: B.id, bus, warning: `wire ${bus} joins a ${A.bus} port to a ${B.bus} port` };
+  }
+  let chosen = bus;
+  if (!chosen) {
+    const common = [...new Set(pa.map((p) => p.bus))]
+      .filter((x) => !RAILS.has(x) && pb.some((p) => p.bus === x));
+    if (common.length !== 1) fail(`name the bus: ${a.id} offers ${busList(pa)}; ${b.id} offers ${busList(pb)}`);
+    chosen = common[0];
+  }
+  return { from: pickPort(doc, a, chosen), to: pickPort(doc, b, chosen), bus: chosen, warning: null };
+}
+
+function parseArrow(v) {
+  if (v === null || v === undefined) return null;
+  if (v === 'fwd' || v === 'both') return v;
+  return fail('arrow must be fwd, both, or null');
+}
+
+function parseStyle(v) {
+  if (v === null || v === undefined) return null;
+  if (WIRE_STYLES.includes(v)) return v;
+  return fail(`style must be one of ${WIRE_STYLES.join(', ')} or null`);
+}
+
 export const HANDLERS = {};
 
 HANDLERS.add_part = (ctx, op) => {
@@ -230,6 +298,48 @@ HANDLERS.update_part = (ctx, op) => {
   assignPatch(node, patch);
   ctx.touched.add(node.id);
   ctx.changes.push(`updated node ${node.id} (${keys.join(', ')})`);
+};
+
+HANDLERS.connect = (ctx, op) => {
+  if (!op.from || typeof op.from !== 'object' || !op.to || typeof op.to !== 'object') fail('connect needs from and to');
+  if (op.ref !== undefined) claimRef(ctx, op.ref, 'connect');
+  const a = findNode(ctx, op.from.node);
+  const b = findNode(ctx, op.to.node);
+  if (a.id === b.id) fail('cannot connect a node to itself');
+  if (op.bus !== undefined && !BUSES[op.bus]) fail(`unknown bus "${op.bus}"`);
+  const pick = pickPorts(ctx.work, a, b, op.from.port, op.to.port, op.bus);
+  const w = {
+    id: uid('w'), bus: pick.bus,
+    from: { node: a.id, port: pick.from }, to: { node: b.id, port: pick.to },
+    label: op.label !== undefined ? text(ctx, op.label, 'label') : '',
+    arrow: parseArrow(op.arrow), style: parseStyle(op.style), flow: null,
+  };
+  ctx.work.wires.push(w);
+  if (op.ref !== undefined) ctx.refs.set(op.ref, w.id);
+  ctx.touched.add(w.id);
+  if (pick.warning) ctx.warnings.push(pick.warning);
+  ctx.changes.push(`connected ${w.id} ${w.bus} ${a.id}.${w.from.port} -- ${b.id}.${w.to.port}`);
+};
+
+HANDLERS.update_wire = (ctx, op) => {
+  const w = findWire(ctx, op.id);
+  const changed = [];
+  if (op.bus !== undefined) {
+    if (!BUSES[op.bus]) fail(`unknown bus "${op.bus}"`);
+    w.bus = op.bus;
+    changed.push('bus');
+  }
+  if (op.label !== undefined) { w.label = text(ctx, op.label, 'label'); changed.push('label'); }
+  if (op.arrow !== undefined) { w.arrow = parseArrow(op.arrow); changed.push('arrow'); }
+  if (op.style !== undefined) { w.style = parseStyle(op.style); changed.push('style'); }
+  if (op.flow !== undefined) {
+    if (![null, 'on', 'off'].includes(op.flow)) fail('flow must be on, off, or null');
+    w.flow = op.flow;
+    changed.push('flow');
+  }
+  if (!changed.length) fail('update_wire changes nothing');
+  ctx.touched.add(w.id);
+  ctx.changes.push(`updated wire ${w.id} (${changed.join(', ')})`);
 };
 
 // Applies a batch: every op runs against a working copy, errors are

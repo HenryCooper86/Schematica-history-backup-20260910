@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyEdits, MAX_OPS, OP_TYPES, EDIT_SCHEMA } from '../src/ai/ops.js';
+import { applyEdits, MAX_OPS, OP_TYPES, EDIT_SCHEMA, pickPort, pickPorts } from '../src/ai/ops.js';
 import { newDoc } from '../src/state.js';
 
 function node(id, kind, x = 0, y = 0, extra = {}) {
@@ -157,4 +157,98 @@ test('update_part changes fields, merges schema fields, and refuses kind', () =>
   assert.match(res.errors[0].message, /replace_part/);
   res = applyEdits(doc, [{ op: 'update_part', id: 'n1' }]);
   assert.match(res.errors[0].message, /changes nothing/);
+});
+
+function wire(id, bus, from, to) {
+  return { id, bus, from, to, label: '', arrow: null, style: null, flow: null };
+}
+
+test('connect by bus picks ports: shared buses fan out, point-to-point takes a free port', () => {
+  const doc = newDoc('T');
+  doc.nodes.push(node('m', 'mcu'), node('t1', 'temp'), node('t2', 'temp'), node('g1', 'gps'), node('g2', 'gps'));
+  let res = applyEdits(doc, [
+    { op: 'connect', from: { node: 'm' }, to: { node: 't1' }, bus: 'i2c' },
+    { op: 'connect', from: { node: 'm' }, to: { node: 't2' }, bus: 'i2c' },
+    { op: 'connect', ref: 'u1', from: { node: 'm' }, to: { node: 'g1' }, bus: 'uart' },
+  ]);
+  assert.equal(res.ok, true, JSON.stringify(res));
+  assert.equal(doc.wires[0].from.port, 'i2c');
+  assert.equal(doc.wires[1].from.port, 'i2c', 'i2c is shared: same port twice');
+  assert.equal(doc.wires[2].from.port, 'uart');
+  assert.equal(doc.wires[2].to.port, 'uart');
+  assert.match(res.refs.u1, /^w[0-9a-z]{12}$/);
+  res = applyEdits(doc, [{ op: 'connect', from: { node: 'm' }, to: { node: 'g2' }, bus: 'uart' }]);
+  assert.equal(res.ok, false);
+  assert.match(res.errors[0].message, /every uart port on m is in use/);
+});
+
+test('connect with no bus uses the one data bus the parts share', () => {
+  const doc = newDoc('T');
+  doc.nodes.push(node('m', 'mcu'), node('t', 'temp'), node('i', 'imu'));
+  let res = applyEdits(doc, [{ op: 'connect', from: { node: 'm' }, to: { node: 't' } }]);
+  assert.equal(res.ok, true, JSON.stringify(res));
+  assert.equal(doc.wires[0].bus, 'i2c', 'power and ground are set aside');
+  res = applyEdits(doc, [{ op: 'connect', from: { node: 'm' }, to: { node: 'i' } }]);
+  assert.equal(res.ok, false);
+  assert.match(res.errors[0].message, /name the bus/);
+});
+
+test('connect with explicit ports: same bus works, different buses need a named bus and warn', () => {
+  const doc = newDoc('T');
+  doc.nodes.push(node('m', 'mcu'), node('t', 'temp'));
+  let res = applyEdits(doc, [{ op: 'connect', from: { node: 'm', port: 'i2c' }, to: { node: 't', port: 'i2c' } }]);
+  assert.equal(res.ok, true);
+  assert.equal(doc.wires[0].bus, 'i2c');
+  res = applyEdits(doc, [{ op: 'connect', from: { node: 'm', port: 'spi' }, to: { node: 't', port: 'i2c' } }]);
+  assert.match(res.errors[0].message, /differ; name the bus/);
+  res = applyEdits(doc, [{ op: 'connect', from: { node: 'm', port: 'spi' }, to: { node: 't', port: 'i2c' }, bus: 'spi' }]);
+  assert.equal(res.ok, true);
+  assert.match(res.warnings[0], /joins a spi port to a i2c port/);
+  res = applyEdits(doc, [{ op: 'connect', from: { node: 'm', port: 'zzz' }, to: { node: 't', port: 'i2c' } }]);
+  assert.match(res.errors[0].message, /no port "zzz"/);
+  res = applyEdits(doc, [{ op: 'connect', from: { node: 'm', port: 'i2c' }, to: { node: 't' } }]);
+  assert.match(res.errors[0].message, /both ports or neither/);
+});
+
+test('untyped buses connect anything through a side port', () => {
+  const doc = newDoc('T');
+  doc.nodes.push(node('a', 'threatactor'), node('c', 'camera'));
+  const res = applyEdits(doc, [{ op: 'connect', from: { node: 'a' }, to: { node: 'c' }, bus: 'link', label: 'spoofs', arrow: 'fwd', style: 'dashed' }]);
+  assert.equal(res.ok, true, JSON.stringify(res));
+  const w = doc.wires[0];
+  assert.equal(w.bus, 'link');
+  assert.equal(w.label, 'spoofs');
+  assert.equal(w.arrow, 'fwd');
+  assert.equal(w.style, 'dashed');
+  assert.ok(w.to.port, 'the camera got a side port');
+});
+
+test('connect refuses self wires and unknown nodes', () => {
+  const doc = newDoc('T');
+  doc.nodes.push(node('m', 'mcu'));
+  let res = applyEdits(doc, [{ op: 'connect', from: { node: 'm' }, to: { node: 'm' }, bus: 'i2c' }]);
+  assert.match(res.errors[0].message, /itself/);
+  res = applyEdits(doc, [{ op: 'connect', from: { node: 'm' }, to: { node: 'x' }, bus: 'i2c' }]);
+  assert.match(res.errors[0].message, /no node "x"/);
+});
+
+test('update_wire sets bus, label, arrow, style, and flow', () => {
+  const doc = newDoc('T');
+  doc.nodes.push(node('m', 'mcu'), node('t', 'temp'));
+  doc.wires.push(wire('w1', 'i2c', { node: 'm', port: 'i2c' }, { node: 't', port: 'i2c' }));
+  let res = applyEdits(doc, [{ op: 'update_wire', id: 'w1', label: 'SDA/SCL', arrow: 'both', style: 'dotted', flow: 'on' }]);
+  assert.equal(res.ok, true, JSON.stringify(res));
+  assert.deepEqual([doc.wires[0].label, doc.wires[0].arrow, doc.wires[0].style, doc.wires[0].flow], ['SDA/SCL', 'both', 'dotted', 'on']);
+  res = applyEdits(doc, [{ op: 'update_wire', id: 'w1', arrow: 'sideways' }]);
+  assert.match(res.errors[0].message, /arrow must be/);
+  res = applyEdits(doc, [{ op: 'update_wire', id: 'w1', bus: 'warp' }]);
+  assert.match(res.errors[0].message, /unknown bus/);
+});
+
+test('pickPort and pickPorts are usable on their own', () => {
+  const doc = newDoc('T');
+  doc.nodes.push(node('m', 'mcu'), node('t', 'temp'));
+  assert.equal(pickPort(doc, doc.nodes[0], 'i2c'), 'i2c');
+  const p = pickPorts(doc, doc.nodes[0], doc.nodes[1], undefined, undefined, 'power');
+  assert.deepEqual(p, { from: 'vcc', to: 'vcc', bus: 'power', warning: null });
 });
