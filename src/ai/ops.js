@@ -407,6 +407,48 @@ HANDLERS.remove = (ctx, op) => {
   ctx.changes.push(`removed ${[...dead].join(' ')}`);
 };
 
+function zoneColor(v) {
+  if (v === undefined) return DEFAULT_ZONE_COLOR;
+  if (typeof v !== 'string' || !HEX_COLOR.test(v)) fail('colour must be a hex value like #f87171');
+  return v;
+}
+
+function zoneMemberIds(ctx, members) {
+  if (!Array.isArray(members) || !members.length) fail('a zone needs at least one member');
+  return [...new Set(members.map((m) => findNode(ctx, m).id))];
+}
+
+HANDLERS.add_zone = (ctx, op) => {
+  claimRef(ctx, op.ref, 'add_zone');
+  const label = text(ctx, op.label, 'label');
+  const color = zoneColor(op.color);
+  const members = zoneMemberIds(ctx, op.members);
+  const zone = { id: uid('z'), x: 0, y: 0, w: 0, h: 0, label, color };
+  ctx.work.zones.push(zone);
+  ctx.refs.set(op.ref, zone.id);
+  ctx.touched.add(zone.id);
+  ctx.layout.zones.push({ id: zone.id, members });
+  for (const m of members) {
+    const hint = ctx.layout.hints.get(m);
+    if (hint && !hint.zone) hint.zone = zone.id;
+  }
+  ctx.changes.push(`added zone ${zone.id} "${label}" (${members.length} members, ref ${op.ref})`);
+};
+
+HANDLERS.update_zone = (ctx, op) => {
+  const zone = findZone(ctx, op.id);
+  const changed = [];
+  if (op.label !== undefined) { zone.label = text(ctx, op.label, 'label'); changed.push('label'); }
+  if (op.color !== undefined) { zone.color = zoneColor(op.color); changed.push('color'); }
+  if (op.members !== undefined) {
+    ctx.layout.refit.push({ id: zone.id, members: zoneMemberIds(ctx, op.members) });
+    changed.push('members');
+  }
+  if (!changed.length) fail('update_zone changes nothing');
+  ctx.touched.add(zone.id);
+  ctx.changes.push(`updated zone ${zone.id} (${changed.join(', ')})`);
+};
+
 // Applies a batch: every op runs against a working copy, errors are
 // collected with their index, and the document is replaced only when the
 // whole batch succeeded.

@@ -329,3 +329,42 @@ test('remove takes any ids, drops the wires of removed nodes, and forgets layout
   res = applyEdits(doc, [{ op: 'remove', ids: [] }]);
   assert.match(res.errors[0].message, /needs ids/);
 });
+
+test('add_zone needs members, validates colour, and marks new members for placement inside it', () => {
+  const doc = newDoc('T');
+  doc.nodes.push(node('m', 'mcu', 100, 100));
+  let res = applyEdits(doc, [
+    { op: 'add_part', ref: 'bat', kind: 'battery' },
+    { op: 'add_zone', ref: 'pwr', label: 'Power', color: '#f87171', members: ['bat', 'm'] },
+  ]);
+  assert.equal(res.ok, true, JSON.stringify(res));
+  const z = doc.zones[0];
+  assert.match(z.id, /^z[0-9a-z]{12}$/);
+  assert.deepEqual([z.label, z.color, z.x, z.y, z.w, z.h], ['Power', '#f87171', 0, 0, 0, 0]);
+  assert.deepEqual(res.layout.zones, [{ id: z.id, members: [res.refs.bat, 'm'] }]);
+  assert.equal(res.layout.hints.get(res.refs.bat).zone, z.id, 'a new member is placed inside the zone');
+  assert.ok(res.touched.has(z.id));
+  for (const [op, re] of [
+    [{ op: 'add_zone', ref: 'q', label: 'Q', members: [] }, /at least one member/],
+    [{ op: 'add_zone', ref: 'q', label: 'Q', members: ['nope'] }, /no node "nope"/],
+    [{ op: 'add_zone', ref: 'q', label: 'Q', members: ['m'], color: 'red' }, /colour must be/],
+    [{ op: 'add_zone', ref: 'q', members: ['m'] }, /label must be a string/],
+  ]) {
+    res = applyEdits(doc, [op]);
+    assert.equal(res.ok, false);
+    assert.match(res.errors[0].message, re);
+  }
+});
+
+test('update_zone changes label and colour, and members ask for a refit', () => {
+  const doc = newDoc('T');
+  doc.nodes.push(node('m', 'mcu', 100, 100), node('t', 'temp', 400, 100));
+  doc.zones.push({ id: 'z1', x: 0, y: 0, w: 10, h: 10, label: 'Z', color: '#4a90d9' });
+  let res = applyEdits(doc, [{ op: 'update_zone', id: 'z1', label: 'Sensors', color: '#22d3ee', members: ['t'] }]);
+  assert.equal(res.ok, true, JSON.stringify(res));
+  assert.equal(doc.zones[0].label, 'Sensors');
+  assert.equal(doc.zones[0].color, '#22d3ee');
+  assert.deepEqual(res.layout.refit, [{ id: 'z1', members: ['t'] }]);
+  res = applyEdits(doc, [{ op: 'update_zone', id: 'z1' }]);
+  assert.match(res.errors[0].message, /changes nothing/);
+});
