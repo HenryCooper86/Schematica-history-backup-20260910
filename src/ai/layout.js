@@ -155,7 +155,9 @@ export function fitZone(doc, zone, memberIds) {
 }
 
 // Zones that overlap after placement: the later one (by list order) moves
-// down with its members, then is fitted again.
+// down with its members, then is fitted again. A push whose moved cards
+// would land on a card that did not move is undone: cards never overlap,
+// zone rectangles occasionally do.
 export function pushApart(doc, zones) {
   const byId = new Map(doc.zones.map((z) => [z.id, z]));
   const nodeById = new Map(doc.nodes.map((n) => [n.id, n]));
@@ -165,11 +167,17 @@ export function pushApart(doc, zones) {
       const zj = byId.get(zones[j].id);
       if (!zi || !zj || !rectsIntersect(zi, zj)) continue;
       const dy = up(zi.y + zi.h + NOTE_GAP - zj.y);
-      for (const id of zones[j].members) {
-        const n = nodeById.get(id);
-        if (n) n.y += dy;
-      }
+      const moved = zones[j].members.map((id) => nodeById.get(id)).filter(Boolean);
+      const movedIds = new Set(moved.map((n) => n.id));
+      const before = { x: zj.x, y: zj.y, w: zj.w, h: zj.h };
+      for (const n of moved) n.y += dy;
       fitZone(doc, zj, zones[j].members);
+      const still = doc.nodes.filter((n) => !movedIds.has(n.id)).map(nodeRect);
+      const collides = moved.some((n) => still.some((r) => rectsIntersect(nodeRect(n), r)));
+      if (collides) {
+        for (const n of moved) n.y -= dy;
+        Object.assign(zj, before);
+      }
     }
   }
 }
@@ -207,8 +215,11 @@ export function placeNote(doc, noteId, hint = {}, skip = new Set()) {
 }
 
 // "Tidy up": every card is laid out again, zones are refitted around the
-// members they had, and notes are stacked above the board.
+// members they had, and notes are stacked above the board. Refuses (and
+// changes nothing) when the board has a swimlane, since relaying members
+// would strand them outside their lane.
 export function arrangeAll(doc) {
+  if (doc.zones.some((z) => z.kind === 'swimlane')) return false;
   const zones = doc.zones
     .filter((z) => z.kind !== 'swimlane')
     .map((z) => ({ id: z.id, members: zoneMembers(doc, z).filter((id) => doc.nodes.some((n) => n.id === id)) }));
@@ -225,4 +236,5 @@ export function arrangeAll(doc) {
     placeNote(doc, t.id, {}, skip);
     skip.delete(t.id);
   }
+  return true;
 }

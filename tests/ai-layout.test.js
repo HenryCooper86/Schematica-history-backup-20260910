@@ -143,3 +143,38 @@ test('arrangeAll relays every card, refits zones around their members, and repla
   }
   for (const t of doc.notes) assert.equal(t.x % 8, 0);
 });
+
+test('pushApart leaves zones overlapping rather than landing a card on another', () => {
+  const doc = newDoc('P2');
+  doc.nodes.push(node('a', 'mcu', { x: 100, y: 100 }), node('b', 'temp', { x: 150, y: 190 }), node('c', 'led', { x: 150, y: 300 }));
+  const zA = { id: 'zA', x: 0, y: 0, w: 0, h: 0, label: 'A', color: '#4a90d9' };
+  const zB = { id: 'zB', x: 0, y: 0, w: 0, h: 0, label: 'B', color: '#4a90d9' };
+  doc.zones.push(zA, zB);
+  fitZone(doc, zA, ['a']);
+  fitZone(doc, zB, ['b']);
+  assert.ok(rectsIntersect(zA, zB), 'zones overlap before the push');
+  pushApart(doc, [{ id: 'zA', members: ['a'] }, { id: 'zB', members: ['b'] }]);
+  noOverlaps(doc);
+  assert.deepEqual([doc.nodes[1].x, doc.nodes[1].y], [150, 190], 'b stayed: moving it would land on c');
+  assert.ok(contains(zB, nodeRect(doc.nodes[1])), 'the zone rectangle was restored around b');
+});
+
+test('arrangeAll refuses swimlane boards and leaves every other example overlap-free with members inside their zones', () => {
+  for (const ex of EXAMPLES) {
+    const doc = structuredClone(ex.doc);
+    const lanes = doc.zones.some((z) => z.kind === 'swimlane');
+    const before = Object.fromEntries(doc.zones.map((z) => [z.id, zoneMembers(doc, z).filter((id) => doc.nodes.some((n) => n.id === id))]));
+    const snapshot = JSON.stringify(doc);
+    const ok = arrangeAll(doc);
+    if (lanes) {
+      assert.equal(ok, false, ex.id);
+      assert.equal(JSON.stringify(doc), snapshot, `${ex.id} untouched`);
+      continue;
+    }
+    assert.equal(ok, true, ex.id);
+    noOverlaps(doc);
+    for (const z of doc.zones) {
+      for (const id of before[z.id]) assert.ok(contains(z, nodeRect(doc.nodes.find((n) => n.id === id))), `${ex.id}: ${id} still in ${z.label}`);
+    }
+  }
+});
