@@ -252,3 +252,80 @@ test('pickPort and pickPorts are usable on their own', () => {
   const p = pickPorts(doc, doc.nodes[0], doc.nodes[1], undefined, undefined, 'power');
   assert.deepEqual(p, { from: 'vcc', to: 'vcc', bus: 'power', warning: null });
 });
+
+test('replace_part keeps supported fields, rewires by bus, and drops what cannot move', () => {
+  const doc = newDoc('T');
+  doc.nodes.push(node('m', 'mcu', 10, 20, { sublabel: 'ESP32', notes: 'keep', status: 'tested', flags: ['bug'] }), node('t', 'temp'), node('g', 'gps'));
+  doc.wires.push(
+    wire('w1', 'i2c', { node: 'm', port: 'i2c' }, { node: 't', port: 'i2c' }),
+    wire('w2', 'can', { node: 'm', port: 'can' }, { node: 'g', port: 'uart' }),
+  );
+  const res = applyEdits(doc, [{ op: 'replace_part', id: 'm', kind: 'sbc' }]);
+  assert.equal(res.ok, true, JSON.stringify(res));
+  const m = doc.nodes[0];
+  assert.equal(m.kind, 'sbc');
+  assert.deepEqual([m.x, m.y, m.sublabel, m.notes, m.status, m.flags], [10, 20, 'ESP32', 'keep', 'tested', ['bug']]);
+  assert.equal(doc.wires.length, 1, 'the CAN wire has no port on an SBC and is dropped');
+  assert.equal(doc.wires[0].from.port, 'i2c', 'the SBC has an i2c port of the same id, so the wire stays');
+  assert.match(res.warnings[0], /removed wires w2/);
+  assert.ok(res.touched.has('m') && res.touched.has('w2'));
+  assert.match(res.changes[0], /^replaced m with sbc \(kept 1, rewired 0, dropped 1\)$/);
+});
+
+test('replace_part rewires a port whose id changed but whose bus the new kind offers', () => {
+  const doc = newDoc('T');
+  doc.nodes.push(node('c', 'camera'), node('m', 'mcu'));
+  doc.wires.push(wire('w1', 'i2c', { node: 'c', port: 'i2c' }, { node: 'm', port: 'i2c' }));
+  const res = applyEdits(doc, [{ op: 'replace_part', id: 'c', kind: 'gps' }]);
+  assert.equal(res.ok, true, JSON.stringify(res));
+  assert.equal(doc.wires.length, 0, 'a GPS has no i2c port: the wire is dropped');
+  const doc2 = newDoc('T');
+  doc2.nodes.push(node('t', 'temp'), node('m', 'mcu'));
+  doc2.wires.push(wire('w1', 'power', { node: 't', port: 'vcc' }, { node: 'm', port: 'vcc' }));
+  const res2 = applyEdits(doc2, [{ op: 'replace_part', id: 't', kind: 'adcin' }]);
+  assert.equal(res2.ok, true);
+  assert.equal(doc2.wires[0].from.port, 'vcc', 'same id and bus on the new kind');
+  assert.match(res2.changes[0], /kept 1, rewired 0, dropped 0/);
+  const doc3 = newDoc('T');
+  doc3.nodes.push(node('m', 'mcu'), node('p', 'adcin'));
+  doc3.wires.push(wire('w1', 'adc', { node: 'm', port: 'adc' }, { node: 'p', port: 'out' }));
+  const res3 = applyEdits(doc3, [{ op: 'replace_part', id: 'm', kind: 'dsp' }]);
+  assert.equal(res3.ok, true, JSON.stringify(res3));
+  assert.equal(doc3.wires[0].from.port, 'adc1', 'no port called adc on a DSP, but adc1 carries the adc bus');
+  assert.match(res3.changes[0], /kept 0, rewired 1, dropped 0/);
+});
+
+test('replace_part drops schema fields the new kind lacks or whose value it does not allow', () => {
+  const doc = newDoc('T');
+  doc.nodes.push(node('a', 'threatactor', 0, 0, { fields: { severity: 'high', type: 'spy', sophistication: 'expert' } }));
+  let res = applyEdits(doc, [{ op: 'replace_part', id: 'a', kind: 'malware' }]);
+  assert.equal(res.ok, true, JSON.stringify(res));
+  assert.deepEqual(doc.nodes[0].fields, { severity: 'high' }, 'malware has a type field too, but "spy" is not a malware type');
+  assert.match(res.warnings[0], /dropped fields type, sophistication/);
+  res = applyEdits(doc, [{ op: 'replace_part', id: 'a', kind: 'malware' }]);
+  assert.match(res.errors[0].message, /already a malware/);
+  res = applyEdits(doc, [{ op: 'replace_part', id: 'a', kind: 'nope' }]);
+  assert.match(res.errors[0].message, /unknown kind/);
+});
+
+test('remove takes any ids, drops the wires of removed nodes, and forgets layout work', () => {
+  const doc = newDoc('T');
+  doc.nodes.push(node('m', 'mcu'), node('t', 'temp'));
+  doc.wires.push(wire('w1', 'i2c', { node: 'm', port: 'i2c' }, { node: 't', port: 'i2c' }));
+  doc.zones.push({ id: 'z1', x: 0, y: 0, w: 100, h: 100, label: 'Z', color: '#4a90d9' });
+  doc.notes.push({ id: 't1', x: 0, y: 0, text: 'n' });
+  let res = applyEdits(doc, [
+    { op: 'add_part', ref: 'x', kind: 'imu' },
+    { op: 'remove', ids: ['t', 'z1', 't1', 'x'] },
+  ]);
+  assert.equal(res.ok, true, JSON.stringify(res));
+  assert.deepEqual(doc.nodes.map((n) => n.id), ['m']);
+  assert.deepEqual(doc.wires, []);
+  assert.deepEqual(doc.zones, []);
+  assert.deepEqual(doc.notes, []);
+  assert.deepEqual(res.layout.nodes, [], 'the removed new node needs no placement');
+  res = applyEdits(doc, [{ op: 'remove', ids: ['nope'] }]);
+  assert.match(res.errors[0].message, /no item "nope"/);
+  res = applyEdits(doc, [{ op: 'remove', ids: [] }]);
+  assert.match(res.errors[0].message, /needs ids/);
+});

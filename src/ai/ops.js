@@ -342,6 +342,71 @@ HANDLERS.update_wire = (ctx, op) => {
   ctx.changes.push(`updated wire ${w.id} (${changed.join(', ')})`);
 };
 
+HANDLERS.replace_part = (ctx, op) => {
+  const node = findNode(ctx, op.id);
+  const part = PARTS[op.kind];
+  if (!part) fail(`unknown kind "${op.kind}"; use search_parts to find kinds`);
+  if (part.kind === node.kind) fail(`${node.id} is already a ${part.kind}`);
+  const oldPart = getPart(node.kind);
+  if (node.fields) {
+    const schema = new Map((part.fields || []).map((f) => [f.id, f]));
+    const kept = {};
+    const dropped = [];
+    for (const [k, v] of Object.entries(node.fields)) {
+      const fd = schema.get(k);
+      if (fd && (!fd.options || fd.options.includes(v))) kept[k] = v;
+      else dropped.push(k);
+    }
+    if (dropped.length) ctx.warnings.push(`dropped fields ${dropped.join(', ')} from ${node.id}: ${part.name} has no such fields`);
+    if (Object.keys(kept).length) node.fields = kept;
+    else delete node.fields;
+  }
+  node.kind = part.kind;
+  let kept = 0;
+  let rewired = 0;
+  const dropped = [];
+  for (const w of ctx.work.wires) {
+    for (const end of ['from', 'to']) {
+      if (w[end].node !== node.id) continue;
+      const oldPort = oldPart.ports.find((p) => p.id === w[end].port);
+      const wantBus = oldPort ? oldPort.bus : w.bus;
+      if (part.ports.some((p) => p.id === w[end].port && p.bus === wantBus)) { kept += 1; continue; }
+      let pid = null;
+      try { pid = pickPort(ctx.work, node, wantBus); } catch (err) { if (!(err instanceof OpError)) throw err; }
+      if (pid) { w[end].port = pid; rewired += 1; } else dropped.push(w.id);
+    }
+  }
+  if (dropped.length) {
+    ctx.work.wires = ctx.work.wires.filter((w) => !dropped.includes(w.id));
+    ctx.warnings.push(`removed wires ${dropped.join(', ')}: ${part.name} has no port for their bus`);
+    for (const id of dropped) ctx.touched.add(id);
+  }
+  ctx.touched.add(node.id);
+  ctx.changes.push(`replaced ${node.id} with ${part.kind} (kept ${kept}, rewired ${rewired}, dropped ${dropped.length})`);
+};
+
+HANDLERS.remove = (ctx, op) => {
+  if (!Array.isArray(op.ids) || !op.ids.length) fail('remove needs ids');
+  const dead = new Set();
+  for (const key of op.ids) {
+    const id = resolve(ctx, key);
+    if (!findAny(ctx.work, id)) fail(`no item "${key}"`);
+    dead.add(id);
+  }
+  const w = ctx.work;
+  w.nodes = w.nodes.filter((n) => !dead.has(n.id));
+  w.zones = w.zones.filter((z) => !dead.has(z.id));
+  w.notes = w.notes.filter((t) => !dead.has(t.id));
+  w.wires = w.wires.filter((x) => !dead.has(x.id) && !dead.has(x.from.node) && !dead.has(x.to.node));
+  const L = ctx.layout;
+  L.nodes = L.nodes.filter((id) => !dead.has(id));
+  L.notes = L.notes.filter((id) => !dead.has(id));
+  L.zones = L.zones.filter((z) => !dead.has(z.id)).map((z) => ({ ...z, members: z.members.filter((m) => !dead.has(m)) }));
+  L.refit = L.refit.filter((z) => !dead.has(z.id));
+  for (const id of dead) { L.hints.delete(id); ctx.touched.delete(id); }
+  ctx.changes.push(`removed ${[...dead].join(' ')}`);
+};
+
 // Applies a batch: every op runs against a working copy, errors are
 // collected with their index, and the document is replaced only when the
 // whole batch succeeded.
