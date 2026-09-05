@@ -119,3 +119,42 @@ test('the batch size is capped and ops must be an array', () => {
   res = applyEdits(doc, 'nope');
   assert.equal(res.ok, false);
 });
+
+test('add_note and update_note', () => {
+  const doc = newDoc('T');
+  doc.nodes.push(node('n1', 'mcu', 100, 100));
+  let res = applyEdits(doc, [{ op: 'add_note', ref: 'nt', text: 'All logic on 3.3V', near: 'n1' }]);
+  assert.equal(res.ok, true, JSON.stringify(res));
+  const t = doc.notes[0];
+  assert.match(t.id, /^t[0-9a-z]{12}$/);
+  assert.equal(t.text, 'All logic on 3.3V');
+  assert.deepEqual(res.layout.notes, [t.id]);
+  assert.deepEqual(res.layout.hints.get(t.id), { near: 'n1', zone: null });
+  res = applyEdits(doc, [{ op: 'update_note', id: t.id, text: 'Changed' }]);
+  assert.equal(res.ok, true);
+  assert.equal(doc.notes[0].text, 'Changed');
+  res = applyEdits(doc, [{ op: 'update_note', id: 'nope', text: 'x' }]);
+  assert.match(res.errors[0].message, /no note "nope"/);
+  res = applyEdits(doc, [{ op: 'add_note', ref: 'z', text: 5 }]);
+  assert.match(res.errors[0].message, /text must be a string/);
+});
+
+test('update_part changes fields, merges schema fields, and refuses kind', () => {
+  const doc = newDoc('T');
+  doc.nodes.push(node('n1', 'mcu', 0, 0), node('n2', 'threatactor', 0, 0, { fields: { severity: 'low', type: 'spy' } }));
+  let res = applyEdits(doc, [{ op: 'update_part', id: 'n1', sublabel: 'STM32H7', notes: 'Cortex-M7', status: 'prototype', flags: ['thermal'] }]);
+  assert.equal(res.ok, true, JSON.stringify(res));
+  assert.equal(doc.nodes[0].sublabel, 'STM32H7');
+  assert.equal(doc.nodes[0].status, 'prototype');
+  assert.deepEqual(doc.nodes[0].flags, ['thermal']);
+  assert.match(res.changes[0], /^updated node n1 \(sublabel, notes, status, flags\)$/);
+  res = applyEdits(doc, [{ op: 'update_part', id: 'n2', fields: { severity: 'critical', type: '' } }]);
+  assert.equal(res.ok, true);
+  assert.deepEqual(doc.nodes[1].fields, { severity: 'critical' });
+  res = applyEdits(doc, [{ op: 'update_part', id: 'n1', status: null }]);
+  assert.equal(doc.nodes[0].status, null);
+  res = applyEdits(doc, [{ op: 'update_part', id: 'n1', kind: 'sbc' }]);
+  assert.match(res.errors[0].message, /replace_part/);
+  res = applyEdits(doc, [{ op: 'update_part', id: 'n1' }]);
+  assert.match(res.errors[0].message, /changes nothing/);
+});

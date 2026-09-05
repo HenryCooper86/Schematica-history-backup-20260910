@@ -202,6 +202,36 @@ HANDLERS.set_title = (ctx, op) => {
   ctx.changes.push(`title "${ctx.work.title}"`);
 };
 
+HANDLERS.add_note = (ctx, op) => {
+  claimRef(ctx, op.ref, 'add_note');
+  const near = op.near !== undefined ? findNode(ctx, op.near).id : null;
+  const note = { id: uid('t'), x: 0, y: 0, text: text(ctx, op.text, 'text') };
+  ctx.work.notes.push(note);
+  ctx.refs.set(op.ref, note.id);
+  ctx.touched.add(note.id);
+  ctx.layout.notes.push(note.id);
+  ctx.layout.hints.set(note.id, { near, zone: null });
+  ctx.changes.push(`added note ${note.id} (ref ${op.ref})`);
+};
+
+HANDLERS.update_note = (ctx, op) => {
+  const note = findNote(ctx, op.id);
+  note.text = text(ctx, op.text, 'text');
+  ctx.touched.add(note.id);
+  ctx.changes.push(`updated note ${note.id}`);
+};
+
+HANDLERS.update_part = (ctx, op) => {
+  const node = findNode(ctx, op.id);
+  if (op.kind !== undefined) fail('use replace_part to change the kind');
+  const patch = nodePatch(ctx, getPart(node.kind), op, node);
+  const keys = Object.keys(patch);
+  if (!keys.length) fail('update_part changes nothing');
+  assignPatch(node, patch);
+  ctx.touched.add(node.id);
+  ctx.changes.push(`updated node ${node.id} (${keys.join(', ')})`);
+};
+
 // Applies a batch: every op runs against a working copy, errors are
 // collected with their index, and the document is replaced only when the
 // whole batch succeeded.
