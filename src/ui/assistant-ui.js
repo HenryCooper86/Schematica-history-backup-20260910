@@ -209,7 +209,7 @@ export function initAssistant({ store, tools, render, svg }) {
 
   function chipRow(m, index) {
     if (!m.touched?.length) return '';
-    const live = m.undoDepth > 0 && store.undoStack.length === m.undoDepth;
+    const live = !busy && m.undoDepth > 0 && store.undoStack.length === m.undoDepth;
     return `<div class="ai-chips"><button type="button" data-undo="${index}"${live ? '' : ' disabled'}>Undo this</button>`
       + `<button type="button" data-show="${index}">Show changes</button></div>`;
   }
@@ -219,15 +219,17 @@ export function initAssistant({ store, tools, render, svg }) {
       if (m.role === 'status') return `<div class="ai-status">${escAttr(m.text)}</div>`;
       return `<div class="ai-msg ${m.role}">${escAttr(m.text)}${m.role === 'assistant' ? chipRow(m, i) : ''}</div>`;
     }).join('');
-    thread.querySelectorAll('[data-undo]').forEach((b) => onPress(b, () => { if (!b.disabled) store.undo(); }));
+    thread.querySelectorAll('[data-undo]').forEach((b) => onPress(b, () => { if (!b.disabled && !busy) store.undo(); }));
     thread.querySelectorAll('[data-show]').forEach((b) => onPress(b, () => highlight(visible[Number(b.dataset.show)].touched || [])));
     thread.scrollTop = thread.scrollHeight;
   }
 
+  // A chip is live only when its reply is still the top undo step and no
+  // request is open: an undo inside the agent's batch would cut it in half.
   function refreshChips() {
     thread.querySelectorAll('[data-undo]').forEach((b) => {
       const m = visible[Number(b.dataset.undo)];
-      b.disabled = !(m?.undoDepth > 0 && store.undoStack.length === m.undoDepth);
+      b.disabled = !!busy || !(m?.undoDepth > 0 && store.undoStack.length === m.undoDepth);
     });
   }
 
@@ -305,6 +307,7 @@ export function initAssistant({ store, tools, render, svg }) {
     el('ai-actions').querySelectorAll('button').forEach((b) => { b.disabled = on; });
     tools.ui.locked = on;
     document.getElementById('app').classList.toggle('ai-busy', on);
+    refreshChips();
   }
 
   function usageText(u, cost) {
@@ -335,14 +338,23 @@ export function initAssistant({ store, tools, render, svg }) {
     setBusy(true);
     input.value = '';
     const run = s.tools === false ? runSingleShot : runRequest;
-    const res = await run({
-      provider: makeProvider(s, settings.getKey()),
-      executor, store, system, history, userText, boardText: board, signal: busy.signal,
-      onText: (t) => { reply.text += t; renderThread(); },
-      onStatus: (line) => { visible.splice(visible.length - 1, 0, { role: 'status', text: line }); renderThread(); },
-    });
-    busy = null;
-    setBusy(false);
+    // The lock is released in a finally: a throw inside the busy window must
+    // not leave the canvas read-only. It reaches the user as an error bubble
+    // through the same res.error path a provider failure takes.
+    let res;
+    try {
+      res = await run({
+        provider: makeProvider(s, settings.getKey()),
+        executor, store, system, history, userText, boardText: board, signal: busy.signal,
+        onText: (t) => { reply.text += t; renderThread(); },
+        onStatus: (line) => { visible.splice(visible.length - 1, 0, { role: 'status', text: line }); renderThread(); },
+      });
+    } catch (err) {
+      res = { text: '', messages: history, touched: new Set(), usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, stop: 'end', rounds: 0, applied: 0, cutOff: false, error: err };
+    } finally {
+      busy = null;
+      setBusy(false);
+    }
     history = trimHistory(res.messages);
     reply.text = res.text || (res.error ? '' : '(no reply)');
     if (res.cutOff) reply.text += `\n\n(${res.stop === 'aborted' ? 'Stopped' : 'Cut off'}; edits made so far are kept.)`;
