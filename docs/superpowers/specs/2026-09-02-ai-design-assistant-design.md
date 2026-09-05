@@ -1,7 +1,7 @@
 # Schematica AI Design Assistant — Design Spec
 
 **Date:** 2026-09-02
-**Status:** Approved by the user in consolidated review on 2026-09-02
+**Status:** Superseded on 2026-09-05 by `2026-09-05-ai-copilot-design.md` (client-side, build-and-edit assistant); kept for the record
 **Target:** Full-stack evolution of the existing Schematica application
 
 ## Summary
