@@ -259,3 +259,17 @@ test('a refit zone follows its new member set', () => {
   assert.ok(contains(doc.zones[0], nodeRect(doc.nodes[1])));
   assert.ok(!contains(doc.zones[0], nodeRect(doc.nodes[0])));
 });
+
+test('rows follow the mean row of neighbours in the column nearer the hub', () => {
+  const doc = newDoc('B');
+  doc.nodes.push(node('hub', 'mcu'), node('a', 'temp'), node('b', 'imu'), node('c', 'gps'), node('x', 'led'), node('y', 'display'));
+  doc.wires.push(
+    wire('w1', 'i2c', 'hub', 'i2c', 'a', 'i2c'), wire('w2', 'spi', 'hub', 'spi', 'b', 'spi'), wire('w3', 'uart', 'hub', 'uart', 'c', 'uart'),
+    wire('w4', 'gpio', 'c', 'gpio', 'x', 'in'), wire('w5', 'gpio', 'a', 'gpio', 'y', 'in'),
+  );
+  layoutAll(doc);
+  const byId = Object.fromEntries(doc.nodes.map((n) => [n.id, n]));
+  assert.notEqual(byId.x.y, byId.y.y);
+  assert.equal(byId.x.y < byId.y.y, byId.c.y < byId.a.y, 'column 2 follows the rows of the neighbours in column 1');
+  noOverlaps(doc);
+});

@@ -66,7 +66,7 @@ export function layoutAll(doc, zoneOf = new Map()) {
   }
   const columns = new Map();
   for (const id of ids) {
-    const c = col.get(id) || 0; // -0 becomes 0
+    const c = col.get(id); // a power hub yields -0; Map keys fold it into 0 (SameValueZero)
     if (!columns.has(c)) columns.set(c, []);
     columns.get(c).push(id);
   }
@@ -154,24 +154,25 @@ export function fitZone(doc, zone, memberIds) {
   return true;
 }
 
-// Zones that overlap after placement: the later one (by list order) moves
+// Zones that overlap after placement: the later one in id order moves
 // down with its members, then is fitted again. A push whose moved cards
 // would land on a card that did not move is undone: cards never overlap,
 // zone rectangles occasionally do.
 export function pushApart(doc, zones) {
   const byId = new Map(doc.zones.map((z) => [z.id, z]));
   const nodeById = new Map(doc.nodes.map((n) => [n.id, n]));
-  for (let i = 0; i < zones.length; i++) {
-    for (let j = i + 1; j < zones.length; j++) {
-      const zi = byId.get(zones[i].id);
-      const zj = byId.get(zones[j].id);
+  const ordered = [...zones].sort((a, b) => cmp(a.id, b.id));
+  for (let i = 0; i < ordered.length; i++) {
+    for (let j = i + 1; j < ordered.length; j++) {
+      const zi = byId.get(ordered[i].id);
+      const zj = byId.get(ordered[j].id);
       if (!zi || !zj || !rectsIntersect(zi, zj)) continue;
       const dy = up(zi.y + zi.h + NOTE_GAP - zj.y);
-      const moved = zones[j].members.map((id) => nodeById.get(id)).filter(Boolean);
+      const moved = ordered[j].members.map((id) => nodeById.get(id)).filter(Boolean);
       const movedIds = new Set(moved.map((n) => n.id));
       const before = { x: zj.x, y: zj.y, w: zj.w, h: zj.h };
       for (const n of moved) n.y += dy;
-      fitZone(doc, zj, zones[j].members);
+      fitZone(doc, zj, ordered[j].members);
       const still = doc.nodes.filter((n) => !movedIds.has(n.id)).map(nodeRect);
       const collides = moved.some((n) => still.some((r) => rectsIntersect(nodeRect(n), r)));
       if (collides) {
