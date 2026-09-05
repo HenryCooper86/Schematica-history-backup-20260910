@@ -285,3 +285,45 @@ test('addNode uses a part default label when it has one', () => {
   addNode(store, 'router', 0, 0);
   assert.deepEqual(store.doc.nodes.map((n) => n.label), ['Start', 'A', 'Router']);
 });
+
+test('a batch collapses many mutations into one undo step', () => {
+  const store = new Store();
+  store.beginBatch();
+  store.mutate((doc) => doc.nodes.push({ id: 'a', kind: 'mcu', x: 0, y: 0 }));
+  store.mutate((doc) => doc.nodes.push({ id: 'b', kind: 'temp', x: 0, y: 0 }));
+  assert.equal(store.inBatch(), true);
+  store.endBatch();
+  assert.equal(store.inBatch(), false);
+  assert.equal(store.undoStack.length, 1);
+  store.undo();
+  assert.equal(store.doc.nodes.length, 0);
+});
+
+test('a nested beginBatch keeps the outer snapshot', () => {
+  const store = new Store();
+  store.beginBatch();
+  store.mutate((doc) => doc.nodes.push({ id: 'a', kind: 'mcu', x: 0, y: 0 }));
+  store.beginBatch();
+  store.mutate((doc) => doc.nodes.push({ id: 'b', kind: 'temp', x: 0, y: 0 }));
+  store.endBatch();
+  store.undo();
+  assert.equal(store.doc.nodes.length, 0, 'undo returns to before the outer batch');
+});
+
+test('drag helpers are aliases of the batch', () => {
+  const store = new Store();
+  store.beginDrag();
+  assert.equal(store.inBatch(), true);
+  assert.equal(store.isDragging(), true);
+  store.cancelDrag();
+  assert.equal(store.inBatch(), false);
+});
+
+test('replaceDoc bumps the generation counter', () => {
+  const store = new Store();
+  assert.equal(store.generation, 0);
+  store.replaceDoc(newDoc('B'));
+  assert.equal(store.generation, 1);
+  store.apply((doc) => { doc.title = 'edit'; });
+  assert.equal(store.generation, 1, 'ordinary edits do not count');
+});

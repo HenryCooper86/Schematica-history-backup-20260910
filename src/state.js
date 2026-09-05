@@ -31,7 +31,10 @@ export class Store {
     this.redoStack = [];
     this.selection = new Set();
     this.listeners = new Set();
-    this._dragSnap = null;
+    this._batchSnap = null;
+    // Bumped by replaceDoc so subscribers can tell "a different board" from
+    // "the same board edited" (the assistant clears its thread on the former).
+    this.generation = 0;
   }
 
   subscribe(fn) {
@@ -63,29 +66,36 @@ export class Store {
     this.emit();
   }
 
-  beginDrag() {
-    this._dragSnap = structuredClone(this.doc);
+  // A batch collapses any number of mutate() calls into one undo step: a
+  // pointer drag, or everything the assistant does in reply to one message.
+  // A nested begin keeps the outer snapshot.
+  beginBatch() {
+    if (this._batchSnap === null) this._batchSnap = structuredClone(this.doc);
   }
 
-  endDrag() {
-    if (this._dragSnap && JSON.stringify(this._dragSnap) !== JSON.stringify(this.doc)) {
-      this._push(this._dragSnap);
+  endBatch() {
+    if (this._batchSnap && JSON.stringify(this._batchSnap) !== JSON.stringify(this.doc)) {
+      this._push(this._batchSnap);
     }
-    this._dragSnap = null;
+    this._batchSnap = null;
     this.emit();
   }
 
-  cancelDrag() {
-    if (this._dragSnap) {
-      this.doc = this._dragSnap;
-      this._dragSnap = null;
+  cancelBatch() {
+    if (this._batchSnap) {
+      this.doc = this._batchSnap;
+      this._batchSnap = null;
       this.emit();
     }
   }
 
-  // True while a pointer drag is moving or resizing items: every pointermove
-  // emits, so subscribers can skip work that only matters once the drag ends.
-  isDragging() { return this._dragSnap !== null; }
+  inBatch() { return this._batchSnap !== null; }
+
+  // The drag names stay for tools.js and main.js.
+  beginDrag() { this.beginBatch(); }
+  endDrag() { this.endBatch(); }
+  cancelDrag() { this.cancelBatch(); }
+  isDragging() { return this.inBatch(); }
 
   canUndo() { return this.undoStack.length > 0; }
   canRedo() { return this.redoStack.length > 0; }
@@ -111,6 +121,7 @@ export class Store {
     this.undoStack = [];
     this.redoStack = [];
     this.selection.clear();
+    this.generation += 1;
     this.emit();
   }
 
