@@ -20,6 +20,7 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave })
   const ui = {
     marquee: null, wireDraft: null, grid: true, snapOn: true, animate: false,
     highlight: new Set(), // ids the assistant just touched; cleared by the next press
+    locked: false, // the assistant is mid-request: the canvas ignores presses and keys
   };
   let tool = 'select';
   let spaceDown = false;
@@ -176,6 +177,7 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave })
   const EDIT_FIELDS = { node: 'label', wire: 'label', zone: 'label', note: 'text' };
 
   svg.addEventListener('pointerdown', (e) => {
+    if (ui.locked) return;
     if (ui.highlight.size) {
       ui.highlight.clear();
       requestRender('overlay');
@@ -430,6 +432,7 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave })
   window.addEventListener('keydown', (e) => {
     // A modal dialog owns the keyboard: Escape closes it, nothing reaches the canvas.
     if (document.querySelector('dialog[open]')) return;
+    if (ui.locked) return;
     if (isEditingText(e)) return;
     if (e.key === ' ') {
       spaceDown = true;

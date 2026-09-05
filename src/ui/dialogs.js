@@ -176,12 +176,20 @@ export function initDialogs({ store }) {
       list.innerHTML = findings.map((f, i) => (
         `<div class="drc-row"><span class="drc-level ${f.level}">${f.level.toUpperCase()}</span>`
         + `<span class="msg">${esc(f.message)}</span>`
-        + `<button data-drc="${i}">Select</button></div>`
+        + `<button data-drc="${i}">Select</button><button data-drc-fix="${i}">Fix</button></div>`
       )).join('');
       list.querySelectorAll('[data-drc]').forEach((btn) => {
         btn.addEventListener('click', () => {
           store.setSelection(findings[Number(btn.dataset.drc)].ids);
           drcDialog.close();
+        });
+      });
+      // Fix hands the finding to the assistant panel, which owns the request.
+      list.querySelectorAll('[data-drc-fix]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const finding = findings[Number(btn.dataset.drcFix)];
+          drcDialog.close();
+          document.dispatchEvent(new CustomEvent('schematica:fix-finding', { detail: finding }));
         });
       });
     }

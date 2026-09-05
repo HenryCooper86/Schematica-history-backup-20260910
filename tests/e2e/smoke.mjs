@@ -31,8 +31,58 @@ function findChrome() {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// A scripted Anthropic look-alike so the assistant runs in CI without a key.
+// It answers the first call of a request with one tool call, and any call
+// carrying tool results with a short final text.
+const fakeSeen = [];
+async function fakeAnthropic(req, res) {
+  let raw = '';
+  for await (const chunk of req) raw += chunk;
+  const body = JSON.parse(raw);
+  const last = body.messages.at(-1);
+  const lastText = last.content.map((b) => b.text || '').join(' ');
+  fakeSeen.push({ headers: req.headers, lastText, system: body.system, tools: body.tools.map((t) => t.name) });
+  const hasResults = last.content.some((b) => b.type === 'tool_result');
+  const events = [];
+  const ev = (event, data) => events.push(`event: ${event}\ndata: ${JSON.stringify({ type: event, ...data })}\n\n`);
+  ev('message_start', { message: { usage: { input_tokens: 10, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } } });
+  if (hasResults) {
+    ev('content_block_start', { index: 0, content_block: { type: 'text', text: '' } });
+    ev('content_block_delta', { index: 0, delta: { type: 'text_delta', text: 'Done. ' } });
+    ev('content_block_delta', { index: 0, delta: { type: 'text_delta', text: 'The board is in place.' } });
+    ev('content_block_stop', { index: 0 });
+    ev('message_delta', { delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 8 } });
+  } else {
+    let ops;
+    if (/^Fix this finding/i.test(lastText)) {
+      ops = [{ op: 'add_note', ref: 'fx', text: 'Fix acknowledged by the fake assistant' }];
+    } else {
+      ops = [
+        { op: 'set_title', title: 'Fake Build' },
+        { op: 'add_part', ref: 'mcu', kind: 'mcu', sublabel: 'ESP32-S3', rail: '3.3V' },
+        { op: 'add_part', ref: 'bme', kind: 'temp', sublabel: 'BME280', addr: '0x76', rail: '3.3V' },
+        { op: 'add_part', ref: 'bat', kind: 'battery' },
+        { op: 'connect', from: { node: 'mcu' }, to: { node: 'bme' }, bus: 'i2c' },
+        { op: 'connect', from: { node: 'bat' }, to: { node: 'mcu' }, bus: 'power' },
+        { op: 'add_zone', ref: 'pwr', label: 'Power', color: '#f87171', members: ['bat'] },
+      ];
+    }
+    ev('content_block_start', { index: 0, content_block: { type: 'text', text: '' } });
+    ev('content_block_delta', { index: 0, delta: { type: 'text_delta', text: 'Working…' } });
+    ev('content_block_stop', { index: 0 });
+    ev('content_block_start', { index: 1, content_block: { type: 'tool_use', id: 'call_1', name: 'apply_edits', input: {} } });
+    ev('content_block_delta', { index: 1, delta: { type: 'input_json_delta', partial_json: JSON.stringify({ ops }) } });
+    ev('content_block_stop', { index: 1 });
+    ev('message_delta', { delta: { stop_reason: 'tool_use' }, usage: { output_tokens: 40 } });
+  }
+  ev('message_stop', {});
+  res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });
+  res.end(events.join(''));
+}
+
 // ---- static server ----
 const server = createServer(async (req, res) => {
+  if (req.method === 'POST' && req.url === '/fake/v1/messages') return fakeAnthropic(req, res);
   const path = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname));
   const file = join(ROOT, path === '/' ? 'index.html' : path);
   try {
@@ -516,6 +566,75 @@ try {
   await key('a', 'KeyA', 65);
   await sleep(100);
   check('A closes the panel again', (await js(`document.getElementById('assistant').hidden`)) === true);
+
+  // ---- Assistant: build, undo, highlight, Fix button, thread ----
+  // An empty board through a share link (loadBoard clears storage, so the
+  // settings are seeded afterwards; they are read at send time).
+  const EMPTY = { schema: 1, title: 'Empty', nodes: [], wires: [], zones: [], notes: [], journey: [] };
+  const seedFake = () => js(`localStorage.setItem('schematica.ai.settings', JSON.stringify({ provider: 'anthropic', model: 'test-model', baseUrl: location.origin + '/fake', effort: 'low', remember: true, tools: true })); localStorage.setItem('schematica.ai.key.anthropic', 'sk-fake'); true`);
+  await loadBoard(EMPTY);
+  await seedFake();
+  check('the board is empty before the build', (await js(`document.querySelectorAll('#canvas g.node').length`)) === 0);
+  await key('a', 'KeyA', 65);
+  await sleep(100);
+  await js(`(() => { const i = document.getElementById('ai-input'); i.value = 'build a small sensor node'; i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); return true; })()`);
+  let built = null;
+  for (let i = 0; i < 40; i++) {
+    built = await js(`(() => ({ nodes: document.querySelectorAll('#canvas g.node').length, wires: document.querySelectorAll('#canvas g.wire').length, zones: document.querySelectorAll('#canvas g.zone').length, title: document.getElementById('title').value, done: !!document.querySelector('#ai-thread .ai-msg.assistant') && /Done\\./.test(document.querySelector('#ai-thread .ai-msg.assistant:last-of-type').textContent), sending: !document.getElementById('ai-stop').hidden }))()`);
+    if (built.done && !built.sending) break;
+    await sleep(150);
+  }
+  check('a build request through the fake provider produces cards, wires, a zone, and a title', built.nodes === 3 && built.wires === 2 && built.zones === 1 && built.title === 'Fake Build' && built.done, JSON.stringify(built));
+  const overlapFree = await js(`(() => { const r = [...document.querySelectorAll('#canvas g.node .card')].map((c) => c.getBoundingClientRect()); for (let i = 0; i < r.length; i++) for (let j = i + 1; j < r.length; j++) { if (r[i].left < r[j].right && r[j].left < r[i].right && r[i].top < r[j].bottom && r[j].top < r[i].bottom) return false; } return r.length === 3; })()`);
+  check('the placed cards do not overlap', overlapFree === true, String(overlapFree));
+  const highlighted = await js(`document.querySelectorAll('#canvas .hl, #canvas .hl-wire').length`);
+  check('everything the assistant touched is highlighted', highlighted === 6, String(highlighted));
+  const statusLines = await js(`[...document.querySelectorAll('#ai-thread .ai-status')].map((s) => s.textContent)`);
+  check('tool activity shows as status lines', statusLines.some((s) => /applying 7 edits/.test(s)), JSON.stringify(statusLines));
+  const chip = await js(`(() => { const b = document.querySelector('#ai-thread .ai-chips button[data-undo]'); return { exists: !!b, disabled: b && b.disabled, undoEnabled: !document.getElementById('undo').disabled }; })()`);
+  check('the reply carries a live "Undo this" chip', chip.exists && chip.disabled === false && chip.undoEnabled, JSON.stringify(chip));
+  await js(`document.querySelector('#ai-thread .ai-chips button[data-undo]').click(); true`);
+  await sleep(100);
+  const undoneBuild = await js(`(() => ({ nodes: document.querySelectorAll('#canvas g.node').length, chipDisabled: document.querySelector('#ai-thread .ai-chips button[data-undo]').disabled }))()`);
+  check('one undo removes the whole reply and disables the chip', undoneBuild.nodes === 0 && undoneBuild.chipDisabled === true, JSON.stringify(undoneBuild));
+  check('the request carried the browser headers and the cached system block', fakeSeen[0]?.headers['anthropic-dangerous-direct-browser-access'] === 'true' && fakeSeen[0]?.system?.[0]?.cache_control?.type === 'ephemeral' && fakeSeen[0].tools.includes('apply_edits'), JSON.stringify(fakeSeen[0]?.tools));
+  const usageLine = await js(`document.getElementById('ai-usage').textContent`);
+  check('the usage line reports tokens', /\d+ in/.test(usageLine) && /\d+ out/.test(usageLine), usageLine);
+
+  // The Fix button on a design-rule finding sends it to the assistant.
+  await loadBoard(weather);
+  await seedFake();
+  const notesBefore = await js(`document.querySelectorAll('#canvas [data-type="note"]').length`);
+  await js(`document.getElementById('btn-check').click(); true`);
+  await sleep(100);
+  const fixBtn = await js(`(() => { const b = document.querySelector('#drc-list [data-drc-fix]'); if (!b) return null; b.click(); return true; })()`);
+  check('every finding has a Fix button', fixBtn === true, String(fixBtn));
+  let fixed = null;
+  for (let i = 0; i < 40; i++) {
+    fixed = await js(`(() => ({ dialogOpen: document.getElementById('drc-dialog').open === true, panelOpen: !document.getElementById('assistant').hidden, notes: document.querySelectorAll('#canvas [data-type="note"]').length, sending: !document.getElementById('ai-stop').hidden }))()`);
+    if (fixed.notes > notesBefore && !fixed.sending) break;
+    await sleep(150);
+  }
+  const fixSeen = fakeSeen.find((f) => /^Fix this finding/.test(f.lastText));
+  check('Fix closes the dialog, opens the panel, sends the finding, and the reply applies', fixed.dialogOpen === false && fixed.panelOpen && fixed.notes === notesBefore + 1 && !!fixSeen && /ids:/.test(fixSeen.lastText), JSON.stringify({ ...fixed, sent: fixSeen?.lastText.slice(0, 80) }));
+
+  // The thread survives a reload of the same board (autosave restores it, no
+  // hash, so the store's generation stays put) and clears when a share link
+  // replaces the board. Neither path shows a confirm().
+  const threadCount = await js(`document.querySelectorAll('#ai-thread .ai-msg').length`);
+  await sleep(700);
+  await send('Page.navigate', { url: 'about:blank' });
+  await sleep(200);
+  await send('Page.navigate', { url: `${origin}/` });
+  await sleep(1200);
+  const restored2 = await js(`document.querySelectorAll('#ai-thread .ai-msg').length`);
+  check('the thread is restored after a reload', restored2 === threadCount && restored2 > 0, `${restored2} vs ${threadCount}`);
+  await send('Page.navigate', { url: 'about:blank' });
+  await sleep(200);
+  await send('Page.navigate', { url: `${origin}/#${await encodeShare(drone)}` });
+  await sleep(1200);
+  const cleared = await js(`(() => ({ title: document.getElementById('title').value, msgs: document.querySelectorAll('#ai-thread .ai-msg').length }))()`);
+  check('replacing the board through a share link clears the thread', cleared.title === drone.title && cleared.msgs === 0, JSON.stringify(cleared));
 } catch (err) {
   failed += 1;
   results.push(`FAIL script error — ${err.message}`);

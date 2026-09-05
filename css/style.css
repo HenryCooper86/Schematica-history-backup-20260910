@@ -559,6 +559,10 @@ g.node:hover .ports,
 #assistant.collapsed h3 { margin: 0; }
 #app.panels-hidden #assistant { display: none !important; }
 #app.presenting #assistant { display: none; }
+/* While a request runs, editing is off: a drag or an undo mid-request would
+   cut into the assistant's single undo step. Only the panel stays live. */
+#app.ai-busy #toolbar, #app.ai-busy #palette, #app.ai-busy #props, #app.ai-busy #journey-panel { pointer-events: none; opacity: 0.55; }
+#app.ai-busy #btn-assistant { pointer-events: auto; opacity: 1; }
 #ai-meta { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 #ai-meta span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ai-icon-btn { background: none; border: 1px solid transparent; color: var(--muted); border-radius: 6px; padding: 2px 6px; cursor: pointer; font: inherit; font-size: 12px; }
