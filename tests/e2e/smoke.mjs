@@ -389,6 +389,106 @@ try {
   await js(`(() => { const visible = ${visible}; const s = document.getElementById('palette-search'); s.value = ''; s.dispatchEvent(new Event('input', { bubbles: true })); return [...document.querySelectorAll('#palette .palette-item')].filter(visible).length; })()`).then((n) => check('clearing the search restores every part', n >= 60, String(n)));
   const collapsed = await js(`(() => { const visible = ${visible}; const h = document.querySelector('#palette h3'); h.click(); const box = h.nextElementSibling; const out = !visible(box); h.click(); return out && visible(box); })()`);
   check('clicking a category heading collapses and re-expands its tiles', collapsed === true, String(collapsed));
+
+  // ---- Robustness and accessibility ----
+  const weather = EXAMPLES.find((e) => e.id === 'weather-station').doc;
+  await loadBoard(weather);
+
+  // Every pointermove of a drag emits from the store; the properties panel
+  // must not be torn down and rebuilt on each one.
+  const cardSel = '#canvas g.node[data-id="n5"] .card';
+  const cardA = await center(cardSel);
+  const restX = await js(`document.querySelector(${JSON.stringify(cardSel)}).getBoundingClientRect().x`);
+  await mouse('mouseMoved', cardA.x, cardA.y);
+  await mouse('mousePressed', cardA.x, cardA.y, { button: 'left', buttons: 1, clickCount: 1 });
+  await sleep(50);
+  // The press selected the card and showed its panel; hold on to that panel.
+  await js(`window.__h3 = document.querySelector('#props h3'); true`);
+  for (let i = 1; i <= 4; i++) {
+    await mouse('mouseMoved', cardA.x + i * 10, cardA.y + i * 5, { button: 'left', buttons: 1 });
+    await sleep(20);
+  }
+  const dragPanel = await js(`(() => ({ same: window.__h3 === document.querySelector('#props h3'), x: document.querySelector(${JSON.stringify(cardSel)}).getBoundingClientRect().x }))()`);
+  await mouse('mouseReleased', cardA.x + 40, cardA.y + 20, { button: 'left', clickCount: 1 });
+  check('the properties panel is left alone while a card is dragged', dragPanel.same === true && dragPanel.x !== restX, JSON.stringify({ restX, ...dragPanel }));
+
+  // An interrupted pointer (touch cancel, OS gesture) must abandon the drag
+  // where it started and cost no undo step.
+  await loadBoard(weather);
+  const cardB = await center(cardSel);
+  const beforeX = await js(`document.querySelector(${JSON.stringify(cardSel)}).getBoundingClientRect().x`);
+  await mouse('mouseMoved', cardB.x, cardB.y);
+  await mouse('mousePressed', cardB.x, cardB.y, { button: 'left', buttons: 1, clickCount: 1 });
+  for (let i = 1; i <= 4; i++) {
+    await mouse('mouseMoved', cardB.x + i * 15, cardB.y, { button: 'left', buttons: 1 });
+    await sleep(20);
+  }
+  const movedX = await js(`document.querySelector(${JSON.stringify(cardSel)}).getBoundingClientRect().x`);
+  await js(`document.getElementById('canvas').dispatchEvent(new PointerEvent('pointercancel', { pointerId: 1, bubbles: true })); true`);
+  await sleep(50);
+  const cancelled = await js(`(() => ({ x: document.querySelector(${JSON.stringify(cardSel)}).getBoundingClientRect().x, undoDisabled: document.getElementById('undo').disabled }))()`);
+  await mouse('mouseReleased', cardB.x + 60, cardB.y, { button: 'left', clickCount: 1 });
+  await sleep(50);
+  const afterUp = await js(`document.querySelector(${JSON.stringify(cardSel)}).getBoundingClientRect().x`);
+  check('pointercancel abandons a move and costs no undo step', movedX !== beforeX && cancelled.x === beforeX && cancelled.undoDisabled === true && afterUp === beforeX, JSON.stringify({ beforeX, movedX, afterUp, ...cancelled }));
+
+  // Dialogs are native <dialog>s: modal, Escape closes, focus comes back,
+  // and a click on the backdrop dismisses.
+  await js(`document.getElementById('btn-bom').focus(); true`);
+  const bomBtn = await center('#btn-bom');
+  // With a card selected the properties panel is showing; at this window
+  // width the toolbar wraps, and the panel must sit below it, not over it.
+  const covering = await js(`(() => { const hit = document.elementFromPoint(${bomBtn.x}, ${bomBtn.y}); return hit && (hit.id || hit.tagName); })()`);
+  check('the floating panel never covers a wrapped toolbar row', covering === 'btn-bom', String(covering));
+  await click(bomBtn.x, bomBtn.y);
+  await sleep(100);
+  const modal = await js(`(() => { const d = document.getElementById('bom-dialog'); return { tag: d.tagName, open: d.open === true, modal: d.matches(':modal'), inside: d.contains(document.activeElement) }; })()`);
+  check('the BOM opens as a modal <dialog> and takes focus', modal.tag === 'DIALOG' && modal.open && modal.modal && modal.inside, JSON.stringify(modal));
+  await key('Escape', 'Escape', 27);
+  await sleep(100);
+  const closed = await js(`(() => { const d = document.getElementById('bom-dialog'); return { open: d.open === true, focus: document.activeElement && document.activeElement.id }; })()`);
+  check('Escape closes the dialog and returns focus to the BOM button', closed.open === false && closed.focus === 'btn-bom', JSON.stringify(closed));
+  await click(bomBtn.x, bomBtn.y);
+  await sleep(100);
+  const vh = await js('window.innerHeight');
+  await click(20, vh - 20);
+  await sleep(100);
+  const outside = await js(`document.getElementById('bom-dialog').open === true`);
+  check('clicking outside the card closes the dialog', outside === false, String(outside));
+
+  // Toasts are announced to assistive tech, and a failed autosave is
+  // reported instead of silently dropped.
+  const live = await js(`(() => { const t = document.getElementById('toast'); return { role: t.getAttribute('role'), live: t.getAttribute('aria-live') }; })()`);
+  check('the toast is a polite live region', live.role === 'status' && live.live === 'polite', JSON.stringify(live));
+  await js(`window.__setItem = Storage.prototype.setItem; Storage.prototype.setItem = function () { const e = new Error('quota'); e.name = 'QuotaExceededError'; throw e; }; true`);
+  const cardC = await center(cardSel);
+  await click(cardC.x, cardC.y);
+  await key('ArrowRight', 'ArrowRight', 39);
+  await sleep(600);
+  const unsaved = await js(`(() => { const t = document.getElementById('toast'); return { hidden: t.hidden, text: t.textContent }; })()`);
+  await js(`Storage.prototype.setItem = window.__setItem; true`);
+  check('a failed autosave tells the user', unsaved.hidden === false && /autosave/i.test(unsaved.text), JSON.stringify(unsaved));
+
+  // A share link opened over existing work loads at once (no blocking
+  // confirm), keeps the previous board as a backup, and offers to restore it.
+  const drone = EXAMPLES.find((e) => e.id === 'drone-fc').doc;
+  await js(`localStorage.setItem('schematica.autosave', ${JSON.stringify(JSON.stringify(weather))}); true`);
+  await sleep(400);
+  await send('Page.navigate', { url: 'about:blank' });
+  await sleep(200);
+  await send('Page.navigate', { url: `${origin}/#${await encodeShare(drone)}` });
+  for (let i = 0; i < 40; i++) {
+    const t = await js(`document.getElementById('title').value`).catch(() => '');
+    if (t === drone.title) break;
+    await sleep(150);
+  }
+  await sleep(200);
+  const shared = await js(`(() => { const t = document.getElementById('toast'); return { title: document.getElementById('title').value, nodes: document.querySelectorAll('#canvas g.node').length, toast: t.hidden ? '' : t.textContent, restore: !!t.querySelector('button'), backup: !!localStorage.getItem('schematica.autosave.backup') }; })()`);
+  check('a share link over existing work loads at once, keeps a backup, and offers to restore it', shared.title === drone.title && shared.nodes === drone.nodes.length && shared.restore && shared.backup, JSON.stringify(shared));
+  await js(`document.querySelector('#toast button')?.click(); true`);
+  await sleep(200);
+  const restored = await js(`(() => ({ title: document.getElementById('title').value, nodes: document.querySelectorAll('#canvas g.node').length }))()`);
+  check('restoring brings the previous board back', restored.title === weather.title && restored.nodes === weather.nodes.length, JSON.stringify(restored));
 } catch (err) {
   failed += 1;
   results.push(`FAIL script error — ${err.message}`);

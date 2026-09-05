@@ -69,7 +69,9 @@ function render(kind = 'all') {
   document.getElementById('undo').disabled = !store.canUndo();
   document.getElementById('redo').disabled = !store.canRedo();
   document.getElementById('btn-remove').disabled = store.selection.size === 0;
-  propsPanel.render();
+  // A drag emits on every pointermove; the panel shows nothing that changes
+  // mid-drag, and rebuilding it each frame is most of the cost of a move.
+  if (!store.isDragging()) propsPanel.render();
 }
 
 store.subscribe(() => render());
@@ -123,14 +125,21 @@ document.getElementById('btn-fullscreen').addEventListener('click', () => {
 });
 
 // ---- Autosave ----
+// A failure (storage full, blocked, or unavailable) is reported once per
+// streak so the user knows the board only lives in this tab until saved.
 let autosaveTimer = null;
+let autosaveBroken = false;
 store.subscribe(() => {
   clearTimeout(autosaveTimer);
   autosaveTimer = setTimeout(() => {
     try {
       localStorage.setItem('schematica.autosave', serialize(store.doc));
-    } catch (err) {
-      console.warn('Autosave failed:', err);
+      autosaveBroken = false;
+    } catch {
+      if (!autosaveBroken) {
+        toast('Autosave failed: this browser\'s storage is full or blocked. Save the board to a file to keep it.');
+      }
+      autosaveBroken = true;
     }
   }, 300);
 });
@@ -186,29 +195,34 @@ initLayoutToggles();
 render();
 syncAnimation();
 
-// A share link in the URL loads the shared board — but never silently over the
-// visitor's own work: a non-empty board asks first, and the previous autosave
-// is kept under a backup key either way.
+// A share link in the URL loads the shared board at once. It never loses the
+// visitor's own work: a non-empty board is kept under a backup key and the
+// notice offers to bring it back, in place of a blocking confirm().
 (async () => {
   if (!location.hash || location.hash.length < 4) return;
   try {
     const text = await decodeShare(location.hash);
     const { doc, warnings } = deserialize(text);
-    const cur = store.doc;
-    const hasWork = cur.nodes.length || cur.wires.length || cur.zones.length
-      || cur.notes.length || (cur.journey || []).length;
-    if (hasWork && !confirm(`Load the shared board "${doc.title}"?\n\nYour current board will be replaced. A backup of it is kept in this browser.`)) {
-      history.replaceState(null, '', location.pathname + location.search);
-      return;
+    const prev = store.doc;
+    const hasWork = prev.nodes.length || prev.wires.length || prev.zones.length
+      || prev.notes.length || (prev.journey || []).length;
+    if (hasWork) {
+      try {
+        localStorage.setItem('schematica.autosave.backup', serialize(prev));
+      } catch { /* backup is best-effort; the in-memory copy still restores */ }
     }
-    try {
-      const prev = localStorage.getItem('schematica.autosave');
-      if (prev) localStorage.setItem('schematica.autosave.backup', prev);
-    } catch { /* backup is best-effort */ }
     history.replaceState(null, '', location.pathname + location.search);
     store.replaceDoc(doc);
-    if (warnings.length) toast(`Shared board loaded with warnings:\n\n${warnings.join('\n')}`);
-  } catch {
-    // Not a share link (or a corrupted one) - leave the current board alone.
+    const notes = warnings.length ? `\n\nLoaded with warnings:\n${warnings.join('\n')}` : '';
+    if (hasWork) {
+      toast(`Loaded the shared board "${doc.title}". Your previous board is kept as a backup.${notes}`, {
+        action: { label: 'Restore my board', run: () => store.replaceDoc(prev) },
+      });
+    } else if (warnings.length) {
+      toast(`Shared board loaded with warnings:\n\n${warnings.join('\n')}`);
+    }
+  } catch (err) {
+    // Not a share link, or one this browser cannot open - leave the board alone.
+    if (/too large|cannot decode/.test(err?.message || '')) toast(err.message);
   }
 })();

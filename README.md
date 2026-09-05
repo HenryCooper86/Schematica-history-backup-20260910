@@ -55,7 +55,7 @@ then Settings → Pages → deploy from branch `main`, root folder.
 | Fullscreen | ⛶ button in the zoom group |
 | Export dialog | PNG opens a size dialog — pixel dimensions, aspect lock, transparent background; the dialog's SVG button honors the transparency option (the toolbar SVG button is an instant opaque export) |
 | BOM | BOM button — bill of materials grouped by part number (qty, refs, addresses, rails, status, flags); CSV download or Markdown copy |
-| Share | Share button — the whole board compressed into a copyable URL; opening the link loads it, no backend |
+| Share | Share button — the whole board compressed into a copyable URL; opening the link loads it, no backend. Opened over a board you were working on, the link loads at once, keeps your board as a backup, and the notice offers to restore it |
 | Check | Check button — design rule checks: I2C address conflicts, unconnected power pins, floating parts, bus mismatches, lifecycle risks (the Sensor Node example passes them all) |
 | PDF | Export dialog — single-page PDF of the board (alongside PNG/SVG) |
 | Wire options | Select a wire — bus, label, arrowheads (→ or ↔), line style (solid, dashed, dotted, air gap), traffic flow, delete |

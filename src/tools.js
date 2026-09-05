@@ -391,6 +391,26 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave })
     drag = null;
   });
 
+  // Drops whatever gesture is in flight and puts moved items back: Escape,
+  // or a pointer the browser took away (touch cancel, OS gesture, capture
+  // lost). A move or resize that never ended must not cost an undo step.
+  function abandonDrag() {
+    if (drag && (drag.mode === 'move' || drag.mode === 'zresize')) store.cancelDrag();
+    if (drag?.mode === 'rewire') drag.el.classList.remove('rewiring');
+    drag = null;
+    ui.wireDraft = null;
+    ui.marquee = null;
+    setHotPort(null);
+    svg.classList.remove('drafting');
+  }
+
+  svg.addEventListener('pointercancel', (e) => {
+    if (!drag) return;
+    abandonDrag();
+    try { svg.releasePointerCapture(e.pointerId); } catch { /* capture already gone */ }
+    requestRender('overlay');
+  });
+
   svg.addEventListener('wheel', (e) => {
     e.preventDefault();
     const r = svg.getBoundingClientRect();
@@ -403,6 +423,8 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave })
   }
 
   window.addEventListener('keydown', (e) => {
+    // A modal dialog owns the keyboard: Escape closes it, nothing reaches the canvas.
+    if (document.querySelector('dialog[open]')) return;
     if (isEditingText(e)) return;
     if (e.key === ' ') {
       spaceDown = true;
@@ -449,13 +471,7 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave })
       return;
     }
     if (e.key === 'Escape') {
-      if (drag && (drag.mode === 'move' || drag.mode === 'zresize')) store.cancelDrag();
-      if (drag?.mode === 'rewire') drag.el.classList.remove('rewiring');
-      drag = null;
-      ui.wireDraft = null;
-      ui.marquee = null;
-      setHotPort(null);
-      svg.classList.remove('drafting');
+      abandonDrag();
       closeBusPopover();
       store.clearSelection();
       requestRender();
