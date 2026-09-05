@@ -1,7 +1,10 @@
 // What the model reads: the board as one line per item, ids first, and the
 // palette catalogue (Task 11). Both are plain text a person can read too.
-import { getPart } from '../palette.js';
+import { PARTS, CATEGORIES, getPart } from '../palette.js';
+import { BUSES, BUS_ORDER } from '../buses.js';
+import { PRESETS } from '../presets.js';
 import { zoneMembers } from '../geometry.js';
+import { SHARED_BUSES, UNTYPED_BUSES } from './ops.js';
 
 export function quote(s) {
   return `"${String(s ?? '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\r?\n/g, '\\n')}"`;
@@ -53,4 +56,35 @@ export function boardText(doc, { selection = [], findings = [] } = {}) {
   if (selection.length) lines.push(`selected: ${selection.join(' ')}`);
   for (const f of findings) lines.push(`checks: ${f.level} ${f.rule} ${quote(f.message)} ${f.ids.join(' ')}`);
   return lines.join('\n');
+}
+
+export function partLine(part) {
+  const ports = part.ports.map((p) => `${p.id}(${p.bus})`).join(', ');
+  let s = `${part.kind}  ${part.name}  ports: ${ports || '-'}`;
+  if (part.fields) {
+    s += `  fields: ${part.fields.map((f) => f.id + (f.options ? `[${f.options.join('|')}]` : '')).join(', ')}`;
+  }
+  if (part.shape) s += '  [flowchart shape]';
+  if (part.threat) s += '  [threat]';
+  return s;
+}
+
+// The stable block of the system prompt: every kind, every bus, and the
+// preset part numbers per kind. Only changes when the palette does.
+export function catalogueText() {
+  const out = [];
+  for (const c of CATEGORIES) {
+    const parts = Object.values(PARTS).filter((p) => p.category === c.id);
+    if (!parts.length) continue;
+    out.push(`## ${c.name}`);
+    for (const p of parts) out.push(partLine(p));
+  }
+  out.push('## Buses');
+  for (const id of BUS_ORDER) {
+    const kind = SHARED_BUSES.has(id) ? 'shared' : (UNTYPED_BUSES.has(id) ? 'untyped' : 'point-to-point');
+    out.push(`${id}  ${BUSES[id].name}  ${kind}`);
+  }
+  out.push('## Presets (part numbers per kind; list_presets gives the details)');
+  for (const [kind, list] of Object.entries(PRESETS)) out.push(`${kind}: ${list.map((p) => p.sublabel).join(', ')}`);
+  return out.join('\n');
 }

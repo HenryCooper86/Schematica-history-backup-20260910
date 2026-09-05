@@ -1,8 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { boardText, quote } from '../src/ai/context.js';
+import { boardText, quote, catalogueText, partLine } from '../src/ai/context.js';
 import { EXAMPLES } from '../src/examples.js';
 import { checkDoc } from '../src/drc.js';
+import { PARTS } from '../src/palette.js';
+import { BUSES } from '../src/buses.js';
+import { stableSystem, perRequestSystem, ROLE_RULES, SINGLE_SHOT_RULES } from '../src/ai/prompt.js';
 
 const example = (id) => structuredClone(EXAMPLES.find((e) => e.id === id).doc);
 
@@ -55,4 +58,31 @@ test('every example renders without throwing and stays stable', () => {
     assert.equal(a, b, ex.id);
     assert.ok(a.length < 20000, `${ex.id} under 20k characters: ${a.length}`);
   }
+});
+
+test('partLine shows kind, name, ports with buses, and schema fields', () => {
+  assert.equal(partLine(PARTS.temp), 'temp  Temp sensor  ports: vcc(power), gnd(gnd), i2c(i2c)');
+  assert.match(partLine(PARTS.threatactor), /^threatactor  .+  ports: .+  fields: .*severity\[info\|low\|medium\|high\|critical\].*  \[threat\]$/);
+});
+
+test('the catalogue lists every kind and every bus, grouped by category', () => {
+  const text = catalogueText();
+  for (const part of Object.values(PARTS)) assert.ok(text.includes(`\n${part.kind}  `), part.kind);
+  for (const id of Object.keys(BUSES)) assert.ok(text.includes(`\n${id}  `), id);
+  assert.ok(text.includes('## Compute\n'));
+  assert.ok(text.includes('\ni2c  I2C  shared'));
+  assert.ok(text.includes('\nspi  SPI  point-to-point'));
+  assert.ok(text.includes('\nlink  Link / relationship  untyped'));
+  assert.match(text, /\naisbc: .*RDK X5/);
+  assert.equal(text, catalogueText(), 'stable across calls so it caches');
+});
+
+test('the system prompt is the rules plus the catalogue, and the per-request block is small', () => {
+  const stable = stableSystem();
+  assert.ok(stable.startsWith(ROLE_RULES));
+  assert.ok(stable.includes('# Catalogue\n'));
+  const per = perRequestSystem({ date: '2026-09-05', effort: 'medium', singleShot: false });
+  assert.match(per, /2026-09-05/);
+  assert.ok(!per.includes(SINGLE_SHOT_RULES));
+  assert.ok(perRequestSystem({ date: '2026-09-05', effort: 'low', singleShot: true }).includes(SINGLE_SHOT_RULES));
 });
