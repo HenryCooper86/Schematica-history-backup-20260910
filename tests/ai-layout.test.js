@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { layoutAll, pickHub, adjacency, COL_GAP, fitZone, pushApart, placeNote, arrangeAll, ZONE_PAD } from '../src/ai/layout.js';
+import { layoutAll, pickHub, adjacency, COL_GAP, fitZone, pushApart, placeNote, arrangeAll, ZONE_PAD, placeNew, ROW_GAP } from '../src/ai/layout.js';
 import { EXAMPLES } from '../src/examples.js';
 import { nodeRect, rectsIntersect, zoneMembers } from '../src/geometry.js';
 import { getPart } from '../src/palette.js';
 import { newDoc } from '../src/state.js';
+import { applyEdits } from '../src/ai/ops.js';
 
 function node(id, kind, extra = {}) {
   return {
@@ -177,4 +178,84 @@ test('arrangeAll refuses swimlane boards and leaves every other example overlap-
       for (const id of before[z.id]) assert.ok(contains(z, nodeRect(doc.nodes.find((n) => n.id === id))), `${ex.id}: ${id} still in ${z.label}`);
     }
   }
+});
+
+test('placeNew on a board with placed cards anchors each new card beside its neighbour and moves nothing else', () => {
+  const doc = newDoc('I');
+  doc.nodes.push(node('m', 'mcu', { x: 400, y: 200 }), node('t', 'temp', { x: 704, y: 200 }));
+  doc.wires.push(wire('w1', 'i2c', 'm', 'i2c', 't', 'i2c'));
+  const res = applyEdits(doc, [
+    { op: 'add_part', ref: 'imu', kind: 'imu' },
+    { op: 'connect', from: { node: 'm' }, to: { node: 'imu' }, bus: 'spi' },
+    { op: 'add_part', ref: 'bat', kind: 'battery' },
+    { op: 'connect', from: { node: 'bat' }, to: { node: 'm' }, bus: 'power' },
+    { op: 'add_part', ref: 'led', kind: 'led' },
+  ]);
+  assert.equal(res.ok, true, JSON.stringify(res));
+  placeNew(doc, res.layout);
+  const byId = Object.fromEntries(doc.nodes.map((n) => [n.id, n]));
+  assert.deepEqual([byId.m.x, byId.m.y, byId.t.x, byId.t.y], [400, 200, 704, 200], 'placed cards did not move');
+  const imu = byId[res.refs.imu];
+  const bat = byId[res.refs.bat];
+  const led = byId[res.refs.led];
+  assert.ok(imu.x > byId.m.x + 100, 'imu goes right of the MCU');
+  assert.ok(imu.y > 200, 'the row beside the MCU is taken by the sensor, so the imu takes the next one down');
+  assert.ok(bat.x < byId.m.x, 'battery goes left of the MCU');
+  assert.ok(led.x > byId.t.x, 'an unwired part is appended at the right edge');
+  noOverlaps(doc);
+  for (const n of doc.nodes) { assert.equal(n.x % 8, 0); assert.equal(n.y % 8, 0); }
+});
+
+test('placeNew with `in` confines the card to the zone and grows a full zone', () => {
+  const doc = newDoc('Z');
+  doc.nodes.push(node('m', 'mcu', { x: 400, y: 200 }));
+  doc.zones.push({ id: 'z1', x: 40, y: 40, w: 200, h: 160, label: 'Power', color: '#f87171' });
+  const res = applyEdits(doc, [
+    { op: 'add_part', ref: 'bat', kind: 'battery', in: 'z1' },
+    { op: 'add_part', ref: 'reg', kind: 'regulator', in: 'z1' },
+  ]);
+  assert.equal(res.ok, true, JSON.stringify(res));
+  const h0 = doc.zones[0].h;
+  placeNew(doc, res.layout);
+  const z = doc.zones[0];
+  for (const ref of ['bat', 'reg']) {
+    const n = doc.nodes.find((x) => x.id === res.refs[ref]);
+    assert.ok(contains(z, nodeRect(n)), `${ref} inside the zone`);
+  }
+  assert.ok(z.h > h0, 'the zone grew to fit the second card');
+  noOverlaps(doc);
+});
+
+test('placeNew on an empty board runs the full layout and fits new zones', () => {
+  const doc = newDoc('E');
+  const res = applyEdits(doc, [
+    { op: 'add_part', ref: 'bat', kind: 'battery' },
+    { op: 'add_part', ref: 'reg', kind: 'regulator' },
+    { op: 'add_part', ref: 'mcu', kind: 'mcu', sublabel: 'ESP32-S3' },
+    { op: 'add_part', ref: 'bme', kind: 'temp', sublabel: 'BME280', addr: '0x76' },
+    { op: 'connect', from: { node: 'bat' }, to: { node: 'reg' }, bus: 'power' },
+    { op: 'connect', from: { node: 'reg' }, to: { node: 'mcu' }, bus: 'power' },
+    { op: 'connect', from: { node: 'mcu' }, to: { node: 'bme' }, bus: 'i2c' },
+    { op: 'add_zone', ref: 'pwr', label: 'Power', members: ['bat', 'reg'] },
+    { op: 'add_note', ref: 'n1', text: 'All on 3.3V', near: 'mcu' },
+  ]);
+  assert.equal(res.ok, true, JSON.stringify(res));
+  placeNew(doc, res.layout);
+  const byId = Object.fromEntries(doc.nodes.map((n) => [n.id, n]));
+  assert.ok(byId[res.refs.bat].x < byId[res.refs.mcu].x && byId[res.refs.bme].x > byId[res.refs.mcu].x);
+  const zone = doc.zones[0];
+  assert.ok(zone.w > 0 && contains(zone, nodeRect(byId[res.refs.bat])) && contains(zone, nodeRect(byId[res.refs.reg])));
+  assert.ok(!contains(zone, nodeRect(byId[res.refs.mcu])), 'the MCU is not in the power zone');
+  assert.ok(doc.notes[0].y < byId[res.refs.mcu].y, 'the note sits above the MCU');
+  noOverlaps(doc);
+});
+
+test('a refit zone follows its new member set', () => {
+  const doc = newDoc('R');
+  doc.nodes.push(node('a', 'mcu', { x: 100, y: 100 }), node('b', 'temp', { x: 600, y: 400 }));
+  doc.zones.push({ id: 'z1', x: 60, y: 60, w: 200, h: 160, label: 'Z', color: '#4a90d9' });
+  const res = applyEdits(doc, [{ op: 'update_zone', id: 'z1', members: ['b'] }]);
+  placeNew(doc, res.layout);
+  assert.ok(contains(doc.zones[0], nodeRect(doc.nodes[1])));
+  assert.ok(!contains(doc.zones[0], nodeRect(doc.nodes[0])));
 });

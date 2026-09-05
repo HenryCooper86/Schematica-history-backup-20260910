@@ -238,3 +238,101 @@ export function arrangeAll(doc) {
   }
   return true;
 }
+
+// One new card: beside its anchor (the `near` hint, else the placed
+// neighbour it shares the most wires with), on the power side for power
+// parts, in the first free slot scanning down then up. With `zone`, the
+// search stays inside that zone and the zone grows when it is full.
+export function placeOne(doc, nodeId, hint = {}, skip = new Set(), newZoneIds = new Set()) {
+  const node = doc.nodes.find((n) => n.id === nodeId);
+  if (!node) return;
+  const size = nodeSize(node);
+  const byId = new Map(doc.nodes.map((n) => [n.id, n]));
+  const placed = doc.nodes.filter((n) => n.id !== nodeId && !skip.has(n.id));
+  let anchor = hint.near ? byId.get(hint.near) : null;
+  if (anchor && skip.has(anchor.id)) anchor = null;
+  if (!anchor) {
+    const counts = new Map();
+    for (const w of doc.wires) {
+      const other = w.from.node === nodeId ? w.to.node : (w.to.node === nodeId ? w.from.node : null);
+      if (other && other !== nodeId && byId.has(other) && !skip.has(other)) counts.set(other, (counts.get(other) || 0) + 1);
+    }
+    const best = [...counts.entries()].sort((a, b) => b[1] - a[1] || cmp(a[0], b[0]))[0];
+    anchor = best ? byId.get(best[0]) : null;
+  }
+  const zone = hint.zone && !newZoneIds.has(hint.zone) ? doc.zones.find((z) => z.id === hint.zone) : null;
+  const obstacles = [
+    ...placed.map(nodeRect),
+    ...doc.notes.filter((t) => !skip.has(t.id)).map(noteRect),
+    ...doc.zones.filter((z) => z.id !== zone?.id && !skip.has(z.id)).map(zoneRect),
+  ];
+  let x;
+  let startY;
+  if (zone) {
+    x = zone.x + ZONE_PAD;
+    startY = zone.y + ZONE_PAD + 8;
+  } else if (anchor) {
+    const ar = nodeRect(anchor);
+    x = isPower(node) ? ar.x - COL_GAP - size.w : ar.x + ar.w + COL_GAP;
+    startY = ar.y;
+  } else {
+    const b = contentBounds({
+      nodes: placed,
+      zones: doc.zones.filter((z) => !skip.has(z.id)),
+      notes: doc.notes.filter((t) => !skip.has(t.id)),
+    });
+    x = b ? b.x + b.w + COL_GAP : ORIGIN;
+    startY = b ? b.y : ORIGIN;
+  }
+  x = snap(x);
+  startY = snap(startY);
+  const step = Math.max(8, snap(size.h + ROW_GAP));
+  const free = (y) => {
+    if (zone && y + size.h + ZONE_PAD > zone.y + zone.h) return false;
+    const r = { x: x - SLOT_MARGIN, y: y - SLOT_MARGIN, w: size.w + 2 * SLOT_MARGIN, h: size.h + 2 * SLOT_MARGIN };
+    return !obstacles.some((o) => rectsIntersect(r, o));
+  };
+  const candidates = [];
+  for (let k = 0; k <= 60; k++) candidates.push(startY + k * step);
+  if (!zone) for (let k = 1; k <= 60; k++) candidates.push(startY - k * step);
+  let y = candidates.find(free);
+  if (y === undefined && zone) {
+    zone.h += step;
+    y = candidates.find(free);
+  }
+  if (y === undefined) y = startY;
+  node.x = x;
+  node.y = y;
+}
+
+// Places everything a batch created. With no placed cards on the board the
+// whole board is laid out; otherwise each new card is placed incrementally
+// and nothing that already had a position moves. Then zones are fitted and
+// notes placed.
+export function placeNew(doc, layout) {
+  const { nodes = [], zones = [], notes = [], hints = new Map(), refit = [] } = layout;
+  const skip = new Set([...nodes, ...notes, ...zones.map((z) => z.id)]);
+  const newZoneIds = new Set(zones.map((z) => z.id));
+  const placedBefore = doc.nodes.some((n) => !skip.has(n.id));
+  if (!placedBefore) {
+    const zoneOf = new Map();
+    for (const z of zones) for (const m of z.members) zoneOf.set(m, z.id);
+    layoutAll(doc, zoneOf);
+  } else {
+    for (const id of nodes) {
+      placeOne(doc, id, hints.get(id) || {}, skip, newZoneIds);
+      skip.delete(id);
+    }
+  }
+  const fitted = [];
+  for (const z of [...zones, ...refit]) {
+    const zone = doc.zones.find((x) => x.id === z.id);
+    if (zone && fitZone(doc, zone, z.members)) fitted.push(z);
+    skip.delete(z.id);
+  }
+  if (!placedBefore) pushApart(doc, fitted);
+  for (const id of notes) {
+    placeNote(doc, id, hints.get(id) || {}, skip);
+    skip.delete(id);
+  }
+}
