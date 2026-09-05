@@ -55,6 +55,18 @@ test('settings persist as JSON and survive a corrupt entry', () => {
   assert.equal(createSettings(st).get().effort, 'medium');
 });
 
+test('a browser with storage blocked still boots the assistant', () => {
+  const s = createSettings(null);
+  assert.equal(s.get().provider, 'anthropic');
+  assert.equal(s.get().model, 'claude-opus-5');
+  s.setKey('k', true);
+  assert.equal(s.getKey(), 'k', 'the key lives in memory for the session');
+  s.set({ effort: 'high' });
+  s.forgetKey();
+  assert.equal(s.getKey(), '');
+  assert.equal(s.configured(), false);
+});
+
 test('cost estimates use the price table per million tokens', () => {
   const cost = estimateCost('claude-opus-5', { input: 1_000_000, output: 100_000, cacheRead: 2_000_000, cacheWrite: 0 });
   assert.equal(cost, 5 + 2.5 + 1);

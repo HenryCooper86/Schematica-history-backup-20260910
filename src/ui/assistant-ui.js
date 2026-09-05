@@ -23,7 +23,11 @@ const OLLAMA_HELP = 'For browser access, start Ollama with OLLAMA_ORIGINS includ
 export function initAssistant({ store, tools, render, svg }) {
   const panel = document.getElementById('assistant');
   const btn = document.getElementById('btn-assistant');
-  const settings = createSettings(localStorage);
+  // Reading `window.localStorage` throws outright when site data is blocked,
+  // so the settings take a storage that may be null and live in memory.
+  let storage = null;
+  try { storage = window.localStorage; } catch { storage = null; }
+  const settings = createSettings(storage);
   let settingsOpen = false;
 
   panel.innerHTML = panelHeader('Assistant', 'assistant')
@@ -68,6 +72,8 @@ export function initAssistant({ store, tools, render, svg }) {
     el('ai-remember').checked = s.remember;
     el('ai-effort').value = s.effort;
     el('ai-key').disabled = !PROVIDERS[s.provider].needsKey;
+    // Anthropic has no model list endpoint the browser may call.
+    el('ai-models-btn').hidden = s.provider === 'anthropic';
     el('ai-help').textContent = s.provider === 'ollama' ? OLLAMA_HELP : '';
   }
 
@@ -80,6 +86,10 @@ export function initAssistant({ store, tools, render, svg }) {
   el('ai-provider').addEventListener('change', () => {
     const provider = el('ai-provider').value;
     settings.set({ provider, model: '', baseUrl: '', tools: null });
+    // Model-facing turns from one provider must not replay to another (raw
+    // thinking blocks, tool-call ids); the visible thread stays.
+    history = [];
+    saveThread();
     fillForm();
   });
 
@@ -169,7 +179,7 @@ export function initAssistant({ store, tools, render, svg }) {
   const stopBtn = el('ai-stop');
   const usageEl = el('ai-usage');
   let history = [];          // provider-facing messages
-  let visible = [];          // what the thread shows: { role, text, undoDepth?, touched? }
+  let visible = [];          // what the thread shows: { role, text, undoSnap?, touched? }
   let busy = null;           // AbortController while a request runs
   let generation = store.generation;
   const totals = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
@@ -184,15 +194,23 @@ export function initAssistant({ store, tools, render, svg }) {
     return h.slice(start);
   }
 
+  const VISIBLE_ROLES = ['user', 'assistant', 'status', 'error'];
+
   function saveThread() {
     try {
-      localStorage.setItem(THREAD_KEY, JSON.stringify({ history, visible: visible.slice(-80), totals }));
+      // The undo snapshot is a whole document and belongs to this session
+      // only: a restored thread's chips are dead.
+      const shown = visible.slice(-80).map(({ undoSnap, ...m }) => m);
+      localStorage.setItem(THREAD_KEY, JSON.stringify({ history, visible: shown, totals }));
     } catch { /* storage may be blocked; the thread lives for this session */ }
   }
   function loadThread() {
     try {
       const t = JSON.parse(localStorage.getItem(THREAD_KEY) || 'null');
-      if (t && Array.isArray(t.history) && Array.isArray(t.visible)) {
+      const ok = t && Array.isArray(t.history) && Array.isArray(t.visible)
+        && t.history.every((m) => m && typeof m.role === 'string' && Array.isArray(m.content))
+        && t.visible.every((m) => m && VISIBLE_ROLES.includes(m.role) && typeof m.text === 'string');
+      if (ok) {
         history = t.history;
         visible = t.visible;
         Object.assign(totals, t.totals || {});
@@ -210,7 +228,7 @@ export function initAssistant({ store, tools, render, svg }) {
 
   function chipRow(m, index) {
     if (!m.touched?.length) return '';
-    const live = !busy && m.undoDepth > 0 && store.undoStack.length === m.undoDepth;
+    const live = !busy && m.undoSnap && store.undoStack.at(-1) === m.undoSnap;
     return `<div class="ai-chips"><button type="button" data-undo="${index}"${live ? '' : ' disabled'}>Undo this</button>`
       + `<button type="button" data-show="${index}">Show changes</button></div>`;
   }
@@ -225,18 +243,23 @@ export function initAssistant({ store, tools, render, svg }) {
     thread.scrollTop = thread.scrollHeight;
   }
 
-  // A chip is live only when its reply is still the top undo step and no
-  // request is open: an undo inside the agent's batch would cut it in half.
+  // A chip is live only while the exact snapshot its reply pushed is still on
+  // top of the undo stack, and no request is open: an undo inside the agent's
+  // batch would cut it in half. Identity, not depth: an edit that pushes one
+  // step and an undo that pops it leave the depth unchanged.
   function refreshChips() {
     thread.querySelectorAll('[data-undo]').forEach((b) => {
       const m = visible[Number(b.dataset.undo)];
-      b.disabled = !!busy || !(m?.undoDepth > 0 && store.undoStack.length === m.undoDepth);
+      b.disabled = !!busy || !(m?.undoSnap && store.undoStack.at(-1) === m.undoSnap);
     });
   }
 
   store.subscribe(() => {
     if (store.generation !== generation) {
       generation = store.generation;
+      // The board a running request was editing is gone; nothing it returns
+      // applies to the new one.
+      busy?.abort();
       clearThread();
       return;
     }
@@ -307,6 +330,10 @@ export function initAssistant({ store, tools, render, svg }) {
     input.disabled = on;
     el('ai-actions').querySelectorAll('button').forEach((b) => { b.disabled = on; });
     tools.ui.locked = on;
+    // `inert` takes the chrome out of the tab order as well as the pointer,
+    // which pointer-events alone does not; the assistant's own button stays.
+    for (const id of ['palette', 'props', 'journey-panel']) document.getElementById(id).inert = on;
+    document.querySelectorAll('#toolbar button, #toolbar input').forEach((node) => { if (node.id !== 'btn-assistant') node.inert = on; });
     document.getElementById('app').classList.toggle('ai-busy', on);
     refreshChips();
   }
@@ -322,6 +349,7 @@ export function initAssistant({ store, tools, render, svg }) {
     const userText = String(text ?? '').trim();
     if (!userText || busy) return;
     if (!settings.configured()) { open(); showSettings(true); toast('Add a provider and key first.'); return; }
+    const gen = store.generation;
     const s = settings.get();
     const wasEmpty = !store.doc.nodes.length && !store.doc.zones.length && !store.doc.notes.length;
     const executor = createExecutor({
@@ -335,6 +363,10 @@ export function initAssistant({ store, tools, render, svg }) {
     const reply = { role: 'assistant', text: '' };
     visible.push(reply);
     renderThread();
+    // The chip is live only while this exact snapshot stays on top; capture
+    // what was there before so an unchanged stack leaves no chip at all.
+    const undoTopBefore = store.undoStack.at(-1);
+    const undoLenBefore = store.undoStack.length;
     busy = new AbortController();
     setBusy(true);
     input.value = '';
@@ -356,12 +388,16 @@ export function initAssistant({ store, tools, render, svg }) {
       busy = null;
       setBusy(false);
     }
+    // The board this reply was written against is gone: it has its own thread.
+    if (store.generation !== gen) return;
     history = trimHistory(res.messages);
     reply.text = res.text || (res.error ? '' : '(no reply)');
     if (res.cutOff) reply.text += `\n\n(${res.stop === 'aborted' ? 'Stopped' : 'Cut off'}; edits made so far are kept.)`;
     if (res.stop === 'max_tokens') reply.text += '\n\n(The reply hit the length limit.)';
     reply.touched = [...res.touched];
-    reply.undoDepth = res.touched.size ? store.undoStack.length : 0;
+    reply.undoSnap = (store.undoStack.length > undoLenBefore || store.undoStack.at(-1) !== undoTopBefore)
+      ? store.undoStack.at(-1)
+      : null;
     if (res.error) {
       visible.push({ role: 'error', text: errorText(res.error) });
       if (res.error instanceof ProviderError && (res.error.code === 'auth' || res.error.code === 'model')) showSettings(true);
@@ -370,7 +406,10 @@ export function initAssistant({ store, tools, render, svg }) {
     // with whatever explanation the model gave.
     if (res.stop === 'refusal') visible.push({ role: 'error', text: errorText(new ProviderError(res.stopDetails?.explanation || 'The model declined this request.', { code: 'refusal' })) });
     for (const k of Object.keys(totals)) totals[k] += res.usage[k] || 0;
-    usageEl.textContent = `last: ${usageText(res.usage, s.provider === 'anthropic' ? estimateCost(s.model, res.usage) : null)}`;
+    const priced = s.provider === 'anthropic';
+    const lastCost = priced ? estimateCost(s.model, res.usage) : null;
+    const threadCost = priced ? estimateCost(s.model, totals) : null;
+    usageEl.textContent = `last: ${usageText(res.usage, lastCost)} · thread: ${usageText(totals, threadCost)}`;
     // A removed part must not linger in the selection.
     const kept = [...store.selection].filter((id) => findItem(store.doc, id));
     if (kept.length !== store.selection.size) store.setSelection(kept);
@@ -416,6 +455,9 @@ export function initAssistant({ store, tools, render, svg }) {
   });
 
   loadThread();
+  // A restored thread keeps its running total; the last reply's usage is not
+  // persisted, so only the thread half comes back.
+  if (totals.input || totals.output) usageEl.textContent = `thread: ${usageText(totals, null)}`;
   renderThread();
   return { open, close, toggle, isOpen, send, settings };
 }

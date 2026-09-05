@@ -29,9 +29,11 @@ export function estimateCost(model, usage) {
 const DEFAULTS = { provider: 'anthropic', model: '', baseUrl: '', effort: 'medium', remember: false, tools: null };
 
 export function createSettings(storage) {
-  const read = (k) => { try { return storage.getItem(k); } catch { return null; } };
-  const write = (k, v) => { try { storage.setItem(k, v); } catch { /* blocked storage: the session still works */ } };
-  const remove = (k) => { try { storage.removeItem(k); } catch { /* same */ } };
+  // A browser with site data blocked throws on `window.localStorage` itself,
+  // so the caller passes null; every access here tolerates that.
+  const read = (k) => { try { return storage && storage.getItem(k); } catch { return null; } };
+  const write = (k, v) => { try { storage && storage.setItem(k, v); } catch { /* blocked storage: the session still works */ } };
+  const remove = (k) => { try { storage && storage.removeItem(k); } catch { /* same */ } };
 
   // Read on every call: a test may seed storage after the page loaded, and
   // another tab may have changed it.
