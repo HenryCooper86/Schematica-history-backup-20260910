@@ -4,7 +4,7 @@
 // (Task 9) puts one new item beside an anchor and never moves anything that
 // already has a position. Same input, same output; ties break on id.
 import { getPart, CATEGORIES } from '../palette.js';
-import { nodeSize, snap } from '../geometry.js';
+import { nodeSize, nodeRect, snap, contentBounds, zoneMembers, NOTE_W, noteHeight, rectsIntersect } from '../geometry.js';
 
 export const COL_GAP = 96;
 export const ROW_GAP = 40;
@@ -133,5 +133,96 @@ export function layoutAll(doc, zoneOf = new Map()) {
   for (const n of doc.nodes) {
     n.x = snap(n.x - minX + ORIGIN);
     n.y = snap(n.y - minY + ORIGIN);
+  }
+}
+
+const down = (v) => Math.floor(v / 8) * 8;
+const up = (v) => Math.ceil(v / 8) * 8;
+export const noteRect = (t) => ({ x: t.x, y: t.y, w: NOTE_W, h: noteHeight(t.text) });
+export const zoneRect = (z) => ({ x: z.x, y: z.y, w: z.w, h: z.h });
+
+// The zone rectangle around its members: padding all round plus room for
+// the title pill on the top edge.
+export function fitZone(doc, zone, memberIds) {
+  const rects = memberIds.map((id) => doc.nodes.find((n) => n.id === id)).filter(Boolean).map(nodeRect);
+  if (!rects.length) return false;
+  const x1 = down(Math.min(...rects.map((r) => r.x)) - ZONE_PAD);
+  const y1 = down(Math.min(...rects.map((r) => r.y)) - ZONE_PAD - 8);
+  const x2 = up(Math.max(...rects.map((r) => r.x + r.w)) + ZONE_PAD);
+  const y2 = up(Math.max(...rects.map((r) => r.y + r.h)) + ZONE_PAD);
+  Object.assign(zone, { x: x1, y: y1, w: x2 - x1, h: y2 - y1 });
+  return true;
+}
+
+// Zones that overlap after placement: the later one (by list order) moves
+// down with its members, then is fitted again.
+export function pushApart(doc, zones) {
+  const byId = new Map(doc.zones.map((z) => [z.id, z]));
+  const nodeById = new Map(doc.nodes.map((n) => [n.id, n]));
+  for (let i = 0; i < zones.length; i++) {
+    for (let j = i + 1; j < zones.length; j++) {
+      const zi = byId.get(zones[i].id);
+      const zj = byId.get(zones[j].id);
+      if (!zi || !zj || !rectsIntersect(zi, zj)) continue;
+      const dy = up(zi.y + zi.h + NOTE_GAP - zj.y);
+      for (const id of zones[j].members) {
+        const n = nodeById.get(id);
+        if (n) n.y += dy;
+      }
+      fitZone(doc, zj, zones[j].members);
+    }
+  }
+}
+
+// A note goes just above the node it is near, else above the whole board;
+// either way it steps past anything it would cover.
+export function placeNote(doc, noteId, hint = {}, skip = new Set()) {
+  const note = doc.notes.find((t) => t.id === noteId);
+  if (!note) return;
+  const h = noteHeight(note.text);
+  const anchor = hint.near ? doc.nodes.find((n) => n.id === hint.near) : null;
+  const others = doc.notes.filter((t) => t.id !== noteId && !skip.has(t.id));
+  const obstacles = [...doc.nodes.map(nodeRect), ...others.map(noteRect)];
+  let x;
+  let y;
+  if (anchor) {
+    const ar = nodeRect(anchor);
+    x = ar.x + (ar.w - NOTE_W) / 2;
+    y = ar.y - NOTE_GAP - h;
+  } else {
+    const b = contentBounds({ nodes: doc.nodes, zones: doc.zones, notes: others });
+    x = b ? b.x : ORIGIN;
+    y = b ? b.y - NOTE_GAP - h : ORIGIN;
+  }
+  x = snap(x);
+  y = snap(y);
+  for (let tries = 0; tries < 12; tries++) {
+    const hit = obstacles.find((o) => rectsIntersect({ x, y, w: NOTE_W, h }, o));
+    if (!hit) break;
+    if (anchor) y = snap(hit.y - NOTE_GAP - h);
+    else x = snap(hit.x + hit.w + NOTE_GAP);
+  }
+  note.x = x;
+  note.y = y;
+}
+
+// "Tidy up": every card is laid out again, zones are refitted around the
+// members they had, and notes are stacked above the board.
+export function arrangeAll(doc) {
+  const zones = doc.zones
+    .filter((z) => z.kind !== 'swimlane')
+    .map((z) => ({ id: z.id, members: zoneMembers(doc, z).filter((id) => doc.nodes.some((n) => n.id === id)) }));
+  const zoneOf = new Map();
+  for (const z of zones) for (const m of z.members) zoneOf.set(m, z.id);
+  layoutAll(doc, zoneOf);
+  for (const z of zones) {
+    const zone = doc.zones.find((x) => x.id === z.id);
+    if (z.members.length) fitZone(doc, zone, z.members);
+  }
+  pushApart(doc, zones);
+  const skip = new Set(doc.notes.map((t) => t.id));
+  for (const t of doc.notes) {
+    placeNote(doc, t.id, {}, skip);
+    skip.delete(t.id);
   }
 }
