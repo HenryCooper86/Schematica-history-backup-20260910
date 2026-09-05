@@ -539,6 +539,30 @@ export function overlayMarkup(doc, ui) {
         + `<circle cx="${geo.p2.x}" cy="${geo.p2.y}" r="4" fill="${WIRE_SEL}"/>`;
     }
   }
+  // Items the assistant just touched: a ring on cards, zones, and notes, a
+  // glow along wires. Cleared by the next pointerdown on the canvas.
+  if (ui.highlight && ui.highlight.size) {
+    const byId = new Map(doc.nodes.map((n) => [n.id, n]));
+    const lanes = wireLanes(doc.wires);
+    const ring = (r, rx) => `<rect class="hl anim" x="${r.x - 6}" y="${r.y - 6}" width="${r.w + 12}" height="${r.h + 12}"`
+      + ` rx="${rx}" fill="none" stroke="${ACCENT}" stroke-width="2" stroke-opacity="0.8" pointer-events="none"/>`;
+    for (const id of ui.highlight) {
+      const node = byId.get(id);
+      if (node) { s += ring(nodeRect(node), 16); continue; }
+      const zone = doc.zones.find((z) => z.id === id);
+      if (zone) { s += ring(zone, 18); continue; }
+      const note = doc.notes.find((t) => t.id === id);
+      if (note) { s += ring({ x: note.x, y: note.y, w: NOTE_W, h: noteHeight(note.text) }, 10); continue; }
+      const wire = doc.wires.find((w) => w.id === id);
+      if (!wire) continue;
+      const a = byId.get(wire.from.node);
+      const b = byId.get(wire.to.node);
+      if (!a || !b) continue;
+      const geo = wireGeom(nodeRect(a), nodeRect(b), lanes.get(wire.id) || 0);
+      s += `<path class="hl-wire anim" d="${geo.d}" fill="none" stroke="${ACCENT}" stroke-width="8"`
+        + ' stroke-opacity="0.35" stroke-linecap="round" pointer-events="none"/>';
+    }
+  }
   return s;
 }
 

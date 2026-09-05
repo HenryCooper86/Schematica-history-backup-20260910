@@ -19,6 +19,7 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave })
   // wire's own "Always" flow setting) turns their traffic on.
   const ui = {
     marquee: null, wireDraft: null, grid: true, snapOn: true, animate: false,
+    highlight: new Set(), // ids the assistant just touched; cleared by the next press
   };
   let tool = 'select';
   let spaceDown = false;
@@ -175,6 +176,10 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave })
   const EDIT_FIELDS = { node: 'label', wire: 'label', zone: 'label', note: 'text' };
 
   svg.addEventListener('pointerdown', (e) => {
+    if (ui.highlight.size) {
+      ui.highlight.clear();
+      requestRender('overlay');
+    }
     if (e.button === 1 || (e.button === 0 && (spaceDown || tool === 'pan'))) {
       drag = { mode: 'pan', sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y };
       capturePointer(e);

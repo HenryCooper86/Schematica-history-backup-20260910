@@ -44,6 +44,7 @@ function uiState() {
     wireDraft: tools.ui.wireDraft,
     grid: tools.ui.grid,
     animate: tools.ui.animate,
+    highlight: tools.ui.highlight,
   };
 }
 

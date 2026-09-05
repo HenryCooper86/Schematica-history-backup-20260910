@@ -203,10 +203,12 @@ g.node:hover .ports,
 @keyframes dashflow { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -28; } }
 .fxhalo.anim { animation: fxpulse 1.5s ease-in-out infinite; }
 @keyframes fxpulse { 0%, 100% { stroke-opacity: 0.22; } 50% { stroke-opacity: 0.85; } }
+.hl.anim, .hl-wire.anim { animation: hlpulse 1.6s ease-in-out infinite; }
+@keyframes hlpulse { 0%, 100% { stroke-opacity: 0.35; } 50% { stroke-opacity: 0.95; } }
 .blink { animation: blink 1.5s ease-in-out infinite; }
 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
 @media (prefers-reduced-motion: reduce) {
-  .vis.anim, .fxhalo, .blink { animation: none; }
+  .vis.anim, .fxhalo, .blink, .hl.anim, .hl-wire.anim { animation: none; }
 }
 
 /* Bus code pill, as drawn on the wires; reused by the legend and bus picker. */

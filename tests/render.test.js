@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { diagramMarkup, defsMarkup, flowOffset, LOOP_MS } from '../src/render.js';
+import { diagramMarkup, defsMarkup, flowOffset, LOOP_MS, overlayMarkup } from '../src/render.js';
+import { EXAMPLES } from '../src/examples.js';
 
 // Cards size to their content (net_draw): a one-letter label gives 104x74.
 const node = (id, kind, x, y, extra = {}) => ({
@@ -391,4 +392,14 @@ test('adversaries and suspicious cards glow all the time, victims wear a steady 
   assert.deepEqual(halo({ disposition: 'victim', flags: ['thermal'] }, true), { cls: 'fxhalo anim', stroke: '#fb923c', opacity: '0.6' });
   assert.equal(halo({ disposition: 'friendly' }), null);
   assert.equal(halo({}), null);
+});
+
+test('the overlay rings highlighted nodes, zones, and notes and glows highlighted wires', () => {
+  const doc = EXAMPLES.find((e) => e.id === 'weather-station').doc;
+  const svg = overlayMarkup(doc, { highlight: new Set(['n5', 'w6', 'z1', 't1', 'nope']) });
+  assert.equal((svg.match(/class="hl anim"/g) || []).length, 3, 'node, zone, note');
+  assert.equal((svg.match(/class="hl-wire anim"/g) || []).length, 1);
+  assert.ok(svg.includes('rx="16"'), 'node ring');
+  assert.equal(overlayMarkup(doc, { highlight: new Set() }), '');
+  assert.equal(overlayMarkup(doc, {}), '');
 });
