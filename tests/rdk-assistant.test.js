@@ -143,3 +143,39 @@ test('non-board and forward target refs reject batches without leaving newly add
     assert.equal(serialize(store.doc), before);
   }
 });
+test('generic and unrecognized board targets reject earlier changes atomically', () => {
+  for (const sublabel of ['', 'Unknown RDK board']) {
+    const { store, ex } = setup();
+    const before = serialize(store.doc);
+    const result = ex.run('apply_edits', {
+      ops: [
+        { op: 'set_title', title: 'Must not persist' },
+        { op: 'add_part', kind: 'aisbc', ref: 'host', sublabel },
+        {
+          op: 'add_part',
+          kind: 'rdksoftware',
+          ref: 'stage',
+          fields: { package: 'hobot_sensor', target: 'host' },
+        },
+      ],
+    });
+    assert.equal(result.isError, true);
+    assert.match(result.text, /recognized RDK board/);
+    assert.equal(serialize(store.doc), before);
+  }
+});
+test('editing another software field preserves an imported stale target', () => {
+  const { store, ex } = setup();
+  const stage = add(store, 'rdksoftware', 0, 0, {
+    fields: { package: 'hobot_sensor', target: 'deleted-board' },
+  });
+  store.doc = deserialize(serialize(store.doc)).doc;
+  const result = ex.run('apply_edits', {
+    ops: [
+      { op: 'update_part', id: stage.id, fields: { package: 'hobot_dnn' } },
+    ],
+  });
+  assert.equal(result.isError, false, result.text);
+  assert.equal(store.doc.nodes[0].fields.target, 'deleted-board');
+  assert.equal(store.doc.nodes[0].fields.package, 'hobot_dnn');
+});

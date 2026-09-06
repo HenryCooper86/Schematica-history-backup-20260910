@@ -1,4 +1,4 @@
-import { nodePart } from '../rdk/profiles.js';
+import { nodePart, profileFor } from '../rdk/profiles.js';
 // Edit operations: the only way the assistant changes a board. A batch is
 // applied to a working copy and reaches the document only if every
 // operation succeeds. No operation carries a coordinate; src/ai/layout.js
@@ -169,6 +169,7 @@ export function nodePatch(ctx, part, op, node) {
       if (v.trim() && part.kind === 'rdksoftware' && k === 'target') {
         const target = findNode(ctx, v);
         if (target.kind !== 'aisbc') fail(`software target "${v}" is not a board`);
+        if (!profileFor(target)) fail(`software target "${v}" must be a recognized RDK board`);
         merged[k] = target.id;
       } else if (v.trim()) merged[k] = text(ctx, v, k);
       else delete merged[k];
