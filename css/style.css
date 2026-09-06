@@ -657,7 +657,7 @@ g.node:hover .ports,
 #ai-meta[data-state="unset"] .ai-state { color: #f87171; }
 
 /* Body: the thread scrolls; the settings sheet takes its place when open. */
-#ai-body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; padding: 12px 14px 10px; }
+#ai-body { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 12px 14px 10px; }
 #ai-thread {
   flex: 1;
   min-height: 0;
@@ -770,7 +770,17 @@ g.node:hover .ports,
 #ai-actions.cards button small { display: block; font-size: 11px; color: var(--faint); line-height: 1.35; }
 
 /* Composer: one field with the send button inside it. */
-#ai-foot { flex: none; padding: 10px 14px 10px; border-top: 1px solid var(--line); background: var(--bg1); }
+#ai-foot {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 65%;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 14px 10px;
+  border-top: 1px solid var(--line);
+  background: var(--bg1);
+}
+#ai-composer, #ai-usage { flex: none; }
 #ai-composer {
   display: flex;
   flex-direction: column;
@@ -1212,7 +1222,14 @@ html {
 .rdk-details button:hover, .rdk-details button:focus-visible { border-color: var(--accent); }
 
 /* Session sources: bounded scrolling keeps the composer reachable. */
-.ai-documents { margin-bottom: 8px; font-size: 11px; min-width: 0; }
+.ai-documents {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  margin-bottom: 8px;
+  font-size: 11px;
+  min-width: 0;
+}
 .ai-document-controls { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 5px; }
 .ai-documents button, .ai-document-preview button {
   background: var(--bg2);
