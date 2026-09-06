@@ -9,8 +9,8 @@ reply back. Your API key travels through your own worker and is never
 stored or logged.
 
 ```
-https://<your-worker>/ollama.com/api/chat        →  https://ollama.com/api/chat
-https://<your-worker>/api.moonshot.ai/v1/models  →  https://api.moonshot.ai/v1/models
+https://<your-worker>/ollama.com/v1/chat/completions →  https://ollama.com/v1/chat/completions
+https://<your-worker>/api.moonshot.ai/v1/models         →  https://api.moonshot.ai/v1/models
 ```
 
 ## Deploy (free tier, two commands)
@@ -21,13 +21,16 @@ npx wrangler login      # once; opens a browser to your Cloudflare account
 npx wrangler deploy     # prints https://schematica-relay.<account>.workers.dev
 ```
 
-Then in Schematica's assistant settings pick **Ollama Cloud** (or **Kimi**),
+Then in Schematica's assistant settings pick **OpenAI-compatible** for
+Ollama Cloud (or **Kimi**),
 paste the key from <https://ollama.com/settings/keys> (or platform.kimi.ai),
-and set the Base URL to your worker followed by the upstream host:
+and set the Base URL to your worker followed by the upstream host and `/v1`.
+For Ollama Cloud,
+set Model to `glm-5.3` or choose one with **List models**:
 
 | Provider | Base URL |
 | --- | --- |
-| Ollama Cloud | `https://schematica-relay.<account>.workers.dev/ollama.com` |
+| OpenAI-compatible (Ollama Cloud) | `https://schematica-relay.<account>.workers.dev/ollama.com/v1` |
 | Kimi (Moonshot) | `https://schematica-relay.<account>.workers.dev/api.moonshot.ai/v1` |
 
 To make your worker the default for everyone using your deployment, set
@@ -37,7 +40,8 @@ To make your worker the default for everyone using your deployment, set
 
 The default relay is deployed at
 `https://schematica-relay.henrycooper86.workers.dev`. Ollama Cloud with
-`glm-5.3` passed an authenticated browser connection test on 2026-09-06.
+`glm-5.3` using OpenAI-compatible chat completions passed an authenticated
+connection and tool round trip test on 2026-09-06.
 If you deploy your own relay, use the URL printed by Wrangler and the
 provider-specific path in the table above. An `ENOTFOUND` error means the
 hostname is not resolving; changing an API key cannot fix it.
@@ -62,7 +66,7 @@ Plain-text variables in `wrangler.jsonc`:
 `npx wrangler dev` serves the worker at <http://localhost:8787>; then
 
 ```sh
-curl http://localhost:8787/ollama.com/api/tags
+curl http://localhost:8787/ollama.com/v1/models
 ```
 
 lists ollama.com's catalogue through the relay (that endpoint needs no key).

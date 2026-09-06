@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sseParser, ndjsonParser, readStream } from '../src/ai/providers/stream.js';
+import { sseParser, readStream } from '../src/ai/providers/stream.js';
 
 test('sse events survive chunk boundaries, CRLF, comments, and multi-line data', () => {
   const got = [];
@@ -14,15 +14,6 @@ test('sse events survive chunk boundaries, CRLF, comments, and multi-line data',
     { event: null, data: 'line one\nline two' },
     { event: null, data: '[DONE]' },
   ]);
-});
-
-test('ndjson lines survive chunk boundaries and skip blanks', () => {
-  const got = [];
-  const p = ndjsonParser((o) => got.push(o));
-  p.push('{"x":1}\n{"x":');
-  p.push('2}\n\n{"x":3}');
-  p.end();
-  assert.deepEqual(got, [{ x: 1 }, { x: 2 }, { x: 3 }]);
 });
 
 test('readStream drains a Response body into the parser', async () => {
@@ -42,10 +33,10 @@ test('readStream drains a Response body into the parser', async () => {
 test('a rejected stream record cancels the response and releases its reader', async () => {
   let cancelled = false;
   const body = new ReadableStream({
-    start(c) { c.enqueue(new TextEncoder().encode('not JSON\n')); },
+    start(c) { c.enqueue(new TextEncoder().encode('data: rejected\n\n')); },
     cancel() { cancelled = true; },
   });
-  await assert.rejects(() => readStream(new Response(body), ndjsonParser(() => {})), SyntaxError);
+  await assert.rejects(() => readStream(new Response(body), sseParser(() => { throw new SyntaxError('rejected'); })), SyntaxError);
   assert.equal(cancelled, true);
   assert.equal(body.locked, false);
 });

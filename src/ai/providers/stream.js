@@ -1,5 +1,5 @@
 // Streaming helpers shared by the adapters: server-sent events (Anthropic,
-// OpenAI-compatible) and newline-delimited JSON (Ollama). Both accept text in
+// OpenAI-compatible). Accept text in
 // any chunking and dispatch complete records only.
 
 function parseData(text) {
@@ -37,28 +37,6 @@ export function sseParser(onEvent) {
       if (buffer) line(buffer.replace(/\r$/, ''));
       buffer = '';
       flush();
-    },
-  };
-}
-
-export function ndjsonParser(onLine) {
-  let buffer = '';
-  const line = (l) => {
-    const t = l.trim();
-    if (t) onLine(JSON.parse(t));
-  };
-  return {
-    push(text) {
-      buffer += text;
-      let nl;
-      while ((nl = buffer.indexOf('\n')) >= 0) {
-        line(buffer.slice(0, nl));
-        buffer = buffer.slice(nl + 1);
-      }
-    },
-    end() {
-      if (buffer.trim()) line(buffer);
-      buffer = '';
     },
   };
 }

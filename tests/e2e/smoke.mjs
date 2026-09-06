@@ -586,15 +586,14 @@ try {
   await sleep(100);
   const forgotten = await js(`localStorage.getItem('schematica.ai.key.anthropic')`);
   check('forget clears the stored key', forgotten === null, String(forgotten));
-  // Seven providers; switching one fills its base URL, default model, model
-  // suggestions, and help, and only the local Ollama entry drops the key.
+  // Switching providers fills the endpoint, default model, suggestions, and help.
   const pick = (id) => js(`(() => { const sel = document.getElementById('ai-provider'); sel.value = ${JSON.stringify(id)}; sel.dispatchEvent(new Event('change', { bubbles: true })); return { base: document.getElementById('ai-base').value, model: document.getElementById('ai-model').value, options: [...document.querySelectorAll('#ai-models option')].map((o) => o.value), keyOff: document.getElementById('ai-key').disabled, listHidden: document.getElementById('ai-models-btn').hidden, help: document.getElementById('ai-help').textContent }; })()`);
   const providerIds = await js(`[...document.querySelectorAll('#ai-provider option')].map((o) => o.value)`);
-  check('the provider menu lists Anthropic, OpenAI-compatible, OpenRouter, Z.AI, Kimi, and Ollama Cloud', JSON.stringify(providerIds) === JSON.stringify(['anthropic', 'openai', 'openrouter', 'zai', 'kimi', 'ollamacloud']), JSON.stringify(providerIds));
+  check('the provider menu lists Anthropic, OpenAI-compatible, OpenRouter, Z.AI, and Kimi', JSON.stringify(providerIds) === JSON.stringify(['anthropic', 'openai', 'openrouter', 'zai', 'kimi']), JSON.stringify(providerIds));
   const kimi = await pick('kimi');
   check('picking Kimi fills the relayed Moonshot base URL, the kimi-k3 default, and model suggestions', kimi.base === `${RELAY}/api.moonshot.ai/v1` && kimi.model === 'kimi-k3' && kimi.options.includes('kimi-k3') && kimi.keyOff === false && kimi.listHidden === false, JSON.stringify(kimi));
-  const cloud = await pick('ollamacloud');
-  check('picking Ollama Cloud points at ollama.com through the relay, asks for a key, and suggests glm-5.3', cloud.base === `${RELAY}/ollama.com` && cloud.model === 'glm-5.3' && cloud.options.includes('glm-5.3') && cloud.keyOff === false && cloud.listHidden === false && /ollama\.com\/settings\/keys/.test(cloud.help), JSON.stringify(cloud));
+  const compatible = await pick('openai');
+  check('OpenAI-compatible offers Ollama Cloud through the relay and asks for a key', compatible.keyOff === false && compatible.listHidden === false && compatible.help.includes(`${RELAY}/ollama.com/v1`) && compatible.help.includes('glm-5.3'), JSON.stringify(compatible));
   const zai = await pick('zai');
   check('picking Z.AI fills the GLM endpoint and glm-5.3', zai.base === 'https://api.z.ai/api/paas/v4' && zai.model === 'glm-5.3' && zai.keyOff === false, JSON.stringify(zai));
   await pick('anthropic');
@@ -727,6 +726,21 @@ try {
   await sleep(1200);
   const cleared = await js(`(() => ({ title: document.getElementById('title').value, msgs: document.querySelectorAll('#ai-thread .ai-msg').length }))()`);
   check('replacing the board through a share link clears the thread', cleared.title === drone.title && cleared.msgs === 0, JSON.stringify(cleared));
+
+  // Legacy settings must open as OpenAI-compatible and survive a normal form
+  // save without overwriting a separately remembered OpenAI credential.
+  await js(`(() => {
+    localStorage.setItem('schematica.ai.settings', JSON.stringify({ provider: 'ollamacloud', baseUrl: '${RELAY}/ollama.com', model: 'glm-5.3', remember: true, tools: true }));
+    localStorage.setItem('schematica.ai.key.ollamacloud', 'legacy-test-key');
+    localStorage.setItem('schematica.ai.key.openai', 'separate-test-key');
+    document.getElementById('ai-gear').click();
+    return true;
+  })()`);
+  const migrated = await js(`({ provider: document.getElementById('ai-provider').value, base: document.getElementById('ai-base').value, model: document.getElementById('ai-model').value, key: document.getElementById('ai-key').value })`);
+  check('legacy Ollama settings open as OpenAI-compatible with their model and key', migrated.provider === 'openai' && migrated.base === `${RELAY}/ollama.com/v1` && migrated.model === 'glm-5.3' && migrated.key === 'legacy-test-key', JSON.stringify(migrated));
+  await js(`(() => { document.getElementById('ai-base').value += '/'; document.getElementById('ai-save').click(); return true; })()`);
+  const savedMigration = await js(`({ settings: JSON.parse(localStorage.getItem('schematica.ai.settings')), separate: localStorage.getItem('schematica.ai.key.openai'), legacy: localStorage.getItem('schematica.ai.key.ollamacloud') })`);
+  check('saving a migrated connection preserves the separate OpenAI credential and invalidates the old probe', savedMigration.settings.provider === 'openai' && savedMigration.settings.tools === null && savedMigration.separate === 'separate-test-key' && savedMigration.legacy === 'legacy-test-key', JSON.stringify(savedMigration));
 } catch (err) {
   failed += 1;
   results.push(`FAIL script error — ${err.message}`);

@@ -228,15 +228,14 @@ test('makeProvider builds the adapter each provider names and sends the key the 
   const seen = [];
   const fetchImpl = async (url, init = {}) => { seen.push({ url, init }); return new Response('{}', { status: 500 }); };
   const msg = { system: ['s'], messages: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }], tools: [] };
-  for (const provider of ['anthropic', 'openai', 'openrouter', 'zai', 'kimi', 'ollamacloud']) {
+  for (const provider of ['anthropic', 'openai', 'openrouter', 'zai', 'kimi']) {
     const p = makeProvider(s(provider), 'k', fetchImpl);
     assert.equal(typeof p.chat, 'function', provider);
     await p.chat(msg).catch(() => {});
   }
   const paths = seen.map((x) => new URL(x.url).pathname);
-  assert.deepEqual(paths, ['/v1/messages', '/chat/completions', '/chat/completions', '/chat/completions', '/chat/completions', '/api/chat']);
+  assert.deepEqual(paths, ['/v1/messages', '/chat/completions', '/chat/completions', '/chat/completions', '/chat/completions']);
   assert.equal(seen[0].init.headers['x-api-key'], 'k');
   for (const i of [1, 2, 3, 4]) assert.equal(seen[i].init.headers.authorization, 'Bearer k', paths[i]);
-  assert.equal(seen[5].init.headers.authorization, 'Bearer k', 'Ollama Cloud sends its key through the relay');
   assert.throws(() => makeProvider(s('carrier-pigeon'), 'k'), /unknown provider/);
 });

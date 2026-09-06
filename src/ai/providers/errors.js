@@ -34,9 +34,7 @@ export function networkError(provider, err, baseUrl = '') {
   let relay = false;
   try { relay = /^\/(ollama\.com|api\.moonshot\.ai)(\/|$)/.test(new URL(baseUrl).pathname); } catch { /* a malformed URL is reported by fetch */ }
   const hint = relay
-    ? 'Check that the relay is deployed and reachable, then set Base URL to its URL followed by /ollama.com or /api.moonshot.ai/v1 for your provider. See relay/README.md.'
-    : provider === 'ollama'
-    ? 'The request never reached the server. If the Base URL is a relay, check that it is deployed (relay/README.md); a local Ollama must allow this origin through OLLAMA_ORIGINS.'
+    ? 'Check that the relay is deployed and reachable, then set Base URL to its URL followed by /ollama.com/v1 or /api.moonshot.ai/v1 for your provider. See relay/README.md.'
     : '';
   return new ProviderError(`Could not reach ${provider}: ${err?.message || err}`, { code: 'network', hint });
 }

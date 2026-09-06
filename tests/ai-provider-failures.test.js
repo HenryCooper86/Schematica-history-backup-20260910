@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { openaiProvider } from '../src/ai/providers/openai.js';
-import { ollamaProvider } from '../src/ai/providers/ollama.js';
 import { anthropicProvider } from '../src/ai/providers/anthropic.js';
 import { runRequest } from '../src/ai/agent.js';
 
@@ -9,7 +8,6 @@ const args = { system: ['test'], messages: [{ role: 'user', content: [{ type: 't
 const sse = (data) => data.map((d) => `data: ${JSON.stringify(d)}\n\n`).join('');
 const fixtures = [
   ['OpenAI-compatible', openaiProvider, sse([{ error: { code: 429, message: 'Rate limit exceeded' } }]), sse([{ choices: [{ delta: { tool_calls: [{ index: 0, id: 'c', function: { name: 'apply_edits', arguments: '{"ops":[]}' } }] } }] }])],
-  ['Ollama', ollamaProvider, '{"error":"model runner crashed"}\n', '{"message":{"tool_calls":[{"function":{"name":"apply_edits","arguments":{"ops":[]}}}]},"done":false}\n'],
   ['Anthropic', anthropicProvider, sse([{ type: 'error', error: { message: 'overloaded' } }]), sse([{ type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: 'c', name: 'apply_edits', input: {} } }, { type: 'content_block_stop', index: 0 }])],
 ];
 for (const [name, factory, errorBody, partialBody] of fixtures) {
@@ -35,13 +33,6 @@ test('OpenAI-compatible: reaching the length limit with incomplete arguments rep
   assert.deepEqual(result.toolCalls, []);
 });
 
-test('Ollama: a length limit does not become permission to execute tools', async () => {
-  const provider = ollamaProvider({ baseUrl: 'https://example.test', model: 'test', fetchImpl: async () => new Response('{"message":{"tool_calls":[{"function":{"name":"apply_edits","arguments":{"ops":[]}}}]},"done":true,"done_reason":"length"}\n') });
-  const result = await provider.chat(args);
-  assert.equal(result.stop, 'max_tokens');
-  assert.deepEqual(result.toolCalls, []);
-});
-
 test('Anthropic: incomplete tool JSON at the length limit reports a cutoff', async () => {
   const provider = anthropicProvider({ baseUrl: 'https://example.test', model: 'test', fetchImpl: async () => new Response(sse([
     { type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: 'c', name: 'apply_edits', input: {} } },
@@ -56,7 +47,6 @@ test('Anthropic: incomplete tool JSON at the length limit reports a cutoff', asy
 
 for (const [name, factory, first, second, field] of [
   ['Kimi', openaiProvider, sse([{ choices: [{ delta: { reasoning_content: 'Keep this context. ' } }] }, { choices: [{ delta: { reasoning_content: 'And this.', tool_calls: [{ index: 0, id: 'c', function: { name: 'get_board', arguments: '{}' } }] }, finish_reason: 'tool_calls' }] }]), sse([{ choices: [{ delta: { content: 'Done' }, finish_reason: 'stop' }] }]), 'reasoning_content'],
-  ['Ollama', ollamaProvider, '{"message":{"thinking":"Keep this context. "},"done":false}\n{"message":{"thinking":"And this.","tool_calls":[{"function":{"name":"get_board","arguments":{}}}]},"done":true}\n', '{"message":{"content":"Done"},"done":true}\n', 'thinking'],
 ]) {
   test(`${name}: the next tool round retains reasoning without showing it as assistant text`, async () => {
     const bodies = [];
@@ -65,7 +55,6 @@ for (const [name, factory, first, second, field] of [
     const result = await runRequest({ provider, executor: { touched: new Set(), resetTouched() {}, run() { return { text: 'board' }; } }, system: ['test'], userText: 'read', boardText: '', onText: (text) => shown.push(text) });
     assert.equal(result.error, undefined);
     assert.equal(bodies[1].messages.find((m) => m.role === 'assistant')[field], 'Keep this context. And this.');
-    if (name === 'Ollama') assert.equal(bodies[1].messages.find((m) => m.role === 'tool').tool_name, 'get_board');
     assert.deepEqual(shown, ['Done']);
   });
 }
@@ -88,11 +77,11 @@ for (const [finish, stop, cutOff] of [['length', 'max_tokens', true], ['content_
   });
 }
 
-for (const provider of ['kimi', 'ollamacloud']) {
+for (const provider of ['kimi', 'openai']) {
   test(`${provider}: an unreachable relay explains how to configure a working endpoint`, async () => {
-    const { PROVIDERS } = await import('../src/ai/settings.js');
+    const { PROVIDERS, RELAY } = await import('../src/ai/settings.js');
     const { makeProvider } = await import('../src/ai/providers/index.js');
-    const p = makeProvider({ provider, ...PROVIDERS[provider] }, 'test-key', async () => { throw new TypeError('Failed to fetch'); });
+    const p = makeProvider({ provider, ...PROVIDERS[provider], ...(provider === 'openai' ? { baseUrl: `${RELAY}/ollama.com/v1` } : {}) }, 'test-key', async () => { throw new TypeError('Failed to fetch'); });
     await assert.rejects(() => p.chat(args), (e) => e.code === 'network' && /relay/i.test(e.hint) && /Base URL/.test(e.hint));
   });
 }

@@ -13,7 +13,9 @@ export function toOpenAIRequest({ model, system, messages, tools }) {
       const calls = m.content.filter((b) => b.type === 'tool_use')
         .map((b) => ({ id: b.id, type: 'function', function: { name: b.name, arguments: JSON.stringify(b.input ?? {}) } }));
       const msg = { role: 'assistant', content: text || null };
-      if (typeof m.raw?.reasoning_content === 'string') msg.reasoning_content = m.raw.reasoning_content;
+      // Replay reasoning from threads saved by the former native Ollama adapter.
+      const reasoning = m.raw?.reasoning_content ?? m.raw?.thinking;
+      if (typeof reasoning === 'string') msg.reasoning_content = reasoning;
       if (calls.length) msg.tool_calls = calls;
       out.push(msg);
       continue;

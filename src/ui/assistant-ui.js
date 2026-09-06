@@ -4,7 +4,6 @@
 import { createSettings, PROVIDERS, EFFORTS, estimateCost, THREAD_KEY } from '../ai/settings.js';
 import { makeProvider, probeTools } from '../ai/providers/index.js';
 import { listOpenAIModels } from '../ai/providers/openai.js';
-import { listOllamaModels } from '../ai/providers/ollama.js';
 import { runRequest, runSingleShot } from '../ai/agent.js';
 import { createExecutor } from '../ai/tools.js';
 import { boardText } from '../ai/context.js';
@@ -252,9 +251,7 @@ export function initAssistant({ store, tools, render, svg }) {
     const baseUrl = el('ai-base').value.trim();
     const apiKey = p.needsKey ? el('ai-key').value.trim() : '';
     try {
-      const names = p.adapter === 'ollama'
-        ? await listOllamaModels({ baseUrl, apiKey })
-        : await listOpenAIModels({ baseUrl, apiKey });
+      const names = await listOpenAIModels({ baseUrl, apiKey });
       if (version !== formVersion) return;
       suggestModels(names);
       const msg = names.length ? `${names.length} models listed; pick one in the Model field.` : 'The endpoint listed no models.';

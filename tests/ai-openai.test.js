@@ -72,3 +72,12 @@ test('the provider posts with a bearer token and lists models', async () => {
   assert.equal(r.stop, 'end');
   assert.deepEqual(await listOpenAIModels({ baseUrl: 'https://api.openai.com/v1', apiKey: 'sk-o', fetchImpl }), ['gpt-a', 'gpt-b']);
 });
+
+test('migrated Ollama history replays its reasoning through chat completions', () => {
+  const body = toOpenAIRequest({ model: 'glm-5.3', system: SYSTEM, tools: TOOLS, messages: [
+    { role: 'assistant', content: [{ type: 'tool_use', id: 'call_0', name: 'get_board', input: {} }], raw: { thinking: 'Inspect the board.' } },
+    { role: 'user', content: [{ type: 'tool_result', id: 'call_0', text: 'Empty board' }] },
+  ] });
+  assert.equal(body.messages[1].reasoning_content, 'Inspect the board.');
+  assert.equal(body.messages[2].tool_call_id, 'call_0');
+});

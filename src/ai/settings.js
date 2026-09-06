@@ -4,9 +4,8 @@
 // touches the document, autosave, share links, or exports.
 
 // Each provider names the adapter that speaks its wire format (`anthropic`,
-// `openai` for every chat-completions endpoint, `ollama` for ollama.com's
-// own API), its public base URL, whether a key is needed, a default
-// model, and a few suggested model ids for the settings form. Endpoints and
+// `openai` for every chat-completions endpoint), its public base URL,
+// whether a key is needed, a default model, and a few suggested model ids for the settings form. Endpoints and
 // model names were taken from the vendors' documentation in September 2026;
 // "List models" fetches the live catalogue where the endpoint offers one.
 // ollama.com answers a CORS preflight with 405 and api.moonshot.ai sends no
@@ -26,7 +25,7 @@ export const PROVIDERS = {
   openai: {
     name: 'OpenAI-compatible', adapter: 'openai', baseUrl: 'https://api.openai.com/v1', model: '', needsKey: true,
     models: [],
-    help: 'Any endpoint that speaks chat completions with function calling, a local Ollama at http://localhost:11434/v1 included (start it with OLLAMA_ORIGINS set to this site\'s origin). Set the base URL and pick a model; "List models" asks the endpoint.',
+    help: `Any chat-completions endpoint with function calling. For Ollama Cloud, use ${RELAY}/ollama.com/v1, a key from ollama.com/settings/keys, and a model such as glm-5.3. Local Ollama: http://localhost:11434/v1, key "ollama", with OLLAMA_ORIGINS set to this site's origin. "List models" fetches the catalogue.`,
   },
   openrouter: {
     name: 'OpenRouter', adapter: 'openai', baseUrl: 'https://openrouter.ai/api/v1', model: '', needsKey: true,
@@ -42,11 +41,6 @@ export const PROVIDERS = {
     name: 'Kimi (Moonshot)', adapter: 'openai', baseUrl: `${RELAY}/api.moonshot.ai/v1`, model: 'kimi-k3', needsKey: true,
     models: ['kimi-k3', 'kimi-k2.6', 'kimi-k2.7-code'],
     help: 'Moonshot\'s Kimi models over their OpenAI-compatible endpoint, through the relay because api.moonshot.ai does not answer browser requests. Keys come from platform.kimi.ai.',
-  },
-  ollamacloud: {
-    name: 'Ollama Cloud', adapter: 'ollama', baseUrl: `${RELAY}/ollama.com`, model: 'glm-5.3', needsKey: true,
-    models: ['glm-5.3', 'glm-5.3-flash', 'kimi-k3', 'gpt-oss:120b', 'qwen3.5:397b', 'deepseek-v4-flash:0731', 'minimax-m3', 'gemma4:31b'],
-    help: 'Hosted models at ollama.com; keys come from ollama.com/settings/keys. ollama.com does not answer browser requests, so calls go through the relay (a small Cloudflare Worker; run your own with relay/README.md and put its URL in Base URL). "List models" fetches the catalogue.',
   },
 };
 export const EFFORTS = ['low', 'medium', 'high'];
@@ -69,6 +63,14 @@ export function estimateCost(model, usage) {
 
 const DEFAULTS = { provider: 'anthropic', model: '', baseUrl: '', effort: 'medium', remember: false, tools: null };
 
+// Keep migrated credentials in their old slot so an existing OpenAI key is
+// never overwritten. Only this migration may select the legacy key slot.
+function migrateSettings(s) {
+  if (s.provider !== 'ollamacloud') return s;
+  const base = (s.baseUrl || `${RELAY}/ollama.com`).replace(/\/+$/, '');
+  return { ...s, provider: 'openai', model: s.model || 'glm-5.3', baseUrl: base.endsWith('/v1') ? base : `${base}/v1`, keyProvider: 'ollamacloud', tools: null };
+}
+
 export function createSettings(storage) {
   // A browser with site data blocked throws on `window.localStorage` itself,
   // so the caller passes null; every access here tolerates that.
@@ -81,7 +83,7 @@ export function createSettings(storage) {
   // patches live in `memory` for the session; with storage, `memory` stays
   // empty so a seeded value is never shadowed.
   let memory = {};
-  const readStored = () => { try { return { ...(JSON.parse(read(SETTINGS_KEY) || '{}') || {}), ...memory }; } catch { return { ...memory }; } };
+  const readStored = () => { try { return migrateSettings({ ...(JSON.parse(read(SETTINGS_KEY) || '{}') || {}), ...memory }); } catch { return migrateSettings({ ...memory }); } };
   const memoryKeys = {};
 
   function get() {
@@ -95,22 +97,31 @@ export function createSettings(storage) {
   }
 
   function set(patch) {
-    const next = { ...readStored(), ...patch };
     const current = get();
+    let next = { ...readStored(), ...patch };
+    // Editing this connection's URL must retain ownership of its key slot.
+    // The UI loads another key only when the provider selection changes.
+    if (Object.hasOwn(patch, 'provider') && patch.provider !== current.provider) delete next.keyProvider;
+    next = migrateSettings(next);
     if (!Object.hasOwn(patch, 'tools') && ['provider', 'model', 'baseUrl', 'effort'].some((k) => Object.hasOwn(patch, k) && patch[k] !== current[k])) next.tools = null;
     let stored = false;
     try { if (storage) { storage.setItem(SETTINGS_KEY, JSON.stringify(next)); stored = true; } } catch { /* blocked or full */ }
     if (!stored) memory = next;
   }
 
+  function keyProvider() {
+    const s = get();
+    return s.provider === 'openai' && s.keyProvider === 'ollamacloud' ? 'ollamacloud' : s.provider;
+  }
+
   function getKey() {
-    const provider = get().provider;
+    const provider = keyProvider();
     if (memoryKeys[provider] !== undefined) return memoryKeys[provider];
     return get().remember ? (read(keyStorageKey(provider)) || '') : '';
   }
 
   function setKey(key, remember) {
-    const provider = get().provider;
+    const provider = keyProvider();
     if (key !== getKey()) set({ tools: null });
     memoryKeys[provider] = key;
     set({ remember: !!remember });
@@ -119,7 +130,7 @@ export function createSettings(storage) {
   }
 
   function forgetKey() {
-    const provider = get().provider;
+    const provider = keyProvider();
     memoryKeys[provider] = '';
     remove(keyStorageKey(provider));
     set({ tools: null });
