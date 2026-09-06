@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { EXAMPLES } from '../src/examples.js';
+import { EXAMPLES, EXAMPLE_GROUPS } from '../src/examples.js';
 import { diagramMarkup } from '../src/render.js';
 import { serialize, deserialize } from '../src/serialize.js';
 import { getPart } from '../src/palette.js';
@@ -126,4 +126,11 @@ test('no example animates while the Animate toggle is off', () => {
     assert.ok(!/class="[^"]*\banim\b/.test(m), `${ex.id} animates with the toggle off`);
     assert.deepEqual(ex.doc.wires.filter((w) => w.flow === 'on').map((w) => w.id), [], `${ex.id} ships wires forced on`);
   }
+});
+
+// The menu groups boards by topic so sixteen entries stay scannable.
+test('every example belongs to one of the menu groups and no group is empty', () => {
+  assert.deepEqual(EXAMPLE_GROUPS, ['Embedded', 'Vehicle', 'Security']);
+  for (const ex of EXAMPLES) assert.ok(EXAMPLE_GROUPS.includes(ex.group), `${ex.id} group "${ex.group}"`);
+  for (const g of EXAMPLE_GROUPS) assert.ok(EXAMPLES.some((ex) => ex.group === g), `${g} has boards`);
 });

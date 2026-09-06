@@ -2,10 +2,14 @@
 // serialize/deserialize with zero warnings (enforced by tests/examples.test.js),
 // so every node kind, port id, bus, and journey step here is guaranteed valid.
 
+// Menu headings, in display order; every example names one as its `group`.
+export const EXAMPLE_GROUPS = ['Embedded', 'Vehicle', 'Security'];
+
 export const EXAMPLES = [
   {
     id: 'weather-station',
     name: 'Weather Station',
+    group: 'Embedded',
     doc: {
       schema: 1,
       title: 'Weather Station',
@@ -55,6 +59,7 @@ export const EXAMPLES = [
   {
     id: 'drone-fc',
     name: 'Drone Flight Controller',
+    group: 'Embedded',
     doc: {
       schema: 1,
       title: 'Drone Flight Controller',
@@ -103,6 +108,7 @@ export const EXAMPLES = [
   {
     id: 'can-network',
     name: 'CAN Bus Network',
+    group: 'Vehicle',
     doc: {
       schema: 1,
       title: 'CAN Bus Network',
@@ -148,6 +154,7 @@ export const EXAMPLES = [
   {
     id: 'smart-greenhouse',
     name: 'Smart Greenhouse (edge to cloud)',
+    group: 'Embedded',
     doc: {
       schema: 1,
       title: 'Smart Greenhouse',
@@ -203,6 +210,7 @@ export const EXAMPLES = [
   {
     id: 'robot-arm',
     name: 'Robot Arm Controller',
+    group: 'Embedded',
     doc: {
       schema: 1,
       title: 'Robot Arm Controller',
@@ -252,6 +260,7 @@ export const EXAMPLES = [
   {
     id: 'rover',
     name: 'Autonomous Rover',
+    group: 'Embedded',
     doc: {
       schema: 1,
       title: 'Autonomous Rover',
@@ -303,6 +312,7 @@ export const EXAMPLES = [
   {
     id: 'vehicle-can',
     name: 'Vehicle CAN Backbone',
+    group: 'Vehicle',
     doc: {
       schema: 1,
       title: 'Vehicle CAN Backbone',
@@ -363,6 +373,7 @@ export const EXAMPLES = [
   {
     id: 'ota-pipeline',
     name: 'OTA Update Pipeline (swimlane)',
+    group: 'Vehicle',
     doc: {
       schema: 1,
       title: 'OTA Update Pipeline',
@@ -411,6 +422,7 @@ export const EXAMPLES = [
   {
     id: 'rdk-rover',
     name: 'RDK X5 Rover (D-Robotics)',
+    group: 'Vehicle',
     doc: {
       schema: 1,
       title: 'RDK X5 Rover',
@@ -471,6 +483,7 @@ export const EXAMPLES = [
   {
     id: 'journey-adas',
     name: 'Journey 6 ADAS Stack (Horizon)',
+    group: 'Vehicle',
     doc: {
       schema: 1,
       title: 'Journey 6 ADAS Stack',
@@ -536,6 +549,7 @@ export const EXAMPLES = [
   {
     id: 'sensor-node-clean',
     name: 'Sensor Node (DRC clean)',
+    group: 'Embedded',
     doc: {
       schema: 1,
       title: 'Sensor Node',
@@ -588,6 +602,7 @@ export const EXAMPLES = [
   {
     id: 'ota-security',
     name: 'Vehicle OTA Security (threats & flow)',
+    group: 'Security',
     doc: {
       schema: 1,
       title: 'Vehicle OTA Security',
@@ -664,6 +679,7 @@ export const EXAMPLES = [
   {
     id: 'adas-security',
     name: 'ADAS Security (threats & response)',
+    group: 'Security',
     doc: {
       schema: 1,
       title: 'ADAS Security',
@@ -747,6 +763,7 @@ export const EXAMPLES = [
   {
     id: 'ev-bms',
     name: 'EV Battery Management (HV + CAN)',
+    group: 'Vehicle',
     doc: {
       schema: 1,
       title: 'EV Battery Management',
@@ -819,6 +836,7 @@ export const EXAMPLES = [
   {
     id: 'ot-purdue',
     name: 'OT Network Segmentation (Purdue swimlane)',
+    group: 'Security',
     doc: {
       schema: 1,
       title: 'OT Network Segmentation',
@@ -887,6 +905,7 @@ export const EXAMPLES = [
   {
     id: 'secure-boot',
     name: 'Secure Boot Chain (flow + hardware)',
+    group: 'Security',
     doc: {
       schema: 1,
       title: 'Secure Boot Chain',

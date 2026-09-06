@@ -595,6 +595,16 @@ try {
   await sleep(100);
   check('A closes the panel again', (await js(`document.getElementById('assistant').hidden`)) === true);
 
+  // The Examples menu lists every board under a topic heading; Escape closes it
+  // (choosing one would confirm(), which the smoke test never does).
+  await js(`document.getElementById('btn-examples').click(); true`);
+  await sleep(100);
+  const menu = await js(`(() => { const m = document.getElementById('examples-menu'); return { hidden: m.hidden, headings: [...m.querySelectorAll('.menu-group')].map((h) => h.textContent), buttons: m.querySelectorAll('button').length }; })()`);
+  check('the Examples menu opens with Embedded, Vehicle, and Security headings over sixteen boards', menu.hidden === false && JSON.stringify(menu.headings) === JSON.stringify(['Embedded', 'Vehicle', 'Security']) && menu.buttons === EXAMPLES.length && EXAMPLES.length === 16, JSON.stringify(menu));
+  await key('Escape', 'Escape', 27);
+  await sleep(100);
+  check('Escape closes the Examples menu', (await js(`document.getElementById('examples-menu').hidden`)) === true);
+
   // ---- Assistant: build, undo, highlight, Fix button, thread ----
   // An empty board through a share link (loadBoard clears storage, so the
   // settings are seeded afterwards; they are read at send time).

@@ -1,5 +1,5 @@
 // The Examples dropdown: loads a built-in board after confirming.
-import { EXAMPLES } from '../examples.js';
+import { EXAMPLES, EXAMPLE_GROUPS } from '../examples.js';
 import { serialize, deserialize } from '../serialize.js';
 import { toast, escAttr } from './press.js';
 
@@ -22,7 +22,8 @@ export function initExamplesMenu({ store }) {
       close();
       return;
     }
-    menu.innerHTML = EXAMPLES.map((ex) => `<button data-example="${escAttr(ex.id)}">${escAttr(ex.name)}</button>`).join('');
+    menu.innerHTML = EXAMPLE_GROUPS.map((group) => `<div class="menu-group">${escAttr(group)}</div>`
+      + EXAMPLES.filter((ex) => ex.group === group).map((ex) => `<button data-example="${escAttr(ex.id)}">${escAttr(ex.name)}</button>`).join('')).join('');
     const r = btn.getBoundingClientRect();
     menu.style.left = `${Math.min(r.left, window.innerWidth - 230)}px`;
     menu.style.top = `${r.bottom + 6}px`;

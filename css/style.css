@@ -503,6 +503,15 @@ g.node:hover .ports,
   text-align: left;
 }
 #examples-menu button:hover { background: var(--bg3); }
+#examples-menu .menu-group {
+  margin: 8px 10px 4px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.6px;
+  color: var(--faint);
+  user-select: none;
+}
+#examples-menu .menu-group:first-child { margin-top: 4px; }
 
 /* ---- Inline editor ---- */
 #inline-editor {
