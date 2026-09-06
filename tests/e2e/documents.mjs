@@ -120,17 +120,18 @@ export async function runDocumentChecks(harness) {
   const cancelled = await js(`({ progress:document.querySelector('[data-doc-progress]').textContent, rows:document.querySelectorAll('[data-doc-index]').length, sendDisabled:document.getElementById('ai-send').disabled })`);
   check('Cancel settles real parser work without locking the composer', /cancelled/i.test(cancelled.progress) && cancelled.rows <= 1 && !cancelled.sendDisabled, JSON.stringify(cancelled));
 
-  await js(`(() => { window.__documentArrayBuffer=File.prototype.arrayBuffer; window.__heldReadStarted=false; window.__releaseHeldRead=null; File.prototype.arrayBuffer=function(){ if (this.name !== 'requirements.pdf') return window.__documentArrayBuffer.call(this); window.__heldReadStarted=true; return new Promise(resolve => { window.__releaseHeldRead=() => window.__documentArrayBuffer.call(this).then(resolve); }); }; return true; })()`);
+  await js(`(() => { window.__documentArrayBuffer=File.prototype.arrayBuffer; window.__heldReadStarted=false; window.__heldReadSettled=false; window.__releaseHeldRead=null; File.prototype.arrayBuffer=function(){ if (this.name !== 'requirements.pdf') return window.__documentArrayBuffer.call(this); window.__heldReadStarted=true; return new Promise(resolve => { window.__releaseHeldRead=() => window.__documentArrayBuffer.call(this).then(value => { window.__heldReadSettled=true; resolve(value); }); }); }; return true; })()`);
   try {
     await setInput('#ai-documents [data-doc-files]', [fixture('requirements.pdf')]);
     await waitFor(`window.__heldReadStarted`);
     await js(`document.getElementById('ai-new').click(); true`);
-    await js(`window.__releaseHeldRead(); true`);
-    await waitFor(`document.querySelector('#ai-documents [data-doc-cancel]').disabled`);
+    await js(`window.__releaseHeldRead()`);
+    await js(`new Promise(resolve => { const channel=new MessageChannel(); channel.port1.onmessage=resolve; channel.port2.postMessage(null); })`);
   } finally {
     await js(`File.prototype.arrayBuffer=window.__documentArrayBuffer; true`);
   }
-  check('New thread invalidates stale parser completion after its held read resolves', await rows() === 0);
+  const staleRead = await js(`({ started:window.__heldReadStarted, settled:window.__heldReadSettled, rows:document.querySelectorAll('#ai-documents [data-doc-index]').length })`);
+  check('New thread rejects stale file-read completion after its held read settles', staleRead.started && staleRead.settled && staleRead.rows === 0, JSON.stringify(staleRead));
 
   // An individual drop uses bytes fetched from the synthetic fixture server.
   await js(`(async () => { const bytes=await (await fetch('/tests/fixtures/documents/requirements.md')).arrayBuffer(); const file=new File([bytes], 'dropped.md', {type:'text/markdown'}); const dt=new DataTransfer(); dt.items.add(file); document.getElementById('ai-documents').dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer:dt})); return true; })()`);
