@@ -1,7 +1,7 @@
 # D-Robotics RDK integration design
 
 Date: 2026-09-06
-Status: First-release scope approved in conversation; written design ready for review.
+Status: Written design approved by the user on 2026-09-06; implementation authorized.
 Baseline: `1bd5737` — assistant uses OpenAI compatibility for Ollama.
 
 ## Intended outcome
