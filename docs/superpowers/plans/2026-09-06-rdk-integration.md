@@ -75,7 +75,7 @@ assert.ok(checkDoc(stereoDoc).some(f => f.rule === 'rdk-stereo-links' && f.ids.i
 
 ## Task 3: Software blocks, properties, assistant reference, and guide
 
-**Files:** Create `src/rdk/guide.js`, `src/ui/rdk-details.js`, `tests/rdk-guide.test.js`, `tests/rdk-assistant.test.js`; modify `src/palette.js`, `src/ui/props.js`, `src/ai/context.js`, `src/ai/tools.js`, `src/ai/prompt.js`, `src/ai/ops.js` where target-ref resolution needs it, and `css/style.css`.
+**Files:** Create `src/rdk/guide.js`, `src/ui/rdk-details.js`, `tests/rdk-guide.test.js`, `tests/rdk-assistant.test.js`; modify `src/palette.js`, `src/ui/props.js`, `src/ai/context.js`, `src/ai/tools.js`, `src/ai/prompt.js`, `src/ai/ops.js` where target-ref resolution needs it, and `css/style.css`; `src/state.js` and its focused tests for copied software target references.
 
 **Consumes:** Tasks 1–2 catalogue/profiles/checks. **Produces:** `rdkGuide(doc)` returns Markdown or empty string when no RDK board; `rdkDetails(node,doc)` escaped HTML; `rdk_reference({query})` tool output; `rdksoftware` kind fields `{package,runtime,target}` with input/output flow ports.
 
@@ -92,7 +92,7 @@ assert.equal(serialize(store.doc), before);
 
 - [ ] **Step 2:** Write guide tests: board-specific BOM and endpoints, findings present, software target mapping, official sources, no commands, hostile title/labels escaped to harmless Markdown, empty document yields no guide. Verify the generator's only input is a document, not settings or provider state. Run focused tests and inspect red results.
 - [ ] **Step 3:** Add software kind and presets, source-linked assistant reference lookup, profile summary in get_board/node context, and a concise prompt rule to look up RDK constraints and avoid hardware-certification claims. Keep the reference tool capped. Clarify tools receive data, not instructions. Do not expose command execution or new AI mutations beyond existing atomic ops.
-- [ ] **Step 4:** Render compact RDK details in properties: identity/date, supported ports, CSI occupancy, power/adapters, compatibility, links. Software properties select target from existing RDK board nodes and retain a missing target value visibly. A user-triggered Download setup guide button is available for an RDK board and emits Markdown using Blob and a temporary download anchor; revoke the object URL. Escape text and allow only HTTPS links. Style within existing panel proportions.
+- [ ] **Step 4:** When duplicating a selected board and software stage together, remap the copied stage target to the copied board; copying only the stage keeps its original target. Cover both with real state tests. Reuse `src/export.js` download helper for its existing Blob lifecycle. Render compact RDK details in properties: identity/date, supported ports, CSI occupancy, power/adapters, compatibility, links. Software properties select target from existing RDK board nodes and retain a missing target value visibly. A user-triggered Download setup guide button is available for an RDK board and emits Markdown using Blob and a temporary download anchor; revoke the object URL. Escape text and allow only HTTPS links. Style within existing panel proportions.
 - [ ] **Step 5:** Run new unit tests plus existing palette, search, presets, AI tools/context/ops, serialize, and render suites. Update prior fixed tool-count tests to the intentional added reference tool. Commit task files and report.
 
 ## Task 4: Corrected starter diagrams and end-to-end verification
