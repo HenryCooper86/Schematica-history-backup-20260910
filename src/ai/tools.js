@@ -11,7 +11,7 @@ import { placeNew, arrangeAll } from './layout.js';
 import { boardText, partLine } from './context.js';
 
 import { searchRdk } from '../rdk/catalogue.js';
-import { referenceText } from '../rdk/guide.js';
+import { referenceText, rdkProfile } from '../rdk/guide.js';
 
 const EMPTY = { type: 'object', properties: {}, additionalProperties: false };
 
@@ -100,7 +100,12 @@ export function createExecutor({ getDoc, commit, selection = () => [] }) {
       if (!Object.hasOwn(PARTS, kind)) return err(`unknown kind "${kind}"`);
       const list = presetsFor(kind);
       if (!list.length) return ok(`No presets for ${kind}; choose a part number yourself.`);
-      return ok(list.map((p) => `${p.name} | pn=${p.sublabel} | rail=${p.rail || '-'} | ${p.notes}${kind === 'rdksoftware' ? ` | fields.package=${p.sublabel}; runtime optional; select target board id or earlier ref` : ''}`).join('\n'));
+      const text = list.slice(0, 12).map((p) => {
+        const profile = rdkProfile({ kind, sublabel: p.sublabel, fields: { package: p.sublabel } });
+        const header = `${p.name} | pn=${p.sublabel} | rail=${p.rail || '-'} | ${p.notes}${kind === 'rdksoftware' ? ` | fields.package=${p.sublabel}; runtime optional; select target board id or earlier ref` : ''}`;
+        return profile ? `${header}\n${referenceText(profile)}` : header;
+      }).join('\n\n') + (list.length > 12 ? '\nMore presets omitted; narrow the reference query.' : '');
+      return ok(text.length > 18000 ? text.slice(0, 17930) + '\nReference details truncated; use rdk_reference for a product.' : text);
     },
     apply_edits(input) {
       let { ops } = input;

@@ -418,7 +418,7 @@ try {
   })()`);
   await sleep(1200);
   const guide = await js(`({ ...window.__guideDownload, revoked: window.__revoked.includes(window.__guideDownload?.url) })`);
-  check('clicked setup guide downloads the drawn stereo topology, software targets and official sources', guide.filename?.endsWith('.md') && guide.revoked && guide.text.includes('n3.csi1 → n5.csi') && guide.text.includes('n3.csi2 → n5.csi&#45;right') && guide.text.includes('hobot&#95;dnn') && guide.text.includes('Runtime: not selected') && guide.text.includes('No RDK architectural findings') && guide.text.includes('https://d-robotics.github.io/'), JSON.stringify({ filename: guide.filename, revoked: guide.revoked, length: guide.text?.length }));
+  check('clicked setup guide downloads the drawn stereo topology, software targets and official sources', guide.filename?.endsWith('.md') && guide.revoked && guide.text.includes('n3.csi1 → n5.csi') && guide.text.includes('n3.csi2 → n5.csi&#45;right') && guide.text.includes('hobot&#95;dnn') && guide.text.includes('Runtime: not selected') && guide.text.includes('unconnected-power') && guide.text.includes('Battery') && guide.text.includes('GND pin is unconnected') && guide.text.includes('battery return') && guide.text.includes('https://d-robotics.github.io/'), JSON.stringify({ filename: guide.filename, revoked: guide.revoked, length: guide.text?.length }));
   await js(`document.getElementById('rdk-guide-download').scrollIntoView({ block: 'nearest' }); document.getElementById('zoom-out').click(); document.getElementById('zoom-out').click(); true`);
   const rdkShot = await send('Page.captureScreenshot', { format: 'png' });
   writeFileSync('/tmp/rdk-task4-board-details.png', Buffer.from(rdkShot.result.data, 'base64'));

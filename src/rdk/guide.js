@@ -1,6 +1,7 @@
 // Pure document-derived reference guide. No provider, settings or command access.
-import { profileFor } from './catalogue.js';
-import { cameraOccupancy, checkRdk } from './checks.js';
+import { profileFor, RDK_PRODUCTS } from './catalogue.js';
+import { cameraOccupancy } from './checks.js';
+import { checkDoc } from '../drc.js';
 
 export function rdkProfile(node) {
   return profileFor(
@@ -9,8 +10,20 @@ export function rdkProfile(node) {
       : node,
   );
 }
+function compatiblePeripherals(profile) {
+  if (profile?.kind !== 'aisbc') return [];
+  return RDK_PRODUCTS.filter(
+    (p) =>
+      !['aisbc', 'rdksoftware'].includes(p.kind) &&
+      p.compatibility.boardIds?.includes(profile.id) &&
+      !p.compatibility.unsupportedBoardIds.includes(profile.id),
+  );
+}
 export function safeSources(profile) {
-  return (profile?.sources || []).filter((s) => {
+  const sources = [profile, ...compatiblePeripherals(profile)].flatMap(
+    (p) => p?.sources || [],
+  );
+  return [...new Map(sources.map((s) => [s.url, s])).values()].filter((s) => {
     try {
       const url = new URL(s.url);
       return url.protocol === 'https:' && !url.username && !url.password;
@@ -44,6 +57,17 @@ function profileFacts(p) {
     lines.push(
       `Unsupported boards: ${p.compatibility.unsupportedBoardIds.join(', ')}`,
     );
+  const peripherals = compatiblePeripherals(p);
+  if (peripherals.length) {
+    lines.push(
+      `Documented peripherals: ${peripherals.map((part) => part.name).join(', ')}`,
+    );
+    for (const part of peripherals)
+      lines.push(`${part.name} requirements: ${part.requirements.join(' ')}`);
+    lines.push(
+      'These documented relationships do not validate other peripherals or replace carrier, adapter and connector requirements.',
+    );
+  }
   return lines;
 }
 export function referenceText(profile) {
@@ -79,6 +103,7 @@ export function rdkGuide(doc) {
     );
     if (rdkProfile(n) || n.kind === 'rdksoftware')
       for (const line of rdkFacts(n, doc)) out.push(`  - ${m(line)}`);
+    if (n.notes) out.push(`  - Component notes / assumptions: ${m(n.notes)}`);
   }
   out.push('', '## Connections');
   for (const w of doc.wires)
@@ -95,14 +120,26 @@ export function rdkGuide(doc) {
       `- ${m(n.label)}: package ${m(n.fields?.package || 'not selected')}; target: ${m(target ? `${target.label} (${target.id})` : `${n.fields?.target || 'not selected'} (missing or non-board target)`)}; Runtime: ${m(n.fields?.runtime || 'not selected (optional component-level assumption)')}`,
     );
   }
+  out.push('', '## Diagram notes and assumptions');
+  for (const note of doc.notes) out.push(`- ${m(note.text)}`);
+  if (!doc.notes.length) out.push('No diagram notes recorded.');
   out.push('', '## Findings');
-  const findings = checkRdk(doc);
+  const findings = checkDoc(doc);
   for (const f of findings)
     out.push(`- ${m(f.level)} ${f.rule}: ${m(f.message)}`);
   if (!findings.length)
     out.push(
-      'No RDK architectural findings. Physical operation still requires verification.',
+      'No current architectural findings. Physical operation still requires verification.',
     );
+  out.push(
+    '',
+    '## Preparation checklist',
+    '- Confirm the exact hardware revision and any carrier or expansion board against the official references; resolve unverified connectors and adapter requirements.',
+    '- Verify the required cables, connector orientation and separate stereo CSI paths against the documented assembly.',
+    '- Check power voltage, supply capacity, regulation and all return/ground connections; resolve the current findings above.',
+    '- Review each software package, target board and selected runtime in the software mapping against its official documentation. If runtime is not selected, record that decision before setup.',
+    '- Create a hardware validation record with the actual board revision, assembly, software/runtime versions, observations and unresolved issues after physical testing. This guide does not establish validation results.',
+  );
   out.push('', '## Official references');
   const sources = new Map();
   for (const n of doc.nodes)

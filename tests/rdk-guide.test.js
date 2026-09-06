@@ -88,3 +88,55 @@ test('source links allow HTTPS only and escape hostile source labels', () => {
     [{ url: 'https://example.com' }],
   );
 });
+
+test('perception guide exports every current check and escaped assumptions with preparation steps', async () => {
+  const { RDK_EXAMPLES } = await import('../src/rdk/examples.js');
+  const { checkDoc } = await import('../src/drc.js');
+  const { markdownText } = await import('../src/rdk/guide.js');
+  const doc = structuredClone(
+    RDK_EXAMPLES.find((e) => e.id === 'rdk-perception').doc,
+  );
+  doc.nodes[0].notes =
+    'component assumption <script>\n# [link](javascript:x) `test`';
+  doc.notes.push({
+    id: 'hostile',
+    text: 'diagram assumption <script>\n# [link](javascript:x) `test`',
+  });
+  const guide = rdkGuide(doc);
+  for (const finding of checkDoc(doc))
+    assert.ok(guide.includes(markdownText(finding.message)), finding.message);
+  assert.match(guide, /battery return/);
+  assert.ok(guide.includes(markdownText(doc.nodes[0].notes)));
+  assert.ok(guide.includes(markdownText(doc.notes.at(-1).text)));
+  assert.doesNotMatch(guide, /<script>|\n# \[link\]|`test`/);
+  for (const term of [
+    'Preparation checklist',
+    'hardware revision',
+    'carrier',
+    'cables',
+    'power',
+    'runtime',
+    'validation record',
+  ])
+    assert.ok(guide.includes(term), term);
+});
+test('board properties show only documented peripheral relationships and conditional requirements', () => {
+  const doc = sample();
+  const x5 = rdkDetails(doc.nodes[0], doc);
+  assert.match(x5, /Documented peripherals/);
+  assert.match(x5, /GS130W/);
+  assert.match(x5, /GS130WI/);
+  assert.doesNotMatch(x5, /IMX219|RS800W/);
+  for (const sublabel of ['RDK S100', 'RDK S100P']) {
+    doc.nodes[0].sublabel = sublabel;
+    const detail = rdkDetails(doc.nodes[0], doc);
+    assert.match(detail, /GS130WI/);
+    assert.match(detail, /Camera expansion board/);
+    assert.match(detail, /unverified/);
+  }
+  doc.nodes[0].sublabel = 'RDK X3';
+  assert.doesNotMatch(
+    rdkDetails(doc.nodes[0], doc),
+    /Documented peripherals:.*GS130W/,
+  );
+});

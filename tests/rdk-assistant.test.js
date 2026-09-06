@@ -179,3 +179,27 @@ test('editing another software field preserves an imported stale target', () => 
   assert.equal(store.doc.nodes[0].fields.target, 'deleted-board');
   assert.equal(store.doc.nodes[0].fields.package, 'hobot_dnn');
 });
+
+test('real preset tool includes bounded dated official references and software package identity', () => {
+  const { store, ex } = setup();
+  const before = serialize(store.doc);
+  for (const kind of ['aisbc', 'rdksoftware']) {
+    const result = ex.run('list_presets', { kind });
+    assert.equal(result.isError, false);
+    assert.match(result.text, /Checked: \d{4}-\d{2}-\d{2}/);
+    assert.match(result.text, /https:\/\/d-robotics/);
+    assert.ok(result.text.length <= 18000);
+    if (kind === 'aisbc') {
+      assert.match(result.text, /GS130WI/);
+      assert.match(result.text, /csi1/);
+    } else
+      for (const name of [
+        'hobot_sensor',
+        'hobot_dnn',
+        'hobot_codec',
+        'hobot_render',
+      ])
+        assert.ok(result.text.includes(`fields.package=${name}`));
+  }
+  assert.equal(serialize(store.doc), before);
+});
