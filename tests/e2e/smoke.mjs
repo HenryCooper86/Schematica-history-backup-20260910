@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { EXAMPLES } from '../../src/examples.js';
 import { RELAY } from '../../src/ai/settings.js';
 import { encodeShare } from '../../src/share.js';
+import { runDocumentChecks } from './documents.mjs';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const MIME = {
@@ -42,7 +43,7 @@ async function fakeAnthropic(req, res) {
   const body = JSON.parse(raw);
   const last = body.messages.at(-1);
   const lastText = last.content.map((b) => b.text || '').join(' ');
-  fakeSeen.push({ headers: req.headers, lastText, system: body.system, tools: body.tools.map((t) => t.name), results: last.content.filter(b => b.type === 'tool_result') });
+  fakeSeen.push({ body, headers: req.headers, lastText, system: body.system, tools: body.tools.map((t) => t.name), results: last.content.filter(b => b.type === 'tool_result') });
   const hasResults = last.content.some((b) => b.type === 'tool_result');
   const events = [];
   const ev = (event, data) => events.push(`event: ${event}\ndata: ${JSON.stringify({ type: event, ...data })}\n\n`);
@@ -204,11 +205,11 @@ await sleep(1500);
 
 // Watchdog: a hung browser must fail the run, not stall CI.
 const watchdog = setTimeout(() => {
-  console.log('FAIL watchdog — the smoke test did not finish within 120s');
+  console.log('FAIL watchdog — the smoke test did not finish within 180s');
   chrome.kill();
   server.close();
   process.exit(1);
-}, 120000);
+}, 180000);
 
 const results = [];
 let failed = 0;
@@ -218,6 +219,16 @@ function check(name, ok, detail = '') {
 }
 
 try {
+  if (process.env.DOCUMENT_E2E_ONLY) {
+    const seedDocumentsFake = () => js(`localStorage.setItem('schematica.ai.settings', JSON.stringify({ provider: 'anthropic', model: 'test-model', baseUrl: location.origin + '/fake', effort: 'low', remember: true, tools: true })); localStorage.setItem('schematica.ai.key.anthropic', 'sk-fake'); true`);
+    const captureDocuments = async (path) => {
+      const shot = await send('Page.captureScreenshot', { format: 'png' });
+      writeFileSync(path, Buffer.from(shot.result.data, 'base64'));
+    };
+    await seedDocumentsFake();
+    await js(`document.getElementById('btn-assistant').click(); true`);
+    await runDocumentChecks({ ROOT, origin, send, js, sleep, check, fakeSeen, seedFake: seedDocumentsFake, screenshot: captureDocuments });
+  } else {
   // Ports hidden at rest, revealed by CSS on hover without a DOM rebuild.
   const rest = await js(`(() => { const p = document.querySelectorAll('#canvas .ports'); return { count: p.length, opacity: getComputedStyle(p[0]).opacity }; })()`);
   check('ports exist for every card and are hidden at rest', rest.count === 8 && rest.opacity === '0', JSON.stringify(rest));
@@ -737,6 +748,13 @@ try {
   const seedFake = () => js(`localStorage.setItem('schematica.ai.settings', JSON.stringify({ provider: 'anthropic', model: 'test-model', baseUrl: location.origin + '/fake', effort: 'low', remember: true, tools: true })); localStorage.setItem('schematica.ai.key.anthropic', 'sk-fake'); true`);
   await loadBoard(EMPTY);
   await seedFake();
+  const screenshot = async (path) => {
+    const shot = await send('Page.captureScreenshot', { format: 'png' });
+    writeFileSync(path, Buffer.from(shot.result.data, 'base64'));
+  };
+  await runDocumentChecks({ ROOT, origin, send, js, sleep, check, fakeSeen, seedFake, screenshot });
+  await loadBoard(EMPTY);
+  await seedFake();
   check('the board is empty before the build', (await js(`document.querySelectorAll('#canvas g.node').length`)) === 0);
   await key('a', 'KeyA', 65);
   await sleep(100);
@@ -825,6 +843,7 @@ try {
   await js(`(() => { document.getElementById('ai-base').value += '/'; document.getElementById('ai-save').click(); return true; })()`);
   const savedMigration = await js(`({ settings: JSON.parse(localStorage.getItem('schematica.ai.settings')), separate: localStorage.getItem('schematica.ai.key.openai'), legacy: localStorage.getItem('schematica.ai.key.ollamacloud') })`);
   check('saving a migrated connection preserves the separate OpenAI credential and invalidates the old probe', savedMigration.settings.provider === 'openai' && savedMigration.settings.tools === null && savedMigration.separate === 'separate-test-key' && savedMigration.legacy === 'legacy-test-key', JSON.stringify(savedMigration));
+  }
 } catch (err) {
   failed += 1;
   results.push(`FAIL script error — ${err.message}`);

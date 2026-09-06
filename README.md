@@ -10,7 +10,9 @@ review.
 
 The UI is a dark, high-contrast canvas: shaded cards with tinted icon badges, slate wires that leave each card toward the other, and a label pill on every wire naming its bus. Cards size themselves to their content: the part number, interface address, and voltage rail appear as mono lines under the name. Beyond hardware, the palette carries Network, Security & Edge, Process Flow (real flowchart shapes), and Threats parts, from threat actors, malware, and C2 servers to vulnerabilities, misconfigurations, exploits, supply-chain compromise, DDoS, on-path attackers, sensor spoofing, stolen credentials, data exfiltration, and physical tampering, so a board can put a firewall, a decision diamond, and a threat actor next to an MCU.
 
-No build step, no dependencies, no server: static HTML + ES modules + SVG.
+No build step or application server: static HTML + ES modules + SVG. PDF.js
+and Mammoth are pinned and bundled for local document extraction, then loaded
+only when a PDF or DOCX needs them.
 
 ## Run it
 
@@ -57,10 +59,34 @@ then Settings → Pages → deploy from branch `main`, root folder.
 | BOM | BOM button — bill of materials grouped by part number (qty, refs, addresses, rails, status, flags); CSV download or Markdown copy |
 | Share | Share button — the whole board compressed into a copyable URL; opening the link loads it, no backend. Opened over a board you were working on, the link loads at once, keeps your board as a backup, and the notice offers to restore it |
 | Check | Check button — design rule checks: I2C address conflicts, unconnected power pins, floating parts, bus mismatches, lifecycle risks (the Sensor Node example passes them all) |
-| Assistant | `A` or the sparkle button — describe a board and it builds it, ask for a change and it edits the board, press Fix on a check finding or "Fix checks" and it resolves them, "Fill in details" fills part numbers from presets. Bring your own key: Claude by default, plus OpenRouter, Z.AI GLM, Moonshot Kimi, and any OpenAI-compatible endpoint (including local Ollama and Ollama Cloud via `/v1`). Kimi and Ollama Cloud refuse browser requests, so they go through the small relay worker in `relay/` (deploy your own in two commands; see relay/README.md). Each reply is one undo step and what it touched glows until your next click. The key is sent to your configured endpoint (through the relay for Kimi and Ollama Cloud), saved in this browser only if you tick remember, and never included in the board, autosave, or share links |
+| Assistant | `A` or the sparkle button — describe a board and it builds it, ask for a change and it edits the board, press Fix on a check finding or "Fix checks" and it resolves them, "Fill in details" fills part numbers from presets. Add files, a folder, or drop individual files to use local documents as sources; review, select, preview, or remove them before Send. Bring your own key: Claude by default, plus OpenRouter, Z.AI GLM, Moonshot Kimi, and any OpenAI-compatible endpoint (including local Ollama and Ollama Cloud via `/v1`). Kimi and Ollama Cloud refuse browser requests, so they go through the small relay worker in `relay/` (deploy your own in two commands; see relay/README.md). Each reply is one undo step and what it touched glows until your next click. The key is sent to your configured endpoint (through the relay for Kimi and Ollama Cloud), saved in this browser only if you tick remember, and never included in the board, autosave, or share links |
 | Wire options | Select a wire — bus, label, arrowheads (→ or ↔), line style (solid, dashed, dotted, air gap), traffic flow, delete |
 
 Work is autosaved to the browser's localStorage and restored on reload.
+
+Assistant documents stay in memory for the current tab. Reloading, starting a
+new thread, or replacing the board clears them. Selecting a file only extracts
+text in your browser; it does not contact the model. On **Send**, the selected
+extracted text goes to the AI endpoint you configured (and through the relay
+when that provider requires it). Raw source payloads are not saved in the board,
+autosave, share link, export, settings, or persisted assistant thread.
+Ordinary messages and model replies can quote or discuss a source and keep their
+existing history; removing a document stops its raw source text being resent.
+
+Supported sources include Markdown, plain text and common text/code formats,
+PDF, and Word `.docx`. Legacy binary `.doc` is not supported; export it as
+`.docx`, PDF, or text. Scanned and image-only PDFs require OCR, which this
+release does not provide. Password-protected PDFs must be exported unlocked.
+Folders skip hidden paths, `.git`, `node_modules`, common credential files and
+unsupported binary formats.
+
+The limits are 20 documents, 10 MiB per file, 40 MiB across accepted files,
+100,000 extracted characters per document, and the first 100 PDF pages. Each
+request has a 60,000-character source-context budget shared fairly among the
+selected documents. The source list marks extraction or request truncation as
+partial and shows what will be included. PDF and DOCX extraction uses the
+bundled, lazy-loaded PDF.js and Mammoth distributions; document bytes and
+parsing stay local until selected extracted text is sent with your message.
 
 Journeys are saved inside the `.schematica.json` document. Recording during
 Present captures the animated tour with captions burned into the frames.
