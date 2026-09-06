@@ -1,7 +1,8 @@
 // Design-rule checker: pure derivation from a document. Zero dependencies.
 // Findings: { level: 'error'|'warning', rule, message, ids: [nodeOrWireIds] }.
 
-import { getPart } from './palette.js';
+import { nodePart } from './rdk/profiles.js';
+import { checkRdk } from './rdk/checks.js';
 
 function i2cComponents(doc) {
   // Connected components over nodes joined by i2c-bus wires.
@@ -66,7 +67,7 @@ export function checkDoc(doc) {
 
   // 2. Unconnected VCC/GND pins (consumption pins only).
   for (const n of doc.nodes) {
-    for (const port of getPart(n.kind).ports) {
+    for (const port of nodePart(n).ports) {
       if ((port.bus === 'power' || port.bus === 'gnd')
         && (port.id === 'vcc' || port.id === 'gnd' || port.id.startsWith('vin'))
         && !wiredPorts.has(`${n.id}|${port.id}`)) {
@@ -95,7 +96,7 @@ export function checkDoc(doc) {
   for (const w of doc.wires) {
     const busOf = (ref) => {
       const n = byId.get(ref.node);
-      return n ? getPart(n.kind).ports.find((p) => p.id === ref.port)?.bus : undefined;
+      return n ? nodePart(n).ports.find((p) => p.id === ref.port)?.bus : undefined;
     };
     const ends = [busOf(w.from), busOf(w.to)];
     if (ends[0] !== undefined && ends[1] !== undefined && !ends.includes(w.bus)) {
@@ -120,6 +121,7 @@ export function checkDoc(doc) {
     }
   }
 
+  findings.push(...checkRdk(doc));
   const order = { error: 0, warning: 1 };
   return findings.sort((a, b) => order[a.level] - order[b.level]);
 }
