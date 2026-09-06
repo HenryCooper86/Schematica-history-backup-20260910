@@ -486,10 +486,13 @@ try {
   // and a click on the backdrop dismisses.
   await js(`document.getElementById('btn-bom').focus(); true`);
   const bomBtn = await center('#btn-bom');
-  // With a card selected the properties panel is showing; at this window
-  // width the toolbar wraps, and the panel must sit below it, not over it.
+  // With a card selected the properties panel is showing; it lives inside
+  // the canvas area, so it can never cover a toolbar control. The toolbar
+  // itself fits one row at this window width (it wraps below ~1366 px).
   const covering = await js(`(() => { const hit = document.elementFromPoint(${bomBtn.x}, ${bomBtn.y}); return hit && (hit.id || hit.tagName); })()`);
-  check('the floating panel never covers a wrapped toolbar row', covering === 'btn-bom', String(covering));
+  check('the floating panel never covers a toolbar control', covering === 'btn-bom', String(covering));
+  const toolbarRows = await js(`(() => { const tops = new Set([...document.getElementById('toolbar').children].map((k) => { const r = k.getBoundingClientRect(); return Math.round(r.top + r.height / 2); })); return { rows: tops.size, tagline: !!document.querySelector('.brand-sub') }; })()`);
+  check('the toolbar fits on one row at 1500 px with no tagline beside the name', toolbarRows.rows === 1 && toolbarRows.tagline === false, JSON.stringify(toolbarRows));
   await click(bomBtn.x, bomBtn.y);
   await sleep(100);
   const modal = await js(`(() => { const d = document.getElementById('bom-dialog'); return { tag: d.tagName, open: d.open === true, modal: d.matches(':modal'), inside: d.contains(document.activeElement) }; })()`);

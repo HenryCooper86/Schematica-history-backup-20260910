@@ -44,7 +44,7 @@ then Settings → Pages → deploy from branch `main`, root folder.
 | Duplicate | `Ctrl/Cmd-D` |
 | Delete | `Delete` / `Backspace` |
 | Save / open | Toolbar — downloads/reads `*.schematica.json` |
-| Export | Toolbar — SVG or 2x PNG, cropped to content |
+| Export | Export button — PNG at any pixel size, SVG, single-page PDF, or a seamless loop GIF, cropped to content |
 | Record | Rec button — WebM/MP4 video (optional mic or music audio) or animated GIF |
 | Journey | Journey button — save camera steps with captions; Present plays the tour (arrow keys, Esc) |
 | Examples | Examples menu — thirteen built-in boards from sensor nodes to edge-to-cloud, including a D-Robotics RDK X5 rover, a Horizon Journey 6 ADAS stack, a sensor node that passes every design rule, and vehicle OTA and ADAS security boards that mix threat actors, controls, and response flowcharts with the hardware, journeys included |
@@ -53,12 +53,11 @@ then Settings → Pages → deploy from branch `main`, root folder.
 | Animate | Animate toggle — traffic dashes flow along wires and Bug/Thermal alerts pulse; off by default, and a wire's own "Always" flow setting keeps just that wire moving; captured in recordings |
 | Pan | `H` or hold Space — dedicated hand tool |
 | Fullscreen | ⛶ button in the zoom group |
-| Export dialog | PNG opens a size dialog — pixel dimensions, aspect lock, transparent background; the dialog's SVG button honors the transparency option (the toolbar SVG button is an instant opaque export) |
+| Export dialog | Pixel dimensions with aspect lock and a transparent-background option that PNG and SVG both honor |
 | BOM | BOM button — bill of materials grouped by part number (qty, refs, addresses, rails, status, flags); CSV download or Markdown copy |
 | Share | Share button — the whole board compressed into a copyable URL; opening the link loads it, no backend. Opened over a board you were working on, the link loads at once, keeps your board as a backup, and the notice offers to restore it |
 | Check | Check button — design rule checks: I2C address conflicts, unconnected power pins, floating parts, bus mismatches, lifecycle risks (the Sensor Node example passes them all) |
 | Assistant | `A` or the sparkle button — describe a board and it builds it, ask for a change and it edits the board, press Fix on a check finding or "Fix checks" and it resolves them, "Fill in details" fills part numbers from presets. Bring your own key: Claude by default, OpenAI-compatible endpoints and local Ollama too. Each reply is one undo step and what it touched glows until your next click. The key stays in this browser (only if you tick remember) and is never part of the board, autosave, or share links |
-| PDF | Export dialog — single-page PDF of the board (alongside PNG/SVG) |
 | Wire options | Select a wire — bus, label, arrowheads (→ or ↔), line style (solid, dashed, dotted, air gap), traffic flow, delete |
 
 Work is autosaved to the browser's localStorage and restored on reload.

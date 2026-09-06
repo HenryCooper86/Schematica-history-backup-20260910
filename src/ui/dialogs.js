@@ -23,9 +23,6 @@ export function initDialogs({ store }) {
     }
   });
   document.getElementById('btn-save').addEventListener('click', saveJSON);
-  document.getElementById('btn-export-svg').addEventListener('click', () => {
-    download(safeName('.svg'), buildExportSVG(store.doc), 'image/svg+xml');
-  });
   document.getElementById('btn-remove').addEventListener('click', () => {
     deleteItems(store, [...store.selection]);
   });
@@ -36,7 +33,7 @@ export function initDialogs({ store }) {
   const exportH = document.getElementById('export-h');
   let exportAspect = 1;
 
-  document.getElementById('btn-export-png').addEventListener('click', () => {
+  document.getElementById('btn-export').addEventListener('click', () => {
     const b = exportBounds(store.doc);
     exportAspect = b.w / b.h;
     exportW.value = Math.round(b.w * 2);

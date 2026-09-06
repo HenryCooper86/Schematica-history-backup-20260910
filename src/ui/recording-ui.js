@@ -1,4 +1,4 @@
-// The Rec button, the recording dialog, and the GIF toolbar button.
+// The Rec button and the recording dialog (video formats plus animated GIF).
 import { createRecorder } from '../recorder.js';
 import { toast, escAttr, openModal } from './press.js';
 
@@ -58,17 +58,6 @@ export function initRecording({ svg, store }) {
   });
   recDialog.addEventListener('pointerdown', (e) => {
     if (e.target === recDialog) recDialog.close();
-  });
-
-  document.getElementById('btn-export-gif').addEventListener('click', () => {
-    if (recorder.state().recording || recorder.state().encoding) {
-      toast('Finish the current recording first.');
-      return;
-    }
-    renderFormats();
-    openModal(recDialog);
-    document.querySelector('input[name="rec-format"][value="gif"]').checked = true;
-    document.getElementById('rec-audio').classList.add('disabled');
   });
 
   document.getElementById('rec-start').addEventListener('click', async () => {
