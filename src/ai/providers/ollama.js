@@ -63,14 +63,20 @@ export function createOllamaAccumulator(onText) {
   };
 }
 
-export function ollamaProvider({ baseUrl, model, fetchImpl = globalThis.fetch }) {
+// Local Ollama takes no key; Ollama Cloud (and a local server behind a proxy
+// that asks for one) reads a Bearer token.
+function ollamaHeaders(apiKey, extra = {}) {
+  return apiKey ? { ...extra, authorization: `Bearer ${apiKey}` } : extra;
+}
+
+export function ollamaProvider({ baseUrl, model, apiKey = '', fetchImpl = globalThis.fetch }) {
   const base = String(baseUrl).replace(/\/+$/, '');
   return {
     async chat({ system, messages, tools, signal, onText }) {
       let res;
       try {
         res = await fetchImpl(`${base}/api/chat`, {
-          method: 'POST', headers: { 'content-type': 'application/json' }, signal,
+          method: 'POST', headers: ollamaHeaders(apiKey, { 'content-type': 'application/json' }), signal,
           body: JSON.stringify(toOllamaRequest({ model, system, messages, tools })),
         });
       } catch (err) {
@@ -85,10 +91,10 @@ export function ollamaProvider({ baseUrl, model, fetchImpl = globalThis.fetch })
   };
 }
 
-export async function listOllamaModels({ baseUrl, fetchImpl = globalThis.fetch }) {
+export async function listOllamaModels({ baseUrl, apiKey = '', fetchImpl = globalThis.fetch }) {
   const base = String(baseUrl).replace(/\/+$/, '');
   let res;
-  try { res = await fetchImpl(`${base}/api/tags`); } catch (err) { throw networkError('ollama', err); }
+  try { res = await fetchImpl(`${base}/api/tags`, { headers: ollamaHeaders(apiKey) }); } catch (err) { throw networkError('ollama', err); }
   if (!res.ok) throw mapHttpError(res.status, await res.text(), 'Ollama');
   const j = await res.json();
   return (j.models || []).map((m) => m.name).filter(Boolean).sort();

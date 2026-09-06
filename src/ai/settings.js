@@ -3,10 +3,48 @@
 // blocked. The key lives in memory unless "remember" is ticked, and never
 // touches the document, autosave, share links, or exports.
 
+// Each provider names the adapter that speaks its wire format (`anthropic`,
+// `openai` for every chat-completions endpoint, `ollama` for the Ollama API,
+// local or cloud), its public base URL, whether a key is needed, a default
+// model, and a few suggested model ids for the settings form. Endpoints and
+// model names were taken from the vendors' documentation in September 2026;
+// "List models" fetches the live catalogue where the endpoint offers one.
 export const PROVIDERS = {
-  anthropic: { name: 'Anthropic (Claude)', baseUrl: 'https://api.anthropic.com', model: 'claude-opus-5', needsKey: true },
-  openai: { name: 'OpenAI-compatible', baseUrl: 'https://api.openai.com/v1', model: '', needsKey: true },
-  ollama: { name: 'Ollama (local)', baseUrl: 'http://localhost:11434', model: '', needsKey: false },
+  anthropic: {
+    name: 'Anthropic (Claude)', adapter: 'anthropic', baseUrl: 'https://api.anthropic.com', model: 'claude-opus-5', needsKey: true,
+    models: ['claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4-5'],
+    help: 'Keys come from console.anthropic.com. Claude Opus 5 is the default; Sonnet 5 is cheaper, Haiku 4.5 runs without adaptive thinking.',
+  },
+  openai: {
+    name: 'OpenAI-compatible', adapter: 'openai', baseUrl: 'https://api.openai.com/v1', model: '', needsKey: true,
+    models: [],
+    help: 'Any endpoint that speaks chat completions with function calling. Set the base URL and pick a model; "List models" asks the endpoint.',
+  },
+  openrouter: {
+    name: 'OpenRouter', adapter: 'openai', baseUrl: 'https://openrouter.ai/api/v1', model: '', needsKey: true,
+    models: [],
+    help: 'One key for hundreds of models; "List models" fetches the catalogue. Keys come from openrouter.ai/keys.',
+  },
+  zai: {
+    name: 'Z.AI (GLM)', adapter: 'openai', baseUrl: 'https://api.z.ai/api/paas/v4', model: 'glm-5.3', needsKey: true,
+    models: ['glm-5.3', 'glm-4.6', 'glm-4.5', 'glm-4.5-Air'],
+    help: 'Z.AI\'s GLM models over their OpenAI-compatible endpoint. Keys come from z.ai.',
+  },
+  kimi: {
+    name: 'Kimi (Moonshot)', adapter: 'openai', baseUrl: 'https://api.moonshot.ai/v1', model: 'kimi-k3', needsKey: true,
+    models: ['kimi-k3', 'kimi-k2.6', 'kimi-k2.7-code'],
+    help: 'Moonshot\'s Kimi models over their OpenAI-compatible endpoint. Keys come from platform.kimi.ai.',
+  },
+  ollama: {
+    name: 'Ollama (local)', adapter: 'ollama', baseUrl: 'http://localhost:11434', model: '', needsKey: false,
+    models: [],
+    help: 'For browser access, start Ollama with OLLAMA_ORIGINS including this site\'s origin (or "*"). Requests ask for a 16k context (num_ctx); the model must support tool calling or Test will switch the assistant to single-shot mode. A local Ollama signed in to ollama.com can also run cloud models by their "-cloud" name.',
+  },
+  ollamacloud: {
+    name: 'Ollama Cloud', adapter: 'ollama', baseUrl: 'https://ollama.com', model: 'gpt-oss:120b', needsKey: true,
+    models: ['gpt-oss:120b', 'deepseek-v3.2', 'qwen3-coder:480b', 'kimi-k2.6', 'glm-5.2'],
+    help: 'Ollama\'s hosted models over the same API as local Ollama, with an API key from ollama.com.',
+  },
 };
 export const EFFORTS = ['low', 'medium', 'high'];
 export const SETTINGS_KEY = 'schematica.ai.settings';

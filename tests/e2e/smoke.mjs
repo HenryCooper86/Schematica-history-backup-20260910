@@ -563,6 +563,22 @@ try {
   await sleep(100);
   const forgotten = await js(`localStorage.getItem('schematica.ai.key.anthropic')`);
   check('forget clears the stored key', forgotten === null, String(forgotten));
+  // Seven providers; switching one fills its base URL, default model, model
+  // suggestions, and help, and only the local Ollama entry drops the key.
+  const pick = (id) => js(`(() => { const sel = document.getElementById('ai-provider'); sel.value = ${JSON.stringify(id)}; sel.dispatchEvent(new Event('change', { bubbles: true })); return { base: document.getElementById('ai-base').value, model: document.getElementById('ai-model').value, options: [...document.querySelectorAll('#ai-models option')].map((o) => o.value), keyOff: document.getElementById('ai-key').disabled, listHidden: document.getElementById('ai-models-btn').hidden, help: document.getElementById('ai-help').textContent }; })()`);
+  const providerIds = await js(`[...document.querySelectorAll('#ai-provider option')].map((o) => o.value)`);
+  check('the provider menu lists Anthropic, OpenAI-compatible, OpenRouter, Z.AI, Kimi, Ollama, and Ollama Cloud', JSON.stringify(providerIds) === JSON.stringify(['anthropic', 'openai', 'openrouter', 'zai', 'kimi', 'ollama', 'ollamacloud']), JSON.stringify(providerIds));
+  const kimi = await pick('kimi');
+  check('picking Kimi fills the Moonshot base URL, the kimi-k3 default, and model suggestions', kimi.base === 'https://api.moonshot.ai/v1' && kimi.model === 'kimi-k3' && kimi.options.includes('kimi-k3') && kimi.keyOff === false && kimi.listHidden === false, JSON.stringify(kimi));
+  const cloud = await pick('ollamacloud');
+  check('picking Ollama Cloud keeps the key field and suggests gpt-oss:120b', cloud.base === 'https://ollama.com' && cloud.model === 'gpt-oss:120b' && cloud.options.includes('gpt-oss:120b') && cloud.keyOff === false && cloud.listHidden === false, JSON.stringify(cloud));
+  const local = await pick('ollama');
+  check('picking local Ollama disables the key field and shows the CORS note', local.keyOff === true && /OLLAMA_ORIGINS/.test(local.help) && local.options.length === 0, JSON.stringify(local));
+  const zai = await pick('zai');
+  check('picking Z.AI fills the GLM endpoint and glm-5.3', zai.base === 'https://api.z.ai/api/paas/v4' && zai.model === 'glm-5.3' && zai.keyOff === false, JSON.stringify(zai));
+  await pick('anthropic');
+  const backOnClaude = await js(`(() => ({ listHidden: document.getElementById('ai-models-btn').hidden, options: [...document.querySelectorAll('#ai-models option')].map((o) => o.value) }))()`);
+  check('back on Anthropic the List models button hides and the Claude ids are suggested', backOnClaude.listHidden === true && backOnClaude.options.includes('claude-opus-5'), JSON.stringify(backOnClaude));
   const foldedAi = await js(`(() => { const p = document.getElementById('assistant'); p.querySelector('.panel-toggle').click(); const out = p.classList.contains('collapsed'); p.querySelector('.panel-toggle').click(); return out; })()`);
   check('the assistant panel folds like the others', foldedAi === true, String(foldedAi));
   await js(`document.activeElement && document.activeElement.blur(); true`);

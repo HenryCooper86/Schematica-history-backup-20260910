@@ -223,11 +223,21 @@ test('probeTools offers one tool, sends no empty system text, and reads the answ
   assert.equal(await probeTools(no), false);
 });
 
-test('makeProvider builds the adapter the settings name', () => {
+test('makeProvider builds the adapter each provider names and sends the key the way that adapter expects', async () => {
   const s = (provider, extra = {}) => ({ provider, model: 'm', baseUrl: 'http://x', effort: 'low', ...extra });
-  for (const provider of ['anthropic', 'openai', 'ollama']) {
-    const p = makeProvider(s(provider), 'k', async () => new Response('{}', { status: 500 }));
+  const seen = [];
+  const fetchImpl = async (url, init = {}) => { seen.push({ url, init }); return new Response('{}', { status: 500 }); };
+  const msg = { system: ['s'], messages: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }], tools: [] };
+  for (const provider of ['anthropic', 'openai', 'openrouter', 'zai', 'kimi', 'ollama', 'ollamacloud']) {
+    const p = makeProvider(s(provider), 'k', fetchImpl);
     assert.equal(typeof p.chat, 'function', provider);
+    await p.chat(msg).catch(() => {});
   }
+  const paths = seen.map((x) => new URL(x.url).pathname);
+  assert.deepEqual(paths, ['/v1/messages', '/chat/completions', '/chat/completions', '/chat/completions', '/chat/completions', '/api/chat', '/api/chat']);
+  assert.equal(seen[0].init.headers['x-api-key'], 'k');
+  for (const i of [1, 2, 3, 4]) assert.equal(seen[i].init.headers.authorization, 'Bearer k', paths[i]);
+  assert.equal(seen[5].init.headers.authorization, undefined, 'local Ollama takes no key');
+  assert.equal(seen[6].init.headers.authorization, 'Bearer k', 'Ollama Cloud takes a Bearer key');
   assert.throws(() => makeProvider(s('carrier-pigeon'), 'k'), /unknown provider/);
 });

@@ -17,8 +17,6 @@ import { panelHeader, bindCollapsible } from './collapsible.js';
 import { escAttr, toast, onPress } from './press.js';
 
 const PRIVACY = 'The board\'s text is sent to the provider you choose. Keys stay in this browser.';
-const OLLAMA_HELP = 'For browser access, start Ollama with OLLAMA_ORIGINS including this site\'s origin (or "*").'
-  + ' Requests ask for a 16k context (num_ctx); the model must support tool calling or Test will switch the assistant to single-shot mode.';
 
 export function initAssistant({ store, tools, render, svg }) {
   const panel = document.getElementById('assistant');
@@ -71,10 +69,18 @@ export function initAssistant({ store, tools, render, svg }) {
     el('ai-key').value = settings.getKey();
     el('ai-remember').checked = s.remember;
     el('ai-effort').value = s.effort;
-    el('ai-key').disabled = !PROVIDERS[s.provider].needsKey;
+    const p = PROVIDERS[s.provider];
+    el('ai-key').disabled = !p.needsKey;
     // Anthropic has no model list endpoint the browser may call.
-    el('ai-models-btn').hidden = s.provider === 'anthropic';
-    el('ai-help').textContent = s.provider === 'ollama' ? OLLAMA_HELP : '';
+    el('ai-models-btn').hidden = p.adapter === 'anthropic';
+    el('ai-help').textContent = p.help || '';
+    suggestModels(p.models);
+  }
+
+  // The Model field's datalist: the provider's suggested ids until "List
+  // models" replaces them with what the endpoint actually serves.
+  function suggestModels(names) {
+    el('ai-models').innerHTML = names.map((n) => `<option value="${escAttr(n)}">`).join('');
   }
 
   function showSettings(on) {
@@ -128,13 +134,14 @@ export function initAssistant({ store, tools, render, svg }) {
   });
 
   el('ai-models-btn').addEventListener('click', async () => {
-    const provider = el('ai-provider').value;
+    const p = PROVIDERS[el('ai-provider').value];
     const baseUrl = el('ai-base').value.trim();
+    const apiKey = p.needsKey ? el('ai-key').value.trim() : '';
     try {
-      const names = provider === 'ollama'
-        ? await listOllamaModels({ baseUrl })
-        : await listOpenAIModels({ baseUrl, apiKey: el('ai-key').value.trim() });
-      el('ai-models').innerHTML = names.map((n) => `<option value="${escAttr(n)}">`).join('');
+      const names = p.adapter === 'ollama'
+        ? await listOllamaModels({ baseUrl, apiKey })
+        : await listOpenAIModels({ baseUrl, apiKey });
+      suggestModels(names);
       toast(names.length ? `${names.length} models listed; pick one in the Model field.` : 'The endpoint listed no models.');
     } catch (err) {
       toast(`Could not list models: ${err.message}${err.hint ? `\n${err.hint}` : ''}`);

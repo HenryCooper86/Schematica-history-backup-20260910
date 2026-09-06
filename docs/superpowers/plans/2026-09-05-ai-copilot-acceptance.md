@@ -37,3 +37,16 @@ line with the observed result.
     session only and the thread does not persist across reload. Observed: __
 13. Ollama: watch the server log while a build runs. Expect: no `truncating
     input prompt` line — the request asks for num_ctx 16384. Observed: __
+14. Settings → Z.AI (GLM), key from z.ai, model `glm-5.3`, Test, then a build.
+    Expect: "calls tools"; parts and wires appear; the usage line shows
+    tokens but no cost (only Claude is priced). Observed: __
+15. Settings → Kimi (Moonshot), key from platform.kimi.ai, model `kimi-k3`,
+    Test, then "Swap the ESP32 for an STM32H7" on the Sensor Node example.
+    Expect: one node changes, one undo step. Observed: __
+16. Settings → OpenRouter, key from openrouter.ai, List models. Expect: the
+    catalogue fills the Model suggestions; pick a Claude id and a build works
+    with the `Bearer` key. Observed: __
+17. Settings → Ollama Cloud, key from ollama.com, model `gpt-oss:120b`, Test.
+    Expect: the request goes to `https://ollama.com/api/chat` with a Bearer
+    key (no CORS notice needed) and a build works in the mode Test reported.
+    Observed: __

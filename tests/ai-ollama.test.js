@@ -61,3 +61,20 @@ test('the provider posts to /api/chat without a key and lists local models', asy
   assert.equal(r.text, 'ok');
   assert.deepEqual(await listOllamaModels({ baseUrl: 'http://localhost:11434', fetchImpl }), ['gemma:2b', 'llama3.1:8b']);
 });
+
+test('ollamaProvider and listOllamaModels send a Bearer key when given one (Ollama Cloud)', async () => {
+  const seen = [];
+  const fetchImpl = async (url, init = {}) => {
+    seen.push({ url, init });
+    if (url.endsWith('/api/tags')) return new Response(JSON.stringify({ models: [{ name: 'gpt-oss:120b' }] }), { status: 200 });
+    const lines = [{ message: { content: 'ok' }, done: true, done_reason: 'stop' }];
+    return new Response(new Blob([lines.map((l) => JSON.stringify(l)).join('\n') + '\n']).stream(), { status: 200 });
+  };
+  const p = ollamaProvider({ baseUrl: 'https://ollama.com', model: 'gpt-oss:120b', apiKey: 'sk-cloud', fetchImpl });
+  const r = await p.chat({ system: SYSTEM, messages: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }], tools: TOOLS });
+  assert.equal(r.text, 'ok');
+  assert.equal(seen[0].url, 'https://ollama.com/api/chat');
+  assert.equal(seen[0].init.headers.authorization, 'Bearer sk-cloud');
+  assert.deepEqual(await listOllamaModels({ baseUrl: 'https://ollama.com', apiKey: 'sk-cloud', fetchImpl }), ['gpt-oss:120b']);
+  assert.equal(seen[1].init.headers.authorization, 'Bearer sk-cloud');
+});

@@ -72,3 +72,37 @@ test('cost estimates use the price table per million tokens', () => {
   assert.equal(cost, 5 + 2.5 + 1);
   assert.equal(estimateCost('mystery-model', { input: 10, output: 10, cacheRead: 0, cacheWrite: 0 }), null);
 });
+
+test('every provider names an adapter, a base url, a key rule, and suggested models', () => {
+  for (const [id, p] of Object.entries(PROVIDERS)) {
+    assert.ok(['anthropic', 'openai', 'ollama'].includes(p.adapter), `${id} adapter`);
+    assert.match(p.baseUrl, /^https?:\/\//, `${id} base url`);
+    assert.equal(typeof p.needsKey, 'boolean', `${id} needsKey`);
+    assert.ok(Array.isArray(p.models), `${id} models`);
+    assert.equal(typeof p.name, 'string');
+  }
+  assert.deepEqual(Object.keys(PROVIDERS), ['anthropic', 'openai', 'openrouter', 'zai', 'kimi', 'ollama', 'ollamacloud']);
+  assert.equal(PROVIDERS.zai.adapter, 'openai');
+  assert.equal(PROVIDERS.zai.baseUrl, 'https://api.z.ai/api/paas/v4');
+  assert.equal(PROVIDERS.zai.model, 'glm-5.3');
+  assert.equal(PROVIDERS.kimi.baseUrl, 'https://api.moonshot.ai/v1');
+  assert.equal(PROVIDERS.kimi.model, 'kimi-k3');
+  assert.equal(PROVIDERS.openrouter.baseUrl, 'https://openrouter.ai/api/v1');
+  assert.equal(PROVIDERS.ollamacloud.adapter, 'ollama');
+  assert.equal(PROVIDERS.ollamacloud.baseUrl, 'https://ollama.com');
+  assert.equal(PROVIDERS.ollamacloud.needsKey, true);
+  assert.equal(PROVIDERS.ollama.needsKey, false);
+});
+
+test('switching to a provider with a default model is configured once it has a key', () => {
+  const s = createSettings(fakeStorage());
+  s.set({ provider: 'kimi' });
+  assert.equal(s.get().model, 'kimi-k3');
+  assert.equal(s.get().baseUrl, 'https://api.moonshot.ai/v1');
+  assert.equal(s.configured(), false);
+  s.setKey('sk-kimi', false);
+  assert.equal(s.configured(), true);
+  s.set({ provider: 'ollamacloud' });
+  assert.equal(s.get().model, 'gpt-oss:120b');
+  assert.equal(s.configured(), false, 'the cloud needs its own key');
+});

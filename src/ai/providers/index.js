@@ -1,12 +1,20 @@
+import { PROVIDERS } from '../settings.js';
 import { anthropicProvider } from './anthropic.js';
 import { openaiProvider } from './openai.js';
 import { ollamaProvider } from './ollama.js';
 
+// A provider is a vendor entry in PROVIDERS; its `adapter` names the wire
+// format, so several vendors share one adapter (Z.AI, Kimi, and OpenRouter
+// all speak chat completions; Ollama Cloud speaks the Ollama API with a key).
 export function makeProvider(settings, key, fetchImpl = globalThis.fetch) {
   const { provider, model, baseUrl, effort } = settings;
-  if (provider === 'anthropic') return anthropicProvider({ baseUrl, apiKey: key, model, effort, fetchImpl });
-  if (provider === 'openai') return openaiProvider({ baseUrl, apiKey: key, model, fetchImpl });
-  if (provider === 'ollama') return ollamaProvider({ baseUrl, model, fetchImpl });
+  const entry = Object.hasOwn(PROVIDERS, provider) ? PROVIDERS[provider] : null;
+  const adapter = entry?.adapter;
+  // A provider that needs no key (local Ollama) never gets one on the wire.
+  const apiKey = entry?.needsKey ? key : '';
+  if (adapter === 'anthropic') return anthropicProvider({ baseUrl, apiKey, model, effort, fetchImpl });
+  if (adapter === 'openai') return openaiProvider({ baseUrl, apiKey, model, fetchImpl });
+  if (adapter === 'ollama') return ollamaProvider({ baseUrl, apiKey, model, fetchImpl });
   throw new Error(`unknown provider "${provider}"`);
 }
 
