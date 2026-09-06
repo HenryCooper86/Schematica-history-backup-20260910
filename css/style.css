@@ -1210,3 +1210,23 @@ html {
 .rdk-details .rdk-finding { color: #d99b48; }
 .rdk-details button { margin-top: 8px; width: 100%; padding: 8px; border: 1px solid var(--line2); border-radius: 8px; background: var(--bg0); color: var(--text); cursor: pointer; }
 .rdk-details button:hover, .rdk-details button:focus-visible { border-color: var(--accent); }
+
+/* Session sources: bounded scrolling keeps the composer reachable. */
+.ai-documents { margin-bottom: 8px; font-size: 11px; min-width: 0; }
+.ai-document-controls { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 5px; }
+.ai-documents button { padding: 3px 7px; font-size: 10.5px; }
+.ai-document-details summary { cursor: pointer; color: var(--muted); overflow-wrap: anywhere; }
+.ai-document-details[open] { max-height: min(230px, 28vh); overflow-y: auto; }
+.ai-document-note { font-size: 10px; line-height: 1.4; color: var(--muted); margin: 6px 0; }
+.ai-document-list { display: grid; gap: 6px; }
+.ai-document { border: 1px solid var(--line); border-radius: 6px; padding: 6px; }
+.ai-document label { display: flex; align-items: flex-start; gap: 5px; overflow-wrap: anywhere; }
+.ai-document label span { min-width: 0; }
+.ai-document small { display: block; color: var(--muted); margin: 4px 0; }
+.ai-document > div { display: flex; gap: 5px; }
+.ai-document-warning, .ai-document-issues { color: #fbbf24; }
+.ai-document-issues { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 5px; }
+.ai-document-progress { color: var(--muted); overflow-wrap: anywhere; font-size: 10px; margin-top: 4px; }
+.ai-document-preview { width: min(720px, 90vw); max-height: 85vh; }
+.ai-document-preview h3, .ai-document-preview p { overflow-wrap: anywhere; }
+.ai-document-preview pre { max-height: 55vh; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; -webkit-user-select: text; font: 12px/1.5 var(--mono); }

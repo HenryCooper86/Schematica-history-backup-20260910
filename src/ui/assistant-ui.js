@@ -14,6 +14,7 @@ import { contentBounds, nodeRect, NOTE_W, noteHeight } from '../geometry.js';
 import { findItem } from '../state.js';
 import { panelHeader, bindCollapsible } from './collapsible.js';
 import { escAttr, toast, onPress } from './press.js';
+import { initAssistantDocuments } from './assistant-documents.js';
 
 const PRIVACY = 'The board\'s text and API key are sent to your chosen endpoint, through a relay when configured. Keys are saved in this browser only when you choose Remember.';
 const INTRO = 'Describe a board and it builds it; ask for a change and it edits the one you have. Every reply is a single undo step.';
@@ -85,7 +86,7 @@ export function initAssistant({ store, tools, render, svg }) {
     + ACTION_CARDS.map((c) => `<button type="button" data-act="${c.act}"><i class="ai-act-ic">${icon(c.icon)}</i><span><b>${escAttr(c.title)}</b><small>${escAttr(c.desc)}</small></span></button>`).join('')
     + '</div>'
     + '</div>'
-    + '<div id="ai-foot"><div id="ai-composer">'
+    + '<div id="ai-foot"><div id="ai-documents"></div><div id="ai-composer">'
     + '<textarea id="ai-input" rows="1" placeholder="Describe a board, or ask for a change" aria-label="Message the assistant"></textarea>'
     + '<div class="ai-composer-row"><span class="ai-hint"><kbd>Enter</kbd> send &middot; <kbd>Shift</kbd>+<kbd>Enter</kbd> new line</span>'
     + `<button id="ai-send" type="button" title="Send (Enter)" aria-label="Send">${icon('send')}</button>`
@@ -330,6 +331,10 @@ export function initAssistant({ store, tools, render, svg }) {
   let generation = store.generation;
   const totals = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
   const stable = stableSystem();
+  // Initialization calls onChange before the controller is assigned.
+  let attachments;
+  function refreshSend() { sendBtn.disabled = !!busy || !!attachments?.isImporting(); }
+  attachments = initAssistantDocuments({ container: el('ai-documents'), onChange: refreshSend });
 
   // The composer grows with its text up to a few lines, then scrolls; the
   // send button lights up once there is something to send.
@@ -374,6 +379,7 @@ export function initAssistant({ store, tools, render, svg }) {
     } catch { /* corrupt thread: start fresh */ }
   }
   function clearThread() {
+    attachments.clear();
     history = [];
     visible = [];
     for (const k of Object.keys(totals)) totals[k] = 0;
@@ -510,6 +516,8 @@ export function initAssistant({ store, tools, render, svg }) {
   // toolbar edit aliases the same store batch and would cut the reply's
   // single undo step in half.
   function setBusy(on) {
+    attachments.setBusy(on);
+    refreshSend();
     form.inert = on;
     sendBtn.hidden = on;
     stopBtn.hidden = !on;
@@ -537,7 +545,7 @@ export function initAssistant({ store, tools, render, svg }) {
 
   async function send(text) {
     const userText = String(text ?? '').trim();
-    if (!userText || busy) return;
+    if (!userText || busy || attachments.isImporting()) return;
     if (!settings.configured()) { open(); showSettings(true); toast('Add a provider and key first.'); return; }
     const gen = store.generation;
     const s = settings.get();
@@ -549,7 +557,9 @@ export function initAssistant({ store, tools, render, svg }) {
     });
     const board = boardText(store.doc, { selection: [...store.selection], findings: checkDoc(store.doc) });
     const system = [stable, perRequestSystem({ date: new Date().toISOString().slice(0, 10), effort: s.effort, singleShot: s.tools === false })];
-    visible.push({ role: 'user', text: userText });
+    const sources = attachments.context();
+    const sourceSummary = sources.entries.length ? '\n\nSources: ' + sources.entries.map(e => `${e.name} (${e.used.toLocaleString()}/${e.total.toLocaleString()} chars${e.partial ? ', partial' : ''})`).join('; ') : '';
+    visible.push({ role: 'user', text: userText + sourceSummary });
     const reply = { role: 'assistant', text: '' };
     visible.push(reply);
     // The chip is live only while this exact snapshot stays on top; capture
@@ -569,7 +579,7 @@ export function initAssistant({ store, tools, render, svg }) {
     try {
       res = await run({
         provider: makeProvider(s, settings.getKey()),
-        executor, store, system, history, userText, boardText: board, signal: busy.signal,
+        executor, store, system, history, userText, boardText: board, documentText: sources.text, signal: busy.signal,
         onText: (t) => { reply.text += t; renderThread(); },
         onStatus: (line) => { visible.splice(visible.length - 1, 0, { role: 'status', text: line }); renderThread(); },
       });

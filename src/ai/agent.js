@@ -17,13 +17,24 @@ function addUsage(total, u = {}) {
   total.cacheWrite += u.cacheWrite || 0;
 }
 
+// This private block tag is never wire metadata: adapters rebuild text blocks.
+// Filter by ownership, not delimiters that ordinary conversation may contain.
+function userContent(userText, boardText, documentText) {
+  const content = [{ type: 'text', text: `${userText}\n\n---\n${boardText}` }];
+  if (documentText) content.push({ type: 'text', text: documentText, assistantDocument: true });
+  return content;
+}
+function withoutDocuments(messages) {
+  return messages.map(m => ({ ...m, content: m.content.filter(b => b.assistantDocument !== true) }));
+}
+
 export async function runRequest({
-  provider, executor, system, history = [], userText, boardText,
+  provider, executor, system, history = [], userText, boardText, documentText = '',
   store = null, signal = null, onText = null, onStatus = null, maxRounds = MAX_ROUNDS,
 }) {
   const messages = [
     ...history,
-    { role: 'user', content: [{ type: 'text', text: `${userText}\n\n---\n${boardText}` }] },
+    { role: 'user', content: userContent(userText, boardText, documentText) },
   ];
   const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
   let text = '';
@@ -89,7 +100,7 @@ export async function runRequest({
   } finally {
     store?.endBatch();
   }
-  return { text, messages, touched: new Set(executor.touched), usage, stop, stopDetails, rounds, applied, cutOff, error };
+  return { text, messages: withoutDocuments(messages), touched: new Set(executor.touched), usage, stop, stopDetails, rounds, applied, cutOff, error };
 }
 
 // The first {...} that parses, fences stripped: models without tool calling
@@ -106,12 +117,12 @@ export function extractJson(text) {
 // { summary, ops }, one repair round if it is not JSON, then the ops go
 // through apply_edits like any other batch.
 export async function runSingleShot({
-  provider, executor, system, history = [], userText, boardText,
+  provider, executor, system, history = [], userText, boardText, documentText = '',
   store = null, signal = null, onText = null, onStatus = null,
 }) {
   const messages = [
     ...history,
-    { role: 'user', content: [{ type: 'text', text: `${userText}\n\n---\n${boardText}` }] },
+    { role: 'user', content: userContent(userText, boardText, documentText) },
   ];
   const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
   let text = '';
@@ -156,5 +167,5 @@ export async function runSingleShot({
   } finally {
     store?.endBatch();
   }
-  return { text, messages, touched: new Set(executor.touched), usage, stop, stopDetails, rounds, applied, cutOff: stop === 'aborted' || stop === 'max_tokens', error };
+  return { text, messages: withoutDocuments(messages), touched: new Set(executor.touched), usage, stop, stopDetails, rounds, applied, cutOff: stop === 'aborted' || stop === 'max_tokens', error };
 }
