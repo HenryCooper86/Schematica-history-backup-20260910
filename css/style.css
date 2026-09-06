@@ -1214,7 +1214,20 @@ html {
 /* Session sources: bounded scrolling keeps the composer reachable. */
 .ai-documents { margin-bottom: 8px; font-size: 11px; min-width: 0; }
 .ai-document-controls { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 5px; }
-.ai-documents button { padding: 3px 7px; font-size: 10.5px; }
+.ai-documents button, .ai-document-preview button {
+  background: var(--bg2);
+  border: 1px solid var(--line2);
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 3px 7px;
+  font: inherit;
+  font-size: 10.5px;
+  cursor: pointer;
+}
+.ai-documents button:hover:not(:disabled), .ai-document-preview button:hover:not(:disabled) { color: var(--text); border-color: var(--accent); }
+.ai-documents button:disabled, .ai-document-preview button:disabled { opacity: 0.5; cursor: default; }
+.ai-documents :is(button, input, summary):focus-visible, .ai-document-preview :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ai-documents input[type="checkbox"] { accent-color: var(--accent); }
 .ai-document-details summary { cursor: pointer; color: var(--muted); overflow-wrap: anywhere; }
 .ai-document-details[open] { max-height: min(230px, 28vh); overflow-y: auto; }
 .ai-document-note { font-size: 10px; line-height: 1.4; color: var(--muted); margin: 6px 0; }
@@ -1227,6 +1240,15 @@ html {
 .ai-document-warning, .ai-document-issues { color: #fbbf24; }
 .ai-document-issues { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 5px; }
 .ai-document-progress { color: var(--muted); overflow-wrap: anywhere; font-size: 10px; margin-top: 4px; }
-.ai-document-preview { width: min(720px, 90vw); max-height: 85vh; }
+.ai-document-preview {
+  width: min(720px, 90vw);
+  max-height: 85vh;
+  background: var(--bg1);
+  color: var(--text);
+  border: 1px solid var(--line2);
+  border-radius: 12px;
+  padding: 18px;
+}
+.ai-document-preview::backdrop { background: rgba(4, 6, 12, 0.6); }
 .ai-document-preview h3, .ai-document-preview p { overflow-wrap: anywhere; }
 .ai-document-preview pre { max-height: 55vh; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; -webkit-user-select: text; font: 12px/1.5 var(--mono); }
