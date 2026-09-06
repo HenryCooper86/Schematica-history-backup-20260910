@@ -565,6 +565,18 @@ try {
   await sleep(100);
   const saved = await js(`(() => ({ stored: localStorage.getItem('schematica.ai.key.anthropic'), settings: JSON.parse(localStorage.getItem('schematica.ai.settings') || '{}'), meta: document.getElementById('ai-meta').textContent, settingsShown: getComputedStyle(document.getElementById('ai-settings')).display !== 'none' }))()`);
   check('a key saved without "remember" stays out of storage and the panel shows the model', saved.stored === null && saved.settings.remember === false && /claude-opus-5/.test(saved.meta) && !saved.settingsShown, JSON.stringify(saved));
+  // The header's connection dot reflects the probe state, and an empty thread
+  // shows the quick actions as cards with a description each.
+  const fresh = await js(`(() => ({ state: document.getElementById('ai-meta').dataset.state, mode: document.getElementById('ai-actions').classList.contains('cards'), acts: [...document.querySelectorAll('#ai-actions [data-act]')].map((b) => b.dataset.act), descs: document.querySelectorAll('#ai-actions [data-act] small').length }))()`);
+  check('an untested provider shows a grey dot and the empty thread shows three action cards', fresh.state === 'untested' && fresh.mode && JSON.stringify(fresh.acts) === JSON.stringify(['build', 'fix', 'fill']) && fresh.descs === 3, JSON.stringify(fresh));
+  // The settings sheet scrolls inside the panel: Save is reachable however
+  // long the provider's help text is (it used to overflow and clip).
+  await js(`document.getElementById('ai-gear').click(); true`);
+  await sleep(100);
+  const sheet = await js(`(() => { const p = document.getElementById('assistant').getBoundingClientRect(); const form = document.getElementById('ai-settings'); form.scrollTop = form.scrollHeight; const b = document.getElementById('ai-save').getBoundingClientRect(); const t = document.getElementById('ai-thread'); return { saveInside: b.height > 0 && b.bottom <= p.bottom + 1 && b.top >= p.top, threadHidden: getComputedStyle(t).display === 'none', gearActive: document.getElementById('ai-gear').classList.contains('active') }; })()`);
+  check('the settings sheet replaces the thread and keeps Save inside the panel', sheet.saveInside && sheet.threadHidden && sheet.gearActive, JSON.stringify(sheet));
+  await js(`document.getElementById('ai-gear').click(); true`);
+  await sleep(100);
   await js(`(() => { document.getElementById('ai-gear').click(); document.getElementById('ai-key').value = 'sk-test-456'; document.getElementById('ai-remember').checked = true; document.getElementById('ai-save').click(); return true; })()`);
   await sleep(100);
   const remembered = await js(`localStorage.getItem('schematica.ai.key.anthropic')`);
@@ -603,6 +615,12 @@ try {
   await key('a', 'KeyA', 65);
   await sleep(100);
   check('A closes the panel again', (await js(`document.getElementById('assistant').hidden`)) === true);
+  await key('a', 'KeyA', 65);
+  await sleep(100);
+  await js(`document.getElementById('ai-close').click(); true`);
+  await sleep(100);
+  const closedByX = await js(`(() => ({ hidden: document.getElementById('assistant').hidden, btnActive: document.getElementById('btn-assistant').classList.contains('active') }))()`);
+  check('the close button hides the panel and releases the toolbar button', closedByX.hidden === true && closedByX.btnActive === false, JSON.stringify(closedByX));
 
   // The Examples menu lists every board under a topic heading; Escape closes it
   // (choosing one would confirm(), which the smoke test never does).
@@ -638,6 +656,8 @@ try {
   check('everything the assistant touched is highlighted', highlighted === 6, String(highlighted));
   const statusLines = await js(`[...document.querySelectorAll('#ai-thread .ai-status')].map((s) => s.textContent)`);
   check('tool activity shows as status lines', statusLines.some((s) => /applying 7 edits/.test(s)), JSON.stringify(statusLines));
+  const afterBuild = await js(`(() => { const i = document.getElementById('ai-input'); const one = i.offsetHeight; i.value = 'one\\ntwo\\nthree\\nfour'; i.dispatchEvent(new Event('input', { bubbles: true })); const four = i.offsetHeight; i.value = ''; i.dispatchEvent(new Event('input', { bubbles: true })); return { state: document.getElementById('ai-meta').dataset.state, chips: document.getElementById('ai-actions').classList.contains('chips'), grouped: document.querySelectorAll('#ai-thread .ai-activity .ai-status').length, one, four, reset: i.offsetHeight }; })()`);
+  check('after a reply the dot is green, the actions fold to chips, activity is grouped, and the composer grows with its text', afterBuild.state === 'ready' && afterBuild.chips && afterBuild.grouped >= 1 && afterBuild.four > afterBuild.one && afterBuild.reset === afterBuild.one, JSON.stringify(afterBuild));
   const chip = await js(`(() => { const b = document.querySelector('#ai-thread .ai-chips button[data-undo]'); return { exists: !!b, disabled: b && b.disabled, undoEnabled: !document.getElementById('undo').disabled }; })()`);
   check('the reply carries a live "Undo this" chip', chip.exists && chip.disabled === false && chip.undoEnabled, JSON.stringify(chip));
   await js(`document.querySelector('#ai-thread .ai-chips button[data-undo]').click(); true`);

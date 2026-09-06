@@ -8,9 +8,12 @@ repository is icon artwork.
 The 24-box glyphs of the Network, Security & Edge, and Threats parts in
 `src/palette.js` (internet, access point, router, switch, ASN, IP address,
 firewall, WAF, proxy, CDN, load balancer, API gateway, threat actor, insider
-threat, malware, ransomware, botnet, phishing, C2 server) are icons from
-[Lucide](https://lucide.dev) (`lucide-static` 1.41.0), used under the ISC
-licence below. The Lucide licence also notes which icons descend from the
+threat, malware, ransomware, botnet, phishing, C2 server) and the assistant
+panel's controls in `src/ui/assistant-ui.js` (sparkles, message-square-plus,
+settings-2, x, arrow-up, square, undo-2, scan-search, layout-template,
+wrench, file-pen-line, check, circle-alert, circle-check, eye, eye-off) are
+icons from [Lucide](https://lucide.dev) (`lucide-static` 1.41.0), used under
+the ISC licence below. The Lucide licence also notes which icons descend from the
 Feather project under the MIT licence; that notice is reproduced in full.
 
 ```
