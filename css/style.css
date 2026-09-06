@@ -262,7 +262,7 @@ g.node:hover .ports,
   top: 14px;
   right: 14px;
   width: 262px;
-  max-height: calc(100% - 28px);
+  max-height: calc(100% - 28px - var(--ai-reserve, 0px)); /* ends above the assistant */
   background: rgba(13, 18, 32, 0.96);
   border: 1px solid var(--line2);
   border-radius: 14px;
@@ -535,7 +535,7 @@ g.node:hover .ports,
   top: 14px;
   right: 14px;
   width: 282px;
-  max-height: calc(100% - 28px);
+  max-height: calc(100% - 28px - var(--ai-reserve, 0px));
   background: rgba(13, 18, 32, 0.96);
   border: 1px solid var(--line2);
   border-radius: 14px;

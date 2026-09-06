@@ -581,7 +581,7 @@ try {
   const kimi = await pick('kimi');
   check('picking Kimi fills the Moonshot base URL, the kimi-k3 default, and model suggestions', kimi.base === 'https://api.moonshot.ai/v1' && kimi.model === 'kimi-k3' && kimi.options.includes('kimi-k3') && kimi.keyOff === false && kimi.listHidden === false, JSON.stringify(kimi));
   const cloud = await pick('ollamacloud');
-  check('picking Ollama Cloud keeps the key field and suggests gpt-oss:120b', cloud.base === 'https://ollama.com' && cloud.model === 'gpt-oss:120b' && cloud.options.includes('gpt-oss:120b') && cloud.keyOff === false && cloud.listHidden === false, JSON.stringify(cloud));
+  check('picking Ollama Cloud points at the local Ollama with a :cloud model and no key field', cloud.base === 'http://localhost:11434' && cloud.model === 'glm-5.3:cloud' && cloud.options.includes('glm-5.3:cloud') && cloud.keyOff === true && cloud.listHidden === false && /ollama signin/.test(cloud.help), JSON.stringify(cloud));
   const local = await pick('ollama');
   check('picking local Ollama disables the key field and shows the CORS note', local.keyOff === true && /OLLAMA_ORIGINS/.test(local.help) && local.options.length === 0, JSON.stringify(local));
   const zai = await pick('zai');
@@ -591,6 +591,14 @@ try {
   check('back on Anthropic the List models button hides and the Claude ids are suggested', backOnClaude.listHidden === true && backOnClaude.options.includes('claude-opus-5'), JSON.stringify(backOnClaude));
   const foldedAi = await js(`(() => { const p = document.getElementById('assistant'); p.querySelector('.panel-toggle').click(); const out = p.classList.contains('collapsed'); p.querySelector('.panel-toggle').click(); return out; })()`);
   check('the assistant panel folds like the others', foldedAi === true, String(foldedAi));
+  // With the assistant open, the journey panel must end above it (it scrolls
+  // instead of running underneath).
+  await js(`document.getElementById('btn-journey').click(); true`);
+  await sleep(200);
+  const stacked = await js(`(() => { const a = document.getElementById('assistant').getBoundingClientRect(); const j = document.getElementById('journey-panel').getBoundingClientRect(); return { journeyBottom: Math.round(j.bottom), assistantTop: Math.round(a.top), reserve: getComputedStyle(document.getElementById('canvas-wrap')).getPropertyValue('--ai-reserve').trim(), journeyVisible: j.height > 100 }; })()`);
+  check('the journey panel ends above the open assistant panel', stacked.journeyVisible && stacked.journeyBottom <= stacked.assistantTop && stacked.reserve !== '0px', JSON.stringify(stacked));
+  await js(`document.getElementById('btn-journey').click(); true`);
+  await sleep(100);
   await js(`document.activeElement && document.activeElement.blur(); true`);
   await key('a', 'KeyA', 65);
   await sleep(100);

@@ -86,3 +86,8 @@ test('the system prompt is the rules plus the catalogue, and the per-request blo
   assert.ok(!per.includes(SINGLE_SHOT_RULES));
   assert.ok(perRequestSystem({ date: '2026-09-05', effort: 'low', singleShot: true }).includes(SINGLE_SHOT_RULES));
 });
+
+test('the rules tell the model how to search and how to name ports on connect', () => {
+  assert.match(ROLE_RULES, /by function or bus/);
+  assert.match(ROLE_RULES, /both ends or neither/);
+});

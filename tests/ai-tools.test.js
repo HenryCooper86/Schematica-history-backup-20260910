@@ -101,3 +101,15 @@ test('unknown tools are errors and status lines are short', () => {
   assert.equal(ex.run('constructor', {}).isError, true);
   assert.equal(ex.run('list_presets', { kind: 'constructor' }).isError, true);
 });
+
+// Some models stringify the ops array; a JSON string that parses to an array
+// is accepted rather than costing a round.
+test('apply_edits accepts ops given as a JSON string', () => {
+  const doc = { schema: 1, title: '', nodes: [], wires: [], zones: [], notes: [], journey: [] };
+  const ex = createExecutor({ getDoc: () => doc, commit: (fn) => fn(doc), selection: () => [] });
+  const res = ex.run('apply_edits', { ops: JSON.stringify([{ op: 'add_part', ref: 'm', kind: 'mcu', label: 'MCU' }]) });
+  assert.match(res.text, /Applied 1 change/);
+  assert.equal(doc.nodes.length, 1);
+  const bad = ex.run('apply_edits', { ops: 'not json' });
+  assert.match(bad.text, /ops array/);
+});

@@ -40,10 +40,13 @@ export const PROVIDERS = {
     models: [],
     help: 'For browser access, start Ollama with OLLAMA_ORIGINS including this site\'s origin (or "*"). Requests ask for a 16k context (num_ctx); the model must support tool calling or Test will switch the assistant to single-shot mode. A local Ollama signed in to ollama.com can also run cloud models by their "-cloud" name.',
   },
+  // ollama.com answers no browser request (no CORS headers, preflight 405 as
+  // of 2026-09-06), so cloud models go through the local Ollama, which must
+  // be signed in to ollama.com. The browser never sees the API key.
   ollamacloud: {
-    name: 'Ollama Cloud', adapter: 'ollama', baseUrl: 'https://ollama.com', model: 'gpt-oss:120b', needsKey: true,
-    models: ['gpt-oss:120b', 'deepseek-v3.2', 'qwen3-coder:480b', 'kimi-k2.6', 'glm-5.2'],
-    help: 'Ollama\'s hosted models over the same API as local Ollama, with an API key from ollama.com.',
+    name: 'Ollama Cloud (via local Ollama)', adapter: 'ollama', baseUrl: 'http://localhost:11434', model: 'glm-5.3:cloud', needsKey: false,
+    models: ['glm-5.3:cloud', 'glm-5.3-flash:cloud', 'kimi-k3:cloud', 'gpt-oss:120b:cloud', 'qwen3.5:397b-cloud', 'deepseek-v4-flash:0731-cloud'],
+    help: 'Hosted models that run on ollama.com through your local Ollama: run "ollama signin" once, then use the ":cloud" tag (glm-5.3:cloud). The browser only talks to the local server, so OLLAMA_ORIGINS applies as for local models and no API key is entered here; ollama.com itself does not accept browser requests.',
   },
 };
 export const EFFORTS = ['low', 'medium', 'high'];
@@ -74,8 +77,11 @@ export function createSettings(storage) {
   const remove = (k) => { try { storage && storage.removeItem(k); } catch { /* same */ } };
 
   // Read on every call: a test may seed storage after the page loaded, and
-  // another tab may have changed it.
-  const readStored = () => { try { return JSON.parse(read(SETTINGS_KEY) || '{}') || {}; } catch { return {}; } };
+  // another tab may have changed it. Without storage (site data blocked) the
+  // patches live in `memory` for the session; with storage, `memory` stays
+  // empty so a seeded value is never shadowed.
+  let memory = {};
+  const readStored = () => { try { return { ...(JSON.parse(read(SETTINGS_KEY) || '{}') || {}), ...memory }; } catch { return { ...memory }; } };
   const memoryKeys = {};
 
   function get() {
@@ -89,7 +95,10 @@ export function createSettings(storage) {
   }
 
   function set(patch) {
-    write(SETTINGS_KEY, JSON.stringify({ ...readStored(), ...patch }));
+    const next = { ...readStored(), ...patch };
+    let stored = false;
+    try { if (storage) { storage.setItem(SETTINGS_KEY, JSON.stringify(next)); stored = true; } } catch { /* blocked or full */ }
+    if (!stored) memory = next;
   }
 
   function getKey() {

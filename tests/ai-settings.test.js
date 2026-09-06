@@ -89,8 +89,8 @@ test('every provider names an adapter, a base url, a key rule, and suggested mod
   assert.equal(PROVIDERS.kimi.model, 'kimi-k3');
   assert.equal(PROVIDERS.openrouter.baseUrl, 'https://openrouter.ai/api/v1');
   assert.equal(PROVIDERS.ollamacloud.adapter, 'ollama');
-  assert.equal(PROVIDERS.ollamacloud.baseUrl, 'https://ollama.com');
-  assert.equal(PROVIDERS.ollamacloud.needsKey, true);
+  assert.equal(PROVIDERS.ollamacloud.baseUrl, 'http://localhost:11434', 'ollama.com sends no CORS headers, so the browser goes through the local Ollama');
+  assert.equal(PROVIDERS.ollamacloud.needsKey, false);
   assert.equal(PROVIDERS.ollama.needsKey, false);
 });
 
@@ -103,6 +103,25 @@ test('switching to a provider with a default model is configured once it has a k
   s.setKey('sk-kimi', false);
   assert.equal(s.configured(), true);
   s.set({ provider: 'ollamacloud' });
-  assert.equal(s.get().model, 'gpt-oss:120b');
-  assert.equal(s.configured(), false, 'the cloud needs its own key');
+  assert.equal(s.get().model, 'glm-5.3:cloud');
+  assert.equal(s.configured(), true, 'the cloud needs its own key');
+});
+
+// With site data blocked there is no storage at all; the panel must still let
+// the user pick a provider and model for the session.
+test('without storage, settings live in memory for the session', () => {
+  const s = createSettings(null);
+  assert.equal(s.get().provider, 'anthropic');
+  s.set({ provider: 'ollama', model: 'glm-5.3:cloud' });
+  assert.equal(s.get().provider, 'ollama');
+  assert.equal(s.get().model, 'glm-5.3:cloud');
+  assert.equal(s.get().baseUrl, 'http://localhost:11434');
+  s.set({ effort: 'high' });
+  assert.equal(s.get().effort, 'high');
+  assert.equal(s.get().provider, 'ollama', 'a later patch keeps earlier fields');
+  assert.equal(s.configured(), true);
+  s.set({ provider: 'kimi' });
+  s.setKey('k', true);
+  assert.equal(s.getKey(), 'k');
+  assert.equal(s.configured(), true);
 });

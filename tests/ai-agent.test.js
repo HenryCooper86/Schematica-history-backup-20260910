@@ -85,7 +85,7 @@ test('the round cap stops a model that never finishes and marks the reply cut of
   assert.equal(res.rounds, 3);
   assert.equal(res.cutOff, true);
   assert.equal(res.stop, 'rounds');
-  assert.equal(MAX_ROUNDS, 8);
+  assert.equal(MAX_ROUNDS, 12);
 });
 
 test('abort ends the request, keeps edits already applied, and leaves a valid history', async () => {
@@ -238,6 +238,6 @@ test('makeProvider builds the adapter each provider names and sends the key the 
   assert.equal(seen[0].init.headers['x-api-key'], 'k');
   for (const i of [1, 2, 3, 4]) assert.equal(seen[i].init.headers.authorization, 'Bearer k', paths[i]);
   assert.equal(seen[5].init.headers.authorization, undefined, 'local Ollama takes no key');
-  assert.equal(seen[6].init.headers.authorization, 'Bearer k', 'Ollama Cloud takes a Bearer key');
+  assert.equal(seen[6].init.headers.authorization, undefined, 'Ollama Cloud goes through the local Ollama, which needs no key');
   assert.throws(() => makeProvider(s('carrier-pigeon'), 'k'), /unknown provider/);
 });

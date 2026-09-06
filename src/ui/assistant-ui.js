@@ -162,6 +162,16 @@ export function initAssistant({ store, tools, render, svg }) {
     btn.classList.remove('active');
   }
   function toggle() { if (isOpen()) close(); else open(); }
+
+  // The right-hand panels end above this one: publish the height it takes
+  // (plus its offset and a gap) as a CSS variable on the canvas area.
+  const wrap = document.getElementById('canvas-wrap');
+  function reserve() {
+    const h = panel.hidden ? 0 : Math.round(panel.getBoundingClientRect().height) + 54 + 10;
+    wrap.style.setProperty('--ai-reserve', `${h}px`);
+  }
+  if (typeof ResizeObserver === 'function') new ResizeObserver(reserve).observe(panel);
+  reserve();
   btn.addEventListener('click', toggle);
   // Like the journey button, opening the assistant is a request to see panels.
   btn.addEventListener('click', () => {
@@ -243,6 +253,9 @@ export function initAssistant({ store, tools, render, svg }) {
   function renderThread() {
     thread.innerHTML = visible.map((m, i) => {
       if (m.role === 'status') return `<div class="ai-status">${escAttr(m.text)}</div>`;
+      // A request that failed before any text leaves nothing to show but the
+      // error bubble that follows it.
+      if (m.role === 'assistant' && !m.text && !m.touched?.length) return '';
       return `<div class="ai-msg ${m.role}">${escAttr(m.text)}${m.role === 'assistant' ? chipRow(m, i) : ''}</div>`;
     }).join('');
     thread.querySelectorAll('[data-undo]').forEach((b) => onPress(b, () => { if (!b.disabled && !busy) store.undo(); }));
@@ -458,7 +471,7 @@ export function initAssistant({ store, tools, render, svg }) {
   document.addEventListener('schematica:fix-finding', (e) => {
     const f = e.detail;
     open();
-    send(`Fix this finding: ${f.level} ${f.rule} "${f.message}" ids: ${f.ids.join(' ')}`);
+    send(`Fix this finding: ${f.level} ${f.rule} "${f.message}" ids: ${f.ids.join(' ')}. Change only what this finding needs; leave the rest of the board as it is.`);
   });
 
   loadThread();

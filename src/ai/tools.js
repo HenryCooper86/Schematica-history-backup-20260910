@@ -94,7 +94,11 @@ export function createExecutor({ getDoc, commit, selection = () => [] }) {
       return ok(list.map((p) => `${p.name} | pn=${p.sublabel} | rail=${p.rail || '-'} | ${p.notes}`).join('\n'));
     },
     apply_edits(input) {
-      if (!Array.isArray(input.ops)) return err('apply_edits needs an ops array');
+      let { ops } = input;
+      // Some models stringify the array; accept a JSON string that parses to one.
+      if (typeof ops === 'string') { try { ops = JSON.parse(ops); } catch { ops = null; } }
+      if (!Array.isArray(ops)) return err('apply_edits needs an ops array');
+      input = { ...input, ops };
       let res;
       commit((doc) => {
         res = applyEdits(doc, input.ops);

@@ -5,7 +5,10 @@
 // the spec; adapters translate to the wire.
 import { TOOLS, statusLine } from './tools.js';
 
-export const MAX_ROUNDS = 8;
+// Twelve: a tool-heavy build with a model that fumbles a batch or two still
+// reaches its closing run_checks (acceptance with glm-5.3 hit the old cap of
+// eight on the final check in two runs out of three).
+export const MAX_ROUNDS = 12;
 
 function addUsage(total, u = {}) {
   total.input += u.input || 0;
