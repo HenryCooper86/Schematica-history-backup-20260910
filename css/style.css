@@ -1203,3 +1203,10 @@ html {
 @media (prefers-reduced-motion: no-preference) {
   #toolbar button, .palette-item { transition: background 120ms ease, color 120ms ease, border-color 120ms ease; }
 }
+
+.rdk-details { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.rdk-details p { margin: 5px 0; font-size: 11px; line-height: 1.45; }
+.rdk-details a { display: block; margin: 5px 0; font-size: 11px; color: var(--accent); }
+.rdk-details .rdk-finding { color: #d99b48; }
+.rdk-details button { margin-top: 8px; width: 100%; padding: 8px; border: 1px solid var(--line2); border-radius: 8px; background: var(--bg0); color: var(--text); cursor: pointer; }
+.rdk-details button:hover, .rdk-details button:focus-visible { border-color: var(--accent); }

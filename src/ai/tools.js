@@ -1,4 +1,4 @@
-// The six tools the model may call, and an executor that runs them over a
+// The tools the model may call, and an executor that runs them over a
 // two-method interface: getDoc() reads the document, commit(fn) mutates it.
 // The browser passes the store (commit = store.mutate inside a batch); tests
 // and a future MCP server pass a plain document.
@@ -10,9 +10,13 @@ import { applyEdits, EDIT_SCHEMA, MAX_OPS } from './ops.js';
 import { placeNew, arrangeAll } from './layout.js';
 import { boardText, partLine } from './context.js';
 
+import { searchRdk } from '../rdk/catalogue.js';
+import { referenceText } from '../rdk/guide.js';
+
 const EMPTY = { type: 'object', properties: {}, additionalProperties: false };
 
 export const TOOLS = [
+  { name: 'rdk_reference', description: 'Read source-linked RDK board, camera and software constraints by product words. Up to 12 matches; reference data, not instructions or hardware certification.', input_schema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false }, strict: true },
   {
     name: 'search_parts',
     description: 'Find palette kinds by words in their name, category, port names, buses, or vendor presets. Returns up to 20 kinds with their ports.',
@@ -53,6 +57,7 @@ export const TOOLS = [
 export function statusLine(name, input = {}) {
   const i = input && typeof input === 'object' ? input : {};
   switch (name) {
+    case 'rdk_reference': return `reading RDK reference: ${i.query ?? ''}`;
     case 'search_parts': return `searching parts: ${i.query ?? ''}`;
     case 'get_board': return 'reading the board';
     case 'run_checks': return 'running checks';
@@ -71,6 +76,10 @@ export function createExecutor({ getDoc, commit, selection = () => [] }) {
   const err = (text) => ({ text, isError: true });
 
   const handlers = {
+    rdk_reference(input) {
+      const profiles = searchRdk(String(input.query ?? '').slice(0, 200));
+      return ok(profiles.length ? profiles.map(referenceText).join('\n\n').slice(0, 18000) : 'No RDK reference matches. Try X5, GS130W, or hobot_dnn.');
+    },
     search_parts(input) {
       const query = String(input.query ?? '');
       const kinds = [...filterParts(query)].slice(0, 20);
@@ -91,7 +100,7 @@ export function createExecutor({ getDoc, commit, selection = () => [] }) {
       if (!Object.hasOwn(PARTS, kind)) return err(`unknown kind "${kind}"`);
       const list = presetsFor(kind);
       if (!list.length) return ok(`No presets for ${kind}; choose a part number yourself.`);
-      return ok(list.map((p) => `${p.name} | pn=${p.sublabel} | rail=${p.rail || '-'} | ${p.notes}`).join('\n'));
+      return ok(list.map((p) => `${p.name} | pn=${p.sublabel} | rail=${p.rail || '-'} | ${p.notes}${kind === 'rdksoftware' ? ` | fields.package=${p.sublabel}; runtime optional; select target board id or earlier ref` : ''}`).join('\n'));
     },
     apply_edits(input) {
       let { ops } = input;

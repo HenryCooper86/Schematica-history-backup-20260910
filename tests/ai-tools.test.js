@@ -8,8 +8,8 @@ function plain(doc) {
   return createExecutor({ getDoc: () => doc, commit: (fn) => fn(doc), selection: () => ['n5'] });
 }
 
-test('six tools with the expected names and strict flags', () => {
-  assert.deepEqual(TOOLS.map((t) => t.name), ['search_parts', 'get_board', 'run_checks', 'list_presets', 'apply_edits', 'arrange']);
+test('seven tools with the expected names and strict flags', () => {
+  assert.deepEqual(TOOLS.map((t) => t.name), ['rdk_reference', 'search_parts', 'get_board', 'run_checks', 'list_presets', 'apply_edits', 'arrange']);
   for (const t of TOOLS) {
     assert.equal(typeof t.description, 'string');
     assert.equal(t.input_schema.type, 'object');

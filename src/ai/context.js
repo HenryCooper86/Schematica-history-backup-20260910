@@ -1,5 +1,6 @@
 // What the model reads: the board as one line per item, ids first, and the
 // palette catalogue (Task 11). Both are plain text a person can read too.
+import { rdkProfile, referenceText } from '../rdk/guide.js';
 import { PARTS, CATEGORIES, getPart } from '../palette.js';
 import { BUSES, BUS_ORDER } from '../buses.js';
 import { PRESETS } from '../presets.js';
@@ -16,6 +17,8 @@ const value = (s) => (/^[\w.:/#@+-]+$/.test(String(s)) ? String(s) : quote(s));
 export function nodeLine(doc, node) {
   const part = getPart(node.kind);
   let s = `node ${node.id} ${node.kind} ${quote(node.label)}`;
+  const profile = rdkProfile(node);
+  if (profile) s += ` rdk-profile=${profile.id} effective-RDK-ports=${profile.ports ? profile.ports.map(p => `${p.id}(${p.bus})`).join(',') : 'unverified (generic drawing ports are not validated connectors)'}`;
   if (node.sublabel) s += ` pn=${value(node.sublabel)}`;
   if (node.addr) s += ` addr=${value(node.addr)}`;
   if (node.rail) s += ` rail=${value(node.rail)}`;
@@ -51,6 +54,16 @@ export function boardText(doc, { selection = [], findings = [] } = {}) {
   const lines = [`board ${quote(doc.title)}`];
   for (const z of doc.zones) lines.push(zoneLine(doc, z));
   for (const n of doc.nodes) lines.push(nodeLine(doc, n));
+  const profiles = new Map();
+  for (const n of doc.nodes) {
+    const p = rdkProfile(n);
+    if (p) profiles.set(p.id, p);
+  }
+  if (profiles.size) {
+    lines.push('RDK profiles (reference data): effective RDK ports override generic catalogue ports; unverified profiles require documentation review.');
+    lines.push([...profiles.values()].slice(0, 12).map(referenceText).join('\n\n').slice(0, 18000));
+    if (profiles.size > 12) lines.push('More profiles omitted; use rdk_reference for details.');
+  }
   for (const w of doc.wires) lines.push(wireLine(w));
   for (const t of doc.notes) lines.push(`note ${t.id} ${quote(t.text)}`);
   if (selection.length) lines.push(`selected: ${selection.join(' ')}`);

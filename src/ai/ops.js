@@ -47,7 +47,7 @@ export const EDIT_SCHEMA = {
           notes: { type: 'string' },
           status: { type: ['string', 'null'], enum: [...NODE_STATUSES, null] },
           flags: { type: 'array', items: { type: 'string', enum: [...NODE_FLAGS] } },
-          fields: { type: 'object', additionalProperties: { type: 'string' }, description: 'Schema fields for threat, network, and security parts' },
+          fields: { type: 'object', additionalProperties: { type: 'string' }, description: 'Schema fields; rdksoftware uses package, optional runtime, target (existing board id or earlier ref)' },
           disposition: { type: ['string', 'null'], enum: [...Object.keys(DISPOSITIONS), null] },
           near: { type: 'string', description: 'Layout anchor: an existing node id or a ref' },
           in: { type: 'string', description: 'Zone id or ref to place the part in' },
@@ -166,7 +166,11 @@ export function nodePatch(ctx, part, op, node) {
       if (!fd) fail(`unknown field "${k}" on ${part.name}; fields: ${part.fields.map((f) => f.id).join(', ')}`);
       if (typeof v !== 'string') fail(`field "${k}" must be a string`);
       if (fd.options && v && !fd.options.includes(v)) fail(`field "${k}" must be one of ${fd.options.join(', ')}`);
-      if (v.trim()) merged[k] = text(ctx, v, k);
+      if (v.trim() && part.kind === 'rdksoftware' && k === 'target') {
+        const target = findNode(ctx, v);
+        if (target.kind !== 'aisbc') fail(`software target "${v}" is not a board`);
+        merged[k] = target.id;
+      } else if (v.trim()) merged[k] = text(ctx, v, k);
       else delete merged[k];
     }
     patch.fields = merged;

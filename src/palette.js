@@ -164,6 +164,7 @@ export const PARTS = {
     [p('out', 'OUT', 'right', 0.5, 'gpio')]),
   // Robot compute and perception (vendor kits such as D-Robotics RDK boards
   // are presets on these generic parts; see presets.js).
+  rdksoftware: part('rdksoftware', 'robotics', 'RDK software stage', 'M2 3h12v10H2z M5 6l-2 2 2 2 M11 6l2 2-2 2', [p('in', 'IN', 'left', 0.5, 'flow'), p('out', 'OUT', 'right', 0.5, 'flow')], { fields: [f('package', 'Package', { placeholder: 'e.g. hobot_dnn' }), f('runtime', 'Runtime (optional)', { placeholder: 'Not selected' }), f('target', 'Target RDK board')] }),
   aisbc: part('aisbc', 'robotics', 'AI SBC / robot kit', 'M2 3h12v10H2z M5.5 6h5v4h-5z M1 6h1 M1 10h1 M14 6h1 M14 10h1 M4 3V1.5 M8 3V1.5 M12 3V1.5', [
     ...pwr(),
     p('eth', 'ETH', 'right', 0.2, 'eth'), p('usb', 'USB', 'right', 0.4, 'usb'),

@@ -6,6 +6,10 @@ import { getPart, DISPOSITIONS } from '../palette.js';
 import { onPress, escAttr, toast } from './press.js';
 import { panelHeader, bindCollapsible } from './collapsible.js';
 
+import { rdkDetails, targetOptions } from './rdk-details.js';
+import { rdkGuide } from '../rdk/guide.js';
+import { download } from '../export.js';
+
 const STATUS_LABELS = {
   planned: 'Planned', prototype: 'Prototype', tested: 'Tested',
   production: 'Production', deprecated: 'Deprecated',
@@ -35,9 +39,10 @@ function colorSwatchRow(current) {
 
 // Schema fields (threat parts): a select for vocabularies, free text otherwise.
 // A stored value outside the vocabulary stays selectable so old boards read back.
-function schemaFields(part, item) {
+function schemaFields(part, item, doc) {
   return part.fields.map((fd) => {
     const v = item.fields?.[fd.id] ?? '';
+    if (item.kind === 'rdksoftware' && fd.id === 'target') return propField(fd.label, `<select data-field="target">${targetOptions(item, doc)}</select>`);
     if (fd.options) {
       const opts = fd.options.includes(v) || !v ? fd.options : [v, ...fd.options];
       return propField(fd.label, `<select data-field="${fd.id}"><option value="">&mdash;</option>${opts.map((o) => (
@@ -65,11 +70,11 @@ function addrRailFields(item) {
     + propField('Voltage rail', `<input type="text" data-prop="rail" placeholder="e.g. 3.3V" value="${escAttr(item.rail)}">`);
 }
 
-function nodeFields(item) {
+function nodeFields(item, doc) {
   const part = getPart(item.kind);
   let html = propField('Label', `<input type="text" data-prop="label" value="${escAttr(item.label)}">`);
   if (!part.threat) html += partNumberField(item);
-  html += part.fields ? schemaFields(part, item) : addrRailFields(item);
+  html += part.fields ? schemaFields(part, item, doc) : addrRailFields(item);
   html += propField('Notes', `<textarea data-prop="notes" placeholder="Free-form notes...">${escAttr(item.notes)}</textarea>`);
   html += `<label>Lifecycle</label><div class="chips">${NODE_STATUSES.map((st) => (
     `<button class="chip${item.status === st ? ' active' : ''}" data-status="${st}">${STATUS_LABELS[st]}</button>`
@@ -85,6 +90,7 @@ function nodeFields(item) {
   html += `<label>Accent color</label><div class="swatches">${ACCENT_SWATCHES.map((c) => (
     `<button class="swatch${item.color === c ? ' active' : ''}" data-swatch="${c}" style="background:${c}" title="${c}"></button>`
   )).join('')}<button class="swatch swatch-auto${item.color === null ? ' active' : ''}" data-swatch="" title="Category color">Auto</button></div>`;
+  html += rdkDetails(item, doc);
   html += '<button id="props-delete-one" class="danger">Delete node</button>';
   return html;
 }
@@ -132,6 +138,11 @@ export function createPropsPanel({ store }) {
   const props = document.getElementById('props');
 
   function bind(item) {
+    const guide = props.querySelector('#rdk-guide-download');
+    if (guide) onPress(guide, () => {
+      const text = rdkGuide(store.doc);
+      if (text) download('rdk-setup-guide.md', text, 'text/markdown;charset=utf-8');
+    });
     props.querySelectorAll('[data-prop]').forEach((input) => {
       input.addEventListener('change', () => {
         const cur = findItem(store.doc, item.id)?.item;
@@ -234,7 +245,7 @@ export function createPropsPanel({ store }) {
     }
     const { type, item } = found;
     let html;
-    if (type === 'node') html = panelHeader(getPart(item.kind).name, 'props') + nodeFields(item);
+    if (type === 'node') html = panelHeader(getPart(item.kind).name, 'props') + nodeFields(item, store.doc);
     else if (type === 'wire') html = panelHeader('Wire', 'props') + wireFields(item);
     else if (type === 'zone' && item.kind === 'swimlane') html = panelHeader('Swimlane', 'props') + swimlaneFields(item);
     else if (type === 'zone') {

@@ -276,6 +276,9 @@ export function duplicateItems(store, ids) {
       newIds.push(id);
       doc.nodes.push({ ...structuredClone(n), id, x: n.x + 16, y: n.y + 16 });
     }
+    for (const n of doc.nodes.filter((n) => newIds.includes(n.id) && n.kind === 'rdksoftware')) {
+      if (map.has(n.fields?.target)) n.fields.target = map.get(n.fields.target);
+    }
     for (const z of doc.zones.filter((z) => src.has(z.id))) {
       const id = uid('z');
       newIds.push(id);

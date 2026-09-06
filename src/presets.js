@@ -42,6 +42,7 @@ export const PRESETS = {
     { name: 'Horizon SuperDrive HSD 1200', sublabel: 'HSD 1200', rail: '12V',
       notes: 'Horizon SuperDrive HSD 1200 on Journey 6P: 11 cameras, 3 radars, optional LiDAR; the top HSD sensor package for full-scenario assisted driving.' },
   ],
+  rdksoftware: rdkPresets('rdksoftware'),
   mipicam: rdkPresets('mipicam'),
   depthcam: [
     ...rdkPresets('depthcam'),
@@ -73,6 +74,7 @@ export function presetPatch(node, value) {
   );
   if (!hit) return { sublabel: typed };
   const patch = { sublabel: hit.sublabel };
+  if (node.kind === 'rdksoftware') patch.fields = { ...(node.fields || {}), package: hit.sublabel };
   if (!String(node.rail ?? '').trim() && hit.rail) patch.rail = hit.rail;
   if (!String(node.notes ?? '').trim() && hit.notes) patch.notes = hit.notes;
   return patch;
