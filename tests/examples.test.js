@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EXAMPLES } from '../src/examples.js';
+import { diagramMarkup } from '../src/render.js';
 import { serialize, deserialize } from '../src/serialize.js';
 import { getPart } from '../src/palette.js';
 import { nodeRect } from '../src/geometry.js';
@@ -114,5 +115,15 @@ test('the security boards rate every threat and mark adversaries and victims', (
     const { doc, warnings } = deserialize(serialize(b.doc));
     assert.deepEqual(warnings, [], `${id} fields all known`);
     assert.deepEqual(doc, b.doc);
+  }
+});
+
+// Animate is off when a board opens; an example must not move until the user
+// turns it on (no wire authored with flow "on", no pulsing glow).
+test('no example animates while the Animate toggle is off', () => {
+  for (const ex of EXAMPLES) {
+    const m = diagramMarkup(ex.doc, { selection: new Set(), animate: false, ports: false });
+    assert.ok(!/class="[^"]*\banim\b/.test(m), `${ex.id} animates with the toggle off`);
+    assert.deepEqual(ex.doc.wires.filter((w) => w.flow === 'on').map((w) => w.id), [], `${ex.id} ships wires forced on`);
   }
 });
