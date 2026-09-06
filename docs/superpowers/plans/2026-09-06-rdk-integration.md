@@ -40,13 +40,13 @@ const doc = newDoc();
 const result = applyEdits(doc, [
   { op:'add_part', ref:'b', kind:'aisbc', sublabel:'RDK X3' },
   { op:'add_part', ref:'c', kind:'mipicam', sublabel:'IMX219' },
-  { op:'connect', from:'b', to:'c', from_port:'csi2', to_port:'csi', bus:'mipi' },
+  { op:'connect', from:{node:'b',port:'csi2'}, to:{node:'c',port:'csi'}, bus:'mipi' },
 ]);
 assert.equal(result.ok, false);
 assert.equal(doc.nodes.length, 0);
 ```
 
-Adapt operation field names to the existing exported EDIT_SCHEMA before running; the intended behavior and endpoints are fixed.
+Use the existing exported EDIT_SCHEMA; the fixture intentionally requests an unavailable X3 connector.
 
 - [ ] **Step 2:** Run `node --test tests/rdk-profiles.test.js`, inspect expected missing-feature failures, then implement.
 - [ ] **Step 3:** Verify official source pages listed in the spec plus S100/S100P hardware references. Record only supported facts. Catalogue X3, X5, S100, S100P, carrier-dependent X3 Module, existing legacy cameras, GS130W/WI, and named generic sensor-module entries without assuming all vendors share compatibility. Populate software records (`hobot_sensor`, `hobot_dnn`, `hobot_codec`, `hobot_render`) with `kind:'rdksoftware'` for Task 3; those records use flow ports and support evidence. Software compatibility uses `boardIds` and runtime strings (`Humble`, `Foxy`, `Jazzy`) only where sourced; `null` is unknown.
