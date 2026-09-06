@@ -35,11 +35,12 @@ To make your worker the default for everyone using your deployment, set
 
 ## Connection failures
 
-The default `schematica-relay.henrycooper86.workers.dev` hostname returned
-`ENOTFOUND` during verification on 2026-09-06. Kimi and Ollama Cloud need a
-working relay before connection tests, model listing, or chat can succeed.
-Use the URL printed by your Worker deployment and the provider-specific
-path in the table above. Changing an API key cannot fix a missing hostname.
+The default relay is deployed at
+`https://schematica-relay.henrycooper86.workers.dev`. Ollama Cloud with
+`glm-5.3` passed an authenticated browser connection test on 2026-09-06.
+If you deploy your own relay, use the URL printed by Wrangler and the
+provider-specific path in the table above. An `ENOTFOUND` error means the
+hostname is not resolving; changing an API key cannot fix it.
 
 To check a deployed relay without sending a key, open its root URL. It
 should return JSON identifying the Schematica relay and its upstreams.
