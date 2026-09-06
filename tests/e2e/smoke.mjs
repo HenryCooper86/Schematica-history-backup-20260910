@@ -6,7 +6,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { EXAMPLES } from '../../src/examples.js';
@@ -42,7 +42,7 @@ async function fakeAnthropic(req, res) {
   const body = JSON.parse(raw);
   const last = body.messages.at(-1);
   const lastText = last.content.map((b) => b.text || '').join(' ');
-  fakeSeen.push({ headers: req.headers, lastText, system: body.system, tools: body.tools.map((t) => t.name) });
+  fakeSeen.push({ headers: req.headers, lastText, system: body.system, tools: body.tools.map((t) => t.name), results: last.content.filter(b => b.type === 'tool_result') });
   const hasResults = last.content.some((b) => b.type === 'tool_result');
   const events = [];
   const ev = (event, data) => events.push(`event: ${event}\ndata: ${JSON.stringify({ type: event, ...data })}\n\n`);
@@ -71,8 +71,8 @@ async function fakeAnthropic(req, res) {
     ev('content_block_start', { index: 0, content_block: { type: 'text', text: '' } });
     ev('content_block_delta', { index: 0, delta: { type: 'text_delta', text: 'Working…' } });
     ev('content_block_stop', { index: 0 });
-    ev('content_block_start', { index: 1, content_block: { type: 'tool_use', id: 'call_1', name: 'apply_edits', input: {} } });
-    ev('content_block_delta', { index: 1, delta: { type: 'input_json_delta', partial_json: JSON.stringify({ ops }) } });
+    ev('content_block_start', { index: 1, content_block: { type: 'tool_use', id: 'call_1', name: /reference RDK/i.test(lastText) ? 'rdk_reference' : 'apply_edits', input: {} } });
+    ev('content_block_delta', { index: 1, delta: { type: 'input_json_delta', partial_json: JSON.stringify(/reference RDK/i.test(lastText) ? { query: 'GS130W' } : { ops }) } });
     ev('content_block_stop', { index: 1 });
     ev('message_delta', { delta: { stop_reason: 'tool_use' }, usage: { output_tokens: 40 } });
   }
@@ -181,10 +181,11 @@ const click = async (x, y) => {
 // `buttons` must carry the held-button bitmask on every move, or Chrome (on
 // Linux at least) treats the move as a release and the drag ends early.
 const BUTTONS = { left: 1, right: 2, middle: 4 };
-const drag = async (x0, y0, x1, y1, button = 'left') => {
+const drag = async (x0, y0, x1, y1, button = 'left', afterPress = async () => {}) => {
   const buttons = BUTTONS[button];
   await mouse('mouseMoved', x0, y0);
   await mouse('mousePressed', x0, y0, { button, buttons, clickCount: 1 });
+  await afterPress();
   for (let i = 1; i <= 6; i++) {
     await mouse('mouseMoved', x0 + ((x1 - x0) * i) / 6, y0 + ((y1 - y0) * i) / 6, { button, buttons });
     await sleep(20);
@@ -363,6 +364,79 @@ try {
   const applied = await js(`(() => ({ sub: document.querySelector('#props input[data-prop="sublabel"]')?.value, meta: document.querySelector('#canvas g.node[data-id="n3"] text[data-edit="sublabel"]')?.textContent }))()`);
   check('typing a preset in any case sets the canonical part number on the card', applied.sub === 'RDK X3' && applied.meta === 'RDK X3', JSON.stringify(applied));
 
+  const rdkWires = async () => js(`JSON.parse(localStorage.getItem('schematica.autosave')).wires`);
+  const rdkPort = (node, port) => center(`#canvas .portg[data-node="${node}"][data-port="${port}"] .port`);
+  await sleep(700);
+  const switchedWires = await rdkWires();
+  const conflict = await js(`({ unsupported: !!document.querySelector('.portg[data-node="n3"][data-port="csi2"][data-unsupported]'), text: document.querySelector('.rdk-details')?.textContent, links: [...document.querySelectorAll('.rdk-details a')].map(a => ({ href: a.href, rel: a.rel })) })`);
+  check('X3 preserves unavailable CSI2 and shows sourced stereo conflicts', conflict.unsupported && /stereo|CSI/i.test(conflict.text) && /unsupported|unavailable|not supported/i.test(conflict.text) && conflict.links.some(a => a.href.startsWith('https://d-robotics.github.io/') && a.rel.includes('noopener')), JSON.stringify(conflict));
+  check('profile switch preserves all saved rover wire records', JSON.stringify(switchedWires) === JSON.stringify(EXAMPLES.find(e => e.id === 'rdk-rover').doc.wires));
+  // Both starting on and dropping onto a preserved unavailable port must be inert.
+  const unavailable = await rdkPort('n3', 'csi2');
+  const stereoRight = await rdkPort('n5', 'csi-right');
+  await drag(unavailable.x, unavailable.y, stereoRight.x, stereoRight.y, 'left', async () => {
+    check('pressing the actual unavailable port does not begin a wire draft', await js(`!!document.elementFromPoint(${unavailable.x}, ${unavailable.y})?.closest('.portg[data-unsupported]') && !document.getElementById('canvas').classList.contains('drafting')`));
+  });
+  await key('Escape', 'Escape', 27);
+  await sleep(700);
+  check('manual wiring cannot start on an unavailable preserved port', JSON.stringify(await rdkWires()) === JSON.stringify(switchedWires));
+  await drag(stereoRight.x, stereoRight.y, unavailable.x, unavailable.y, 'left', async () => {
+    check('supported stereo endpoint starts a real draft before the invalid drop', await js(`document.getElementById('canvas').classList.contains('drafting')`));
+  });
+  await key('Escape', 'Escape', 27);
+  await sleep(700);
+  check('manual wiring cannot complete on an unavailable preserved port', JSON.stringify(await rdkWires()) === JSON.stringify(switchedWires));
+  // Rewire the supported left cable's host end onto the unavailable right slot.
+  const leftWire = await center('#canvas g.wire[data-id="w6"] text[data-edit="label"]');
+  await click(leftWire.x, leftWire.y);
+  const leftEnd = await center('#canvas g.wire[data-id="w6"] [data-wend="from"]');
+  await drag(leftEnd.x, leftEnd.y, unavailable.x, unavailable.y, 'left', async () => {
+    check('endpoint handle begins a real rewire before the invalid drop', await js(`!!document.querySelector('#canvas .wire.rewiring')`));
+  });
+  await key('Escape', 'Escape', 27);
+  await sleep(700);
+  check('rewiring cannot attach an existing cable to an unavailable port', JSON.stringify(await rdkWires()) === JSON.stringify(switchedWires));
+  await js(`document.getElementById('undo').click(); true`);
+  await sleep(700);
+  const undoRdk = await js(`JSON.parse(localStorage.getItem('schematica.autosave'))`);
+  check('undo restores X5 and every original wire after rejected pointer attempts', undoRdk.nodes.find(n => n.id === 'n3').sublabel === 'RDK X5' && JSON.stringify(undoRdk.wires) === JSON.stringify(switchedWires));
+
+  await loadBoard(EXAMPLES.find(e => e.id === 'rdk-perception').doc);
+  const perceptionBrain = await center('#canvas g.node[data-id="n3"] .card');
+  await click(perceptionBrain.x, perceptionBrain.y);
+  const x5Details = await js(`({ ports: [...document.querySelectorAll('.portg[data-node="n3"]')].map(p => p.dataset.port), text: document.querySelector('.rdk-details').textContent, links: [...document.querySelectorAll('.rdk-details a')].map(a => a.href) })`);
+  check('X5 details render both CSI occupancy records, source date and official links', ['csi1', 'csi2'].every(p => x5Details.ports.includes(p)) && /CSI csi1: n5.csi/.test(x5Details.text) && /CSI csi2: n5.csi-right/.test(x5Details.text) && x5Details.text.includes('2026-09-06') && x5Details.links.length > 0, JSON.stringify(x5Details));
+  // Capture the Blob created by the actual Download setup guide button. Keep
+  // the native anchor click and URL lifecycle intact; this observes their data.
+  await js(`(() => {
+    const create = URL.createObjectURL.bind(URL), revoke = URL.revokeObjectURL.bind(URL), anchorClick = HTMLAnchorElement.prototype.click;
+    const blobs = new Map(); window.__guideDownload = null; window.__revoked = [];
+    URL.createObjectURL = blob => { const url = create(blob); blobs.set(url, blob); return url; };
+    URL.revokeObjectURL = url => { window.__revoked.push(url); return revoke(url); };
+    HTMLAnchorElement.prototype.click = function() { const blob = blobs.get(this.href); if (this.download.endsWith('.md') && blob) { const filename = this.download, url = this.href; blob.text().then(text => { window.__guideDownload = { filename, url, text }; }); } return anchorClick.call(this); };
+    document.getElementById('rdk-guide-download').click(); return true;
+  })()`);
+  await sleep(1200);
+  const guide = await js(`({ ...window.__guideDownload, revoked: window.__revoked.includes(window.__guideDownload?.url) })`);
+  check('clicked setup guide downloads the drawn stereo topology, software targets and official sources', guide.filename?.endsWith('.md') && guide.revoked && guide.text.includes('n3.csi1 → n5.csi') && guide.text.includes('n3.csi2 → n5.csi&#45;right') && guide.text.includes('hobot&#95;dnn') && guide.text.includes('Runtime: not selected') && guide.text.includes('No RDK architectural findings') && guide.text.includes('https://d-robotics.github.io/'), JSON.stringify({ filename: guide.filename, revoked: guide.revoked, length: guide.text?.length }));
+  await js(`document.getElementById('rdk-guide-download').scrollIntoView({ block: 'nearest' }); document.getElementById('zoom-out').click(); document.getElementById('zoom-out').click(); true`);
+  const rdkShot = await send('Page.captureScreenshot', { format: 'png' });
+  writeFileSync('/tmp/rdk-task4-board-details.png', Buffer.from(rdkShot.result.data, 'base64'));
+  const stage = await center('#canvas g.node[data-id="s2"] .card');
+  await click(stage.x, stage.y);
+  const targetBefore = await js(`({ value: document.querySelector('#props select[data-field="target"]').value, options: [...document.querySelector('#props select[data-field="target"]').options].map(o => o.value), runtime: document.querySelector('#props [data-field="runtime"]').value })`);
+  check('software stage exposes the X5 target and leaves runtime unspecified', targetBefore.value === 'n3' && JSON.stringify(targetBefore.options) === JSON.stringify(['', 'n3']) && targetBefore.runtime === '', JSON.stringify(targetBefore));
+  await js(`(() => { const s = document.querySelector('#props select[data-field="target"]'); s.value = ''; s.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`);
+  const missingTarget = await js(`document.querySelector('.rdk-details').textContent`);
+  check('clearing software target shows a target finding', /target/i.test(missingTarget) && /missing|select/i.test(missingTarget), missingTarget);
+  await js(`(() => { const s = document.querySelector('#props select[data-field="target"]'); s.value = 'n3'; s.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`);
+  await sleep(700);
+  const mapped = await js(`({ fields: JSON.parse(localStorage.getItem('schematica.autosave')).nodes.find(n => n.id === 's2').fields, findings: document.querySelectorAll('.rdk-finding').length })`);
+  check('selecting X5 persists the software target and clears its finding', mapped.fields.target === 'n3' && mapped.findings === 0, JSON.stringify(mapped));
+  await js(`document.querySelector('#props select[data-field="target"]').scrollIntoView({ block: 'center' }); true`);
+  const softwareShot = await send('Page.captureScreenshot', { format: 'png' });
+  writeFileSync('/tmp/rdk-task4-software-target.png', Buffer.from(softwareShot.result.data, 'base64'));
+
   // Threat metadata lives on the ADAS security board: schema fields, a
   // severity tag, and a disposition tag on the card.
   await loadBoard(EXAMPLES.find((e) => e.id === 'adas-security').doc);
@@ -446,7 +520,7 @@ try {
   // display rule can silently defeat the hidden attribute.
   const visible = `(el) => getComputedStyle(el).display !== 'none'`;
   const search = await js(`(() => { const visible = ${visible}; const items = [...document.querySelectorAll('#palette .palette-item')]; const shown = items.filter(visible).map((i) => i.querySelector('.pi-name').textContent); const heads = [...document.querySelectorAll('#palette h3')].filter(visible).map((h) => h.textContent); return { shown, heads }; })()`);
-  check('palette search "rdk" shows only the AI SBC and RDK cameras under a single Robotics heading', search.shown.length === 3 && search.shown.includes('AI SBC / robot kit') && search.heads.length === 1 && search.heads[0] === 'Robotics', JSON.stringify(search));
+  check('palette search "rdk" shows the software stage, AI SBC and RDK cameras under a single Robotics heading', search.shown.length === 4 && search.shown.includes('RDK software stage') && search.shown.includes('AI SBC / robot kit') && search.heads.length === 1 && search.heads[0] === 'Robotics', JSON.stringify(search));
   await js(`(() => { const visible = ${visible}; const s = document.getElementById('palette-search'); s.value = ''; s.dispatchEvent(new Event('input', { bubbles: true })); return [...document.querySelectorAll('#palette .palette-item')].filter(visible).length; })()`).then((n) => check('clearing the search restores every part', n >= 60, String(n)));
   const collapsed = await js(`(() => { const visible = ${visible}; const h = document.querySelector('#palette h3'); h.click(); const box = h.nextElementSibling; const out = !visible(box); h.click(); return out && visible(box); })()`);
   check('clicking a category heading collapses and re-expands its tiles', collapsed === true, String(collapsed));
@@ -651,7 +725,7 @@ try {
   await js(`document.getElementById('btn-examples').click(); true`);
   await sleep(100);
   const menu = await js(`(() => { const m = document.getElementById('examples-menu'); return { hidden: m.hidden, headings: [...m.querySelectorAll('.menu-group')].map((h) => h.textContent), buttons: m.querySelectorAll('button').length }; })()`);
-  check('the Examples menu opens with Embedded, Vehicle, and Security headings over sixteen boards', menu.hidden === false && JSON.stringify(menu.headings) === JSON.stringify(['Embedded', 'Vehicle', 'Security']) && menu.buttons === EXAMPLES.length && EXAMPLES.length === 16, JSON.stringify(menu));
+  check('the Examples menu opens with Embedded, Vehicle, and Security headings over seventeen boards', menu.hidden === false && JSON.stringify(menu.headings) === JSON.stringify(['Embedded', 'Vehicle', 'Security']) && menu.buttons === EXAMPLES.length && EXAMPLES.length === 17, JSON.stringify(menu));
   await key('Escape', 'Escape', 27);
   await sleep(100);
   check('Escape closes the Examples menu', (await js(`document.getElementById('examples-menu').hidden`)) === true);
@@ -691,6 +765,16 @@ try {
   check('the request carried the browser headers and the cached system block', fakeSeen[0]?.headers['anthropic-dangerous-direct-browser-access'] === 'true' && fakeSeen[0]?.system?.[0]?.cache_control?.type === 'ephemeral' && fakeSeen[0].tools.includes('apply_edits'), JSON.stringify(fakeSeen[0]?.tools));
   const usageLine = await js(`document.getElementById('ai-usage').textContent`);
   check('the usage line reports tokens', /\d+ in/.test(usageLine) && /\d+ out/.test(usageLine), usageLine);
+
+  // Exercise an actual reference request and observe the source-linked tool
+  // result arriving on the fake provider's next round trip.
+  await js(`(() => { const i = document.getElementById('ai-input'); i.value = 'reference RDK GS130W'; i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); return true; })()`);
+  for (let i = 0; i < 40; i++) {
+    if (fakeSeen.some(f => f.results.some(r => JSON.stringify(r.content).includes('GS130W') && JSON.stringify(r.content).includes('https://d-robotics.github.io/')))) break;
+    await sleep(150);
+  }
+  check('rdk_reference executes and sends source-linked GS130W facts back to the provider', fakeSeen.some(f => f.lastText.includes('reference RDK')) && fakeSeen.some(f => f.results.some(r => JSON.stringify(r.content).includes('GS130W') && JSON.stringify(r.content).includes('https://d-robotics.github.io/'))));
+  for (let i = 0; i < 40 && await js(`!document.getElementById('ai-stop').hidden`); i++) await sleep(100);
 
   // The Fix button on a design-rule finding sends it to the assistant.
   await loadBoard(weather);

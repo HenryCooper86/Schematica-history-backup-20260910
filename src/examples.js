@@ -1,3 +1,5 @@
+import { RDK_EXAMPLES } from './rdk/examples.js';
+
 // Built-in example boards. Every document must round-trip through
 // serialize/deserialize with zero warnings (enforced by tests/examples.test.js),
 // so every node kind, port id, bus, and journey step here is guaranteed valid.
@@ -419,67 +421,7 @@ export const EXAMPLES = [
       ],
     },
   },
-  {
-    id: 'rdk-rover',
-    name: 'RDK X5 Rover (D-Robotics)',
-    group: 'Vehicle',
-    doc: {
-      schema: 1,
-      title: 'RDK X5 Rover',
-      nodes: [
-        { id: 'n1', kind: 'battery', x: 40, y: 300, label: 'Battery', sublabel: '4S Li-ion', color: null, addr: '', rail: '', notes: '', status: null, flags: [] },
-        { id: 'n2', kind: 'regulator', x: 40, y: 140, label: 'Regulator', sublabel: '5V 5A buck', color: null, addr: '', rail: '', notes: '', status: null, flags: [] },
-        { id: 'n3', kind: 'aisbc', x: 330, y: 250, label: 'Robot brain', sublabel: 'RDK X5', color: null, addr: '', rail: '5V', notes: 'D-Robotics RDK X5: Sunrise 5, 10 TOPS BPU; 2x MIPI CSI, GbE, USB 3, CAN FD, 40-pin header; TogetheROS.Bot.', status: 'tested', flags: [] },
-        { id: 'n4', kind: 'mipicam', x: 620, y: 100, label: 'Front camera', sublabel: 'RS800W', color: null, addr: '', rail: '', notes: 'D-Robotics RDK Camera RS800W: 8MP rolling-shutter MIPI CSI module for RDK X5 / X3.', status: null, flags: [] },
-        { id: 'n5', kind: 'depthcam', x: 620, y: 230, label: 'Stereo camera', sublabel: 'RDK Stereo Camera', color: null, addr: '', rail: '', notes: 'D-Robotics RDK Stereo Camera Module: 2MP stereo pair over MIPI CSI for depth on RDK boards.', status: 'tested', flags: [] },
-        { id: 'n7', kind: 'lidar', x: 620, y: 360, label: 'LiDAR', sublabel: 'RPLIDAR A1', color: null, addr: '', rail: '5V', notes: '', status: 'production', flags: [] },
-        { id: 'n8', kind: 'motorctl', x: 200, y: 480, label: 'Motor controller', sublabel: 'CAN FD ESC', color: null, addr: '', rail: '', notes: '', status: 'prototype', flags: ['thermal'] },
-        { id: 'n9', kind: 'motor', x: 200, y: 630, label: 'Left motor', sublabel: 'BLDC', color: null, addr: '', rail: '', notes: '', status: null, flags: [] },
-        { id: 'n10', kind: 'motor', x: 340, y: 630, label: 'Right motor', sublabel: 'BLDC', color: null, addr: '', rail: '', notes: '', status: null, flags: [] },
-        { id: 'n11', kind: 'imu', x: 330, y: 80, label: 'IMU', sublabel: 'BMI088', color: null, addr: '0x68', rail: '3.3V', notes: '', status: null, flags: [] },
-        { id: 'n12', kind: 'servobus', x: 360, y: 480, label: 'Gimbal servo', sublabel: 'STS3215', color: null, addr: '', rail: '12V', notes: 'TTL/RS-485 serial bus servo, daisy-chainable.', status: null, flags: [] },
-      ],
-      wires: [
-        { id: 'w1', bus: 'power', from: { node: 'n1', port: 'out' }, to: { node: 'n2', port: 'in' }, label: '', arrow: null, style: null, flow: null },
-        { id: 'w2', bus: 'power', from: { node: 'n2', port: 'out' }, to: { node: 'n3', port: 'vcc' }, label: '5V', arrow: null, style: null, flow: null },
-        { id: 'w3', bus: 'gnd', from: { node: 'n2', port: 'gnd' }, to: { node: 'n3', port: 'gnd' }, label: '', arrow: null, style: null, flow: null },
-        { id: 'w4', bus: 'power', from: { node: 'n1', port: 'out' }, to: { node: 'n8', port: 'vcc' }, label: 'VBAT', arrow: null, style: null, flow: null },
-        { id: 'w5', bus: 'gnd', from: { node: 'n1', port: 'gnd' }, to: { node: 'n8', port: 'gnd' }, label: '', arrow: null, style: null, flow: null },
-        { id: 'w6', bus: 'mipi', from: { node: 'n3', port: 'csi1' }, to: { node: 'n4', port: 'csi' }, label: 'CSI-2', arrow: null, style: null, flow: null },
-        { id: 'w7', bus: 'mipi', from: { node: 'n3', port: 'csi2' }, to: { node: 'n5', port: 'csi' }, label: 'CSI-2', arrow: null, style: null, flow: null },
-        { id: 'w9', bus: 'uart', from: { node: 'n3', port: 'uart' }, to: { node: 'n7', port: 'uart' }, label: '115200', arrow: null, style: null, flow: null },
-        { id: 'w10', bus: 'rs485', from: { node: 'n3', port: 'uart2' }, to: { node: 'n12', port: 'bus' }, label: 'servo bus', arrow: null, style: null, flow: null },
-        { id: 'w11', bus: 'canfd', from: { node: 'n3', port: 'canfd' }, to: { node: 'n8', port: 'canfd' }, label: '5 Mbit/s', arrow: null, style: null, flow: null },
-        { id: 'w12', bus: 'pwm', from: { node: 'n8', port: 'm1' }, to: { node: 'n9', port: 'pwm' }, label: 'M1', arrow: 'fwd', style: null, flow: null },
-        { id: 'w13', bus: 'pwm', from: { node: 'n8', port: 'm2' }, to: { node: 'n10', port: 'pwm' }, label: 'M2', arrow: 'fwd', style: null, flow: null },
-        { id: 'w14', bus: 'i2c', from: { node: 'n3', port: 'i2c' }, to: { node: 'n11', port: 'i2c' }, label: '', arrow: null, style: null, flow: null },
-        { id: 'w15', bus: 'power', from: { node: 'n1', port: 'out' }, to: { node: 'n12', port: 'vcc' }, label: 'VBAT', arrow: null, style: null, flow: null },
-        { id: 'w16', bus: 'gnd', from: { node: 'n1', port: 'gnd' }, to: { node: 'n12', port: 'gnd' }, label: '', arrow: null, style: null, flow: null },
-      ],
-      zones: [
-        { id: 'z1', x: 24, y: 120, w: 190, h: 290, label: 'Power', color: '#f87171' },
-        { id: 'z2', x: 596, y: 80, w: 190, h: 400, label: 'Perception', color: '#22d3ee' },
-        { id: 'z3', x: 180, y: 460, w: 300, h: 280, label: 'Actuators', color: '#f472b6' },
-      ],
-      notes: [
-        { id: 't1', x: 40, y: 24, text: 'RDK X5 runs TogetheROS.Bot; every perception node is a ROS 2 topic' },
-      ],
-      journey: [
-        {
-          id: 'j1', label: 'Compute', view: { cx: 382, cy: 215, zoom: 1.1 },
-          caption: 'An RDK X5 (Sunrise 5, 10 TOPS) is the robot brain; the IMU hangs off its I2C header.',
-        },
-        {
-          id: 'j2', label: 'Perception', view: { cx: 690, cy: 280, zoom: 1 },
-          caption: 'The RS800W front camera and the RDK stereo module ride the two MIPI CSI lanes; an RPLIDAR streams scans over UART.',
-        },
-        {
-          id: 'j3', label: 'Actuators', view: { cx: 330, cy: 600, zoom: 1.05 },
-          caption: 'A CAN FD motor controller drives both BLDC wheels; the gimbal servo sits on an RS-485 bus. Both run straight off the pack.',
-        },
-      ],
-    },
-  },
+  ...RDK_EXAMPLES,
   {
     id: 'journey-adas',
     name: 'Journey 6 ADAS Stack (Horizon)',

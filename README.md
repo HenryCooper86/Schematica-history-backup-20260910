@@ -47,7 +47,7 @@ then Settings → Pages → deploy from branch `main`, root folder.
 | Export | Export button — PNG at any pixel size, SVG, single-page PDF, or a seamless loop GIF, cropped to content |
 | Record | Rec button — WebM/MP4 video (optional mic or music audio) or animated GIF |
 | Journey | Journey button — save camera steps with captions; Present plays the tour (arrow keys, Esc) |
-| Examples | Examples menu — sixteen built-in boards from sensor nodes to edge-to-cloud, including a D-Robotics RDK X5 rover, a Horizon Journey 6 ADAS stack, a sensor node that passes every design rule, vehicle OTA and ADAS security boards that mix threat actors, controls, and response flowcharts with the hardware, an EV battery management system, a plant network segmented by Purdue level on a swimlane, and a secure boot chain, journeys included |
+| Examples | Examples menu — seventeen built-in boards from sensor nodes to edge-to-cloud, including a D-Robotics RDK X5 rover and stereo perception pipeline, a Horizon Journey 6 ADAS stack, a sensor node that passes every design rule, vehicle OTA and ADAS security boards that mix threat actors, controls, and response flowcharts with the hardware, an EV battery management system, a plant network segmented by Purdue level on a swimlane, and a secure boot chain, journeys included |
 | Presets | Part number field — on AI SBCs, automotive SoCs, ADAS controllers, cameras, depth cameras, LiDARs, and serial servos, pick a vendor part (D-Robotics RDK boards and camera modules, Horizon Journey chips and Mono / SuperDrive tiers, and more) to fill the rail and a spec note |
 | Threat details | Threat parts carry their own fields instead of the part-number trio: STIX vocabularies (actor type, sophistication, motivation, malware type), references (CVE, CVSS, ATT&CK technique), and a severity from info to critical that shows as a colored tag. Every part can also carry a disposition (friendly, partner, neutral, unknown, suspicious, adversary, victim), shown as a tag beside the lifecycle status; adversaries and suspicious objects glow with a halo that pulses whatever the Animate toggle says, victims wear a steady one, and the properties panel is headed by the part's name. Network, Security & Edge, and System & Cloud host parts (server, database, cloud, host PC) carry IP address and DNS name fields under their part number |
 | Animate | Animate toggle — traffic dashes flow along wires and Bug/Thermal alerts pulse; off by default, so a freshly opened board's wires are still, and a wire's own "Always" flow setting keeps just that wire moving; adversary glows pulse regardless; captured in recordings |
@@ -64,6 +64,41 @@ Work is autosaved to the browser's localStorage and restored on reload.
 
 Journeys are saved inside the `.schematica.json` document. Recording during
 Present captures the animated tour with captions burned into the frames.
+
+## RDK architecture references
+
+RDK presets distinguish X3, X3 Module, X5, S100 and S100P. X3 and X5 have
+model-specific connector profiles (one and two CSI connectors respectively).
+X3 Module and S100/S100P retain generic drawing ports until the carrier or
+expansion assembly is verified. GS130W and GS130WI stereo modules require two
+CSI connections; X3 and X3 Module are explicitly unsupported. Legacy camera
+names and sensor families remain unverified when the exact vendor module,
+revision or adapter is unknown.
+
+Select an RDK part to see source links, the reference check date, camera
+occupancy and findings. Changing profiles preserves saved wires and marks
+unavailable endpoints; new connections cannot use them. Undo restores the
+previous profile. Check also reports incompatible or unverified camera paths,
+CSI overuse, board input-voltage mismatches and software target/runtime issues.
+
+The rover and stereo perception starters connect GS130W to both X5 CSI ports.
+Their `hobot_sensor`, `hobot_dnn`, `hobot_codec` and `hobot_render` blocks target
+the X5 and describe intended processing with logical flow arrows. They do not
+install, launch or validate software. Runtime is deliberately left unselected:
+broad package support does not establish an exact runtime compatibility matrix.
+General checks retain explicitly documented incomplete power/return wiring.
+No starter is marked as hardware-tested.
+
+The assistant's read-only `rdk_reference` tool retrieves the same source-linked
+facts. **Download setup guide** in the board properties exports Markdown with
+the BOM, drawn connections, software targets, assumptions, RDK findings and
+references. It is an architecture reference, not an executable deployment plan.
+
+Catalogue evidence was checked on **2026-09-06**. References identify archived
+hardware/accessory guides separately from maintained product and software
+pages. Exact revisions, cable orientation, adapters, power sizing and package
+setup still need verification against those sources and the physical hardware;
+a clean RDK check does not certify operation.
 
 ## Develop
 
@@ -85,7 +120,7 @@ holds journey steps and camera tween math; `src/recorder.js` drives frame
 capture and MediaRecorder. `src/main.js` only boots the app; the panels,
 dialogs, and menus live in `src/ui/` (properties panel, palette, legend,
 export/BOM/DRC dialogs, journey and present mode, examples menu, recording).
-The assistant lives in `src/ai/`: `ops.js` is the atomic edit-operation batch (the only way the model changes a board), `layout.js` places whatever a batch creates, `context.js` renders the board and the palette catalogue as text for the model, `tools.js` exposes six tools over a `getDoc`/`commit` interface, `agent.js` runs the request loop, `providers/` holds the fetch adapters, and `src/ui/assistant-ui.js` is the panel; `relay/` is the Cloudflare Worker that fronts ollama.com and api.moonshot.ai, which send no CORS headers. The smoke test drives it through a fake provider, so CI needs no key.
+The assistant lives in `src/ai/`: `ops.js` is the atomic edit-operation batch (the only way the model changes a board), `layout.js` places whatever a batch creates, `context.js` renders the board and the palette catalogue as text for the model, `tools.js` exposes seven tools over a `getDoc`/`commit` interface, `agent.js` runs the request loop, `providers/` holds the fetch adapters, and `src/ui/assistant-ui.js` is the panel; `relay/` is the Cloudflare Worker that fronts ollama.com and api.moonshot.ai, which send no CORS headers. The smoke test drives it through a fake provider, so CI needs no key.
 See `docs/superpowers/specs/` for the design spec.
 
 ## Licence

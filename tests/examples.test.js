@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { EXAMPLES, EXAMPLE_GROUPS } from '../src/examples.js';
 import { diagramMarkup } from '../src/render.js';
 import { serialize, deserialize } from '../src/serialize.js';
+import { nodePart } from '../src/rdk/profiles.js';
 import { getPart } from '../src/palette.js';
 import { nodeRect } from '../src/geometry.js';
 import { checkDoc } from '../src/drc.js';
@@ -36,7 +37,7 @@ test('every example is substantial and presentable', () => {
 test('every example wire bus matches at least one endpoint port bus', () => {
   for (const ex of EXAMPLES) {
     for (const w of ex.doc.wires) {
-      const busOf = (ref) => getPart(ex.doc.nodes.find((n) => n.id === ref.node).kind)
+      const busOf = (ref) => nodePart(ex.doc.nodes.find((n) => n.id === ref.node))
         .ports.find((p) => p.id === ref.port)?.bus;
       assert.ok(
         [busOf(w.from), busOf(w.to)].includes(w.bus),
@@ -61,10 +62,9 @@ test('the D-Robotics and Horizon boards use the vendor presets and the new buses
   const adas = EXAMPLES.find((e) => e.id === 'journey-adas');
   assert.ok(rover && adas, 'both boards exist');
   assert.ok(rover.doc.nodes.some((n) => n.kind === 'aisbc' && n.sublabel === 'RDK X5'), 'rover computes on an RDK X5');
-  const stereo = rover.doc.nodes.find((n) => n.kind === 'depthcam' && n.sublabel === 'RDK Stereo Camera');
-  assert.ok(stereo, 'rover carries the D-Robotics stereo camera module');
-  assert.ok(rover.doc.wires.some((w) => w.bus === 'mipi' && w.to.node === stereo.id && w.to.port === 'csi'), 'the stereo module rides a MIPI CSI lane');
-  assert.ok(rover.doc.nodes.some((n) => n.kind === 'mipicam' && n.sublabel === 'RS800W'), 'front camera is the D-Robotics RS800W');
+  const stereo = rover.doc.nodes.find((n) => n.kind === 'depthcam' && n.sublabel === 'GS130W');
+  assert.ok(stereo, 'rover carries the exact GS130W stereo module');
+  assert.equal(rover.doc.wires.filter((w) => w.bus === 'mipi' && w.to.node === stereo.id).length, 2, 'stereo needs both host connectors');
   assert.ok(rover.doc.wires.some((w) => w.bus === 'mipi') && rover.doc.wires.some((w) => w.bus === 'canfd'), 'rover wires MIPI cameras and CAN FD');
   assert.ok(adas.doc.nodes.some((n) => n.kind === 'adas' && /Journey 6/.test(n.sublabel)), 'ADAS controller runs a Journey 6');
   assert.ok(adas.doc.nodes.some((n) => /Horizon/.test(n.notes)), 'a Horizon stack is named in the notes');
