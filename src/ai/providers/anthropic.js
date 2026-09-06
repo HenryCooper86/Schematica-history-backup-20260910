@@ -97,11 +97,7 @@ export function createAnthropicAccumulator(onText) {
         else if (d.type === 'thinking_delta') b.thinking += d.thinking;
         else if (d.type === 'signature_delta') b.signature = d.signature;
       } else if (type === 'content_block_stop') {
-        const b = blocks[data.index];
-        if (b?.type === 'tool_use' && !failure) {
-          const json = partial[data.index];
-          b.input = json.trim() ? JSON.parse(json) : (b.input || {});
-        }
+        // Parse after the stop reason arrives: max_tokens can leave partial JSON.
       } else if (type === 'message_delta') {
         stopReason = data.delta?.stop_reason || stopReason;
         stopDetails = data.delta?.stop_details || null;
@@ -112,7 +108,13 @@ export function createAnthropicAccumulator(onText) {
     },
     result() {
       if (failure) throw failure;
-      const raw = blocks.filter(Boolean);
+      if (!stopReason) throw new ProviderError('The response stream ended before the reply completed. Try again.', { code: 'network' });
+      const raw = blocks.flatMap((b, i) => {
+        if (b.type !== 'tool_use') return [b];
+        if (stopReason === 'max_tokens' || stopReason === 'refusal') return [];
+        const json = partial[i] || '';
+        return [{ ...b, input: json.trim() ? JSON.parse(json) : (b.input || {}) }];
+      });
       return {
         text: raw.filter((b) => b.type === 'text').map((b) => b.text).join(''),
         toolCalls: raw.filter((b) => b.type === 'tool_use').map((b) => ({ id: b.id, name: b.name, input: b.input })),
@@ -125,7 +127,19 @@ export function createAnthropicAccumulator(onText) {
   };
 }
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms, signal) => new Promise((resolve, reject) => {
+  if (signal?.aborted) { reject(signal.reason); return; }
+  const timer = setTimeout(() => {
+    signal?.removeEventListener('abort', abort);
+    resolve();
+  }, ms);
+  const abort = () => {
+    clearTimeout(timer);
+    signal.removeEventListener('abort', abort);
+    reject(signal.reason);
+  };
+  signal?.addEventListener('abort', abort, { once: true });
+});
 
 export function anthropicProvider({ baseUrl, apiKey, model, effort, fetchImpl = globalThis.fetch }) {
   const url = `${String(baseUrl).replace(/\/+$/, '')}/v1/messages`;
@@ -155,7 +169,8 @@ export function anthropicProvider({ baseUrl, apiKey, model, effort, fetchImpl = 
         const header = res.headers.get('retry-after');
         const parsed = header === null ? NaN : Number(header);
         const after = Number.isFinite(parsed) ? Math.min(10, Math.max(0, parsed)) : 5;
-        await sleep(after * 1000);
+        await res.body?.cancel();
+        await sleep(after * 1000, signal);
         res = await post(body, signal);
       }
       if (!res.ok) throw mapHttpError(res.status, await res.text(), 'Anthropic');

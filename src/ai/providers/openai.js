@@ -13,6 +13,7 @@ export function toOpenAIRequest({ model, system, messages, tools }) {
       const calls = m.content.filter((b) => b.type === 'tool_use')
         .map((b) => ({ id: b.id, type: 'function', function: { name: b.name, arguments: JSON.stringify(b.input ?? {}) } }));
       const msg = { role: 'assistant', content: text || null };
+      if (typeof m.raw?.reasoning_content === 'string') msg.reasoning_content = m.raw.reasoning_content;
       if (calls.length) msg.tool_calls = calls;
       out.push(msg);
       continue;
@@ -34,6 +35,7 @@ export function toOpenAIRequest({ model, system, messages, tools }) {
 
 export function createOpenAIAccumulator(onText) {
   let text = '';
+  let reasoning = '';
   const calls = [];
   const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
   let finish = null;
@@ -41,6 +43,10 @@ export function createOpenAIAccumulator(onText) {
   return {
     push(chunk) {
       if (chunk === '[DONE]' || typeof chunk !== 'object' || !chunk) return;
+      if (chunk.error) {
+        failure = mapHttpError(Number(chunk.error.code) || 0, chunk, 'The endpoint');
+        return;
+      }
       if (chunk.usage) {
         const cached = chunk.usage.prompt_tokens_details?.cached_tokens || 0;
         usage.input = (chunk.usage.prompt_tokens || 0) - cached;
@@ -50,6 +56,7 @@ export function createOpenAIAccumulator(onText) {
       const choice = chunk.choices?.[0];
       if (!choice) return;
       const d = choice.delta || {};
+      if (d.reasoning_content) reasoning += d.reasoning_content;
       if (d.content) { text += d.content; onText?.(d.content); }
       for (const tc of d.tool_calls || []) {
         const i = tc.index ?? calls.length;
@@ -63,12 +70,14 @@ export function createOpenAIAccumulator(onText) {
     },
     result() {
       if (failure) throw failure;
-      const toolCalls = calls.filter(Boolean).map((c, i) => ({
+      if (!finish) throw new ProviderError('The response stream ended before the reply completed. Try again.', { code: 'network' });
+      if (finish === 'error') throw new ProviderError('The provider failed while streaming the reply.');
+      const toolCalls = (finish === 'length' || finish === 'content_filter' ? [] : calls.filter(Boolean)).map((c, i) => ({
         id: c.id || `call_${i}`, name: c.name, input: c.args.trim() ? JSON.parse(c.args) : {},
       }));
       let stop = STOP[finish] || 'end';
       if (toolCalls.length && stop === 'end') stop = 'tool_use';
-      return { text, toolCalls, usage, stop };
+      return { text, toolCalls, usage, stop, ...(reasoning ? { raw: { reasoning_content: reasoning } } : {}) };
     },
   };
 }
@@ -91,7 +100,7 @@ export function openaiProvider({ baseUrl, apiKey, model, fetchImpl = globalThis.
         });
       } catch (err) {
         if (err?.name === 'AbortError') throw err;
-        throw networkError('the endpoint', err);
+        throw networkError('the endpoint', err, base);
       }
       if (!res.ok) throw mapHttpError(res.status, await res.text(), 'The endpoint');
       const acc = createOpenAIAccumulator(onText);
@@ -104,7 +113,7 @@ export function openaiProvider({ baseUrl, apiKey, model, fetchImpl = globalThis.
 export async function listOpenAIModels({ baseUrl, apiKey, fetchImpl = globalThis.fetch }) {
   const base = String(baseUrl).replace(/\/+$/, '');
   let res;
-  try { res = await fetchImpl(`${base}/models`, { headers: headers(apiKey) }); } catch (err) { throw networkError('the endpoint', err); }
+  try { res = await fetchImpl(`${base}/models`, { headers: headers(apiKey) }); } catch (err) { throw networkError('the endpoint', err, base); }
   if (!res.ok) throw mapHttpError(res.status, await res.text(), 'The endpoint');
   const j = await res.json();
   return (j.data || []).map((m) => m.id).filter(Boolean).sort();

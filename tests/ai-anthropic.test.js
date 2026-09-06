@@ -180,3 +180,18 @@ test('http errors become ProviderErrors with a code, and 429 retries once', asyn
   const down = anthropicProvider({ baseUrl: 'https://x', apiKey: 'sk', model: 'm', effort: 'low', fetchImpl: async () => { throw new TypeError('Failed to fetch'); } });
   await assert.rejects(() => down.chat({ system: SYSTEM, messages: [], tools: [] }), (err) => err.code === 'network');
 });
+
+test('Stop during rate-limit backoff does not send another request', async () => {
+  const controller = new AbortController();
+  let calls = 0;
+  const p = anthropicProvider({ baseUrl: 'https://example.test', model: 'm', fetchImpl: async () => {
+    calls++;
+    if (calls === 1) {
+      queueMicrotask(() => controller.abort());
+      return new Response('{}', { status: 429, headers: { 'retry-after': '0.2' } });
+    }
+    return sse([['message_delta', { delta: { stop_reason: 'end_turn' } }]]);
+  } });
+  await assert.rejects(() => p.chat({ system: SYSTEM, messages: [], tools: [], signal: controller.signal }), (e) => e.name === 'AbortError');
+  assert.equal(calls, 1);
+});

@@ -33,6 +33,20 @@ and set the Base URL to your worker followed by the upstream host:
 To make your worker the default for everyone using your deployment, set
 `RELAY` in `src/ai/settings.js` to its URL.
 
+## Connection failures
+
+The default `schematica-relay.henrycooper86.workers.dev` hostname returned
+`ENOTFOUND` during verification on 2026-09-06. Kimi and Ollama Cloud need a
+working relay before connection tests, model listing, or chat can succeed.
+Use the URL printed by your Worker deployment and the provider-specific
+path in the table above. Changing an API key cannot fix a missing hostname.
+
+To check a deployed relay without sending a key, open its root URL. It
+should return JSON identifying the Schematica relay and its upstreams.
+Then use **List models** and **Test connection** in the assistant settings.
+The connection test checks the selected model, endpoint, key, and effort;
+save that draft to use the tested configuration.
+
 ## Settings
 
 Plain-text variables in `wrangler.jsonc`:

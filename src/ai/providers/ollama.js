@@ -8,18 +8,21 @@ const NUM_CTX = 16384;
 
 export function toOllamaRequest({ model, system, messages, tools }) {
   const out = [{ role: 'system', content: system.filter(Boolean).join('\n\n') }];
+  const toolNames = new Map();
   for (const m of messages) {
     if (m.role === 'assistant') {
       const text = m.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
       const calls = m.content.filter((b) => b.type === 'tool_use').map((b) => ({ function: { name: b.name, arguments: b.input ?? {} } }));
       const msg = { role: 'assistant', content: text };
+      if (typeof m.raw?.thinking === 'string') msg.thinking = m.raw.thinking;
+      for (const b of m.content) if (b.type === 'tool_use') toolNames.set(b.id, b.name);
       if (calls.length) msg.tool_calls = calls;
       out.push(msg);
       continue;
     }
     const results = m.content.filter((b) => b.type === 'tool_result');
     if (results.length) {
-      for (const r of results) out.push({ role: 'tool', content: r.text });
+      for (const r of results) out.push({ role: 'tool', content: r.text, ...(toolNames.has(r.id) ? { tool_name: toolNames.get(r.id) } : {}) });
       continue;
     }
     out.push({ role: 'user', content: m.content.filter((b) => b.type === 'text').map((b) => b.text).join('\n') });
@@ -35,13 +38,19 @@ export function toOllamaRequest({ model, system, messages, tools }) {
 
 export function createOllamaAccumulator(onText) {
   let text = '';
+  let thinking = '';
   const toolCalls = [];
   const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
   let reason = null;
   let failure = null;
   return {
     push(line) {
+      if (line.error) {
+        failure = mapHttpError(0, line, 'Ollama');
+        return;
+      }
       const m = line.message || {};
+      if (m.thinking) thinking += m.thinking;
       if (m.content) { text += m.content; onText?.(m.content); }
       for (const tc of m.tool_calls || []) {
         const size = JSON.stringify(tc.function?.arguments ?? {}).length;
@@ -56,9 +65,10 @@ export function createOllamaAccumulator(onText) {
     },
     result() {
       if (failure) throw failure;
+      if (!reason) throw new ProviderError('The response stream ended before the reply completed. Try again.', { code: 'network' });
       let stop = reason === 'length' ? 'max_tokens' : 'end';
-      if (toolCalls.length) stop = 'tool_use';
-      return { text, toolCalls, usage, stop };
+      if (toolCalls.length && stop === 'end') stop = 'tool_use';
+      return { text, toolCalls: stop === 'max_tokens' ? [] : toolCalls, usage, stop, ...(thinking ? { raw: { thinking } } : {}) };
     },
   };
 }
@@ -80,7 +90,7 @@ export function ollamaProvider({ baseUrl, model, apiKey = '', fetchImpl = global
         });
       } catch (err) {
         if (err?.name === 'AbortError') throw err;
-        throw networkError('ollama', err);
+        throw networkError('ollama', err, base);
       }
       if (!res.ok) throw mapHttpError(res.status, await res.text(), 'Ollama');
       const acc = createOllamaAccumulator(onText);
@@ -93,7 +103,7 @@ export function ollamaProvider({ baseUrl, model, apiKey = '', fetchImpl = global
 export async function listOllamaModels({ baseUrl, apiKey = '', fetchImpl = globalThis.fetch }) {
   const base = String(baseUrl).replace(/\/+$/, '');
   let res;
-  try { res = await fetchImpl(`${base}/api/tags`, { headers: ollamaHeaders(apiKey) }); } catch (err) { throw networkError('ollama', err); }
+  try { res = await fetchImpl(`${base}/api/tags`, { headers: ollamaHeaders(apiKey) }); } catch (err) { throw networkError('ollama', err, base); }
   if (!res.ok) throw mapHttpError(res.status, await res.text(), 'Ollama');
   const j = await res.json();
   return (j.models || []).map((m) => m.name).filter(Boolean).sort();

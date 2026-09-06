@@ -21,11 +21,13 @@ export function makeProvider(settings, key, fetchImpl = globalThis.fetch) {
 
 // Does this model call tools? Ask it to call one; a model that answers in
 // text instead gets the single-shot mode.
-export async function probeTools(provider) {
+export async function probeTools(provider, signal = AbortSignal.timeout(30000)) {
   const res = await provider.chat({
+    signal,
     system: ['You are a test harness. Call the ping tool now and say nothing else.'],
     messages: [{ role: 'user', content: [{ type: 'text', text: 'Call ping.' }] }],
     tools: [{ name: 'ping', description: 'Replies pong.', input_schema: { type: 'object', properties: {}, additionalProperties: false }, strict: true }],
   });
+  if (res.stop !== 'end' && res.stop !== 'tool_use') throw new Error(`The connection test did not complete (${res.stop}); try again.`);
   return res.toolCalls.some((c) => c.name === 'ping');
 }

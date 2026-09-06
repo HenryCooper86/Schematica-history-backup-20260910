@@ -66,11 +66,18 @@ export function ndjsonParser(onLine) {
 export async function readStream(response, parser) {
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    parser.push(decoder.decode(value, { stream: true }));
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      parser.push(decoder.decode(value, { stream: true }));
+    }
+    parser.push(decoder.decode());
+    parser.end();
+  } catch (err) {
+    try { await reader.cancel(err); } catch { /* preserve the original stream error */ }
+    throw err;
+  } finally {
+    reader.releaseLock();
   }
-  parser.push(decoder.decode());
-  parser.end();
 }

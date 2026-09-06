@@ -38,3 +38,14 @@ test('readStream drains a Response body into the parser', async () => {
   await readStream(new Response(body), sseParser((e) => got.push(e.data.n)));
   assert.deepEqual(got, [1, 2]);
 });
+
+test('a rejected stream record cancels the response and releases its reader', async () => {
+  let cancelled = false;
+  const body = new ReadableStream({
+    start(c) { c.enqueue(new TextEncoder().encode('not JSON\n')); },
+    cancel() { cancelled = true; },
+  });
+  await assert.rejects(() => readStream(new Response(body), ndjsonParser(() => {})), SyntaxError);
+  assert.equal(cancelled, true);
+  assert.equal(body.locked, false);
+});

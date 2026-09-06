@@ -130,3 +130,17 @@ test('without storage, settings live in memory for the session', () => {
   assert.equal(s.getKey(), 'k');
   assert.equal(s.configured(), true);
 });
+
+test('changing a connection invalidates its previous tool probe', () => {
+  for (const patch of [{ model: 'another-model' }, { baseUrl: 'https://another.example/v1' }, { provider: 'openrouter' }, { effort: 'high' }]) {
+    const s = createSettings(fakeStorage());
+    s.set({ tools: false });
+    s.set(patch);
+    assert.equal(s.get().tools, null, JSON.stringify(patch));
+  }
+  const s = createSettings(fakeStorage());
+  s.setKey('first', false);
+  s.set({ tools: true });
+  s.setKey('second', false);
+  assert.equal(s.get().tools, null);
+});

@@ -131,6 +131,7 @@ export async function runSingleShot({
       messages.push({ role: 'assistant', content: res.text ? [{ type: 'text', text: res.text }] : [], raw: res.raw });
       stop = res.stop;
       stopDetails = res.stopDetails || null;
+      if (stop !== 'end') { text = res.text || ''; break; }
       plan = extractJson(res.text);
       if (!plan || !Array.isArray(plan.ops)) {
         plan = null;
@@ -139,13 +140,15 @@ export async function runSingleShot({
         }
       }
     }
-    if (!plan) throw new Error('The model did not return a valid plan.');
-    text = String(plan.summary || '').trim();
-    if (plan.ops.length) {
-      onStatus?.(statusLine('apply_edits', { ops: plan.ops }));
-      const r = executor.run('apply_edits', { ops: plan.ops });
-      if (r.isError) text += `\n\nThe edits were rejected:\n${r.text.replace(/^Batch rejected, nothing applied:\n/, '')}`;
-      else applied += 1;
+    if (stop === 'end') {
+      if (!plan) throw new Error('The model did not return a valid plan.');
+      text = String(plan.summary || '').trim();
+      if (plan.ops.length) {
+        onStatus?.(statusLine('apply_edits', { ops: plan.ops }));
+        const r = executor.run('apply_edits', { ops: plan.ops });
+        if (r.isError) text += `\n\nThe edits were rejected:\n${r.text.replace(/^Batch rejected, nothing applied:\n/, '')}`;
+        else applied += 1;
+      }
     }
   } catch (err) {
     if (err?.name === 'AbortError' || signal?.aborted) stop = 'aborted';
@@ -153,5 +156,5 @@ export async function runSingleShot({
   } finally {
     store?.endBatch();
   }
-  return { text, messages, touched: new Set(executor.touched), usage, stop, stopDetails, rounds, applied, cutOff: stop === 'aborted', error };
+  return { text, messages, touched: new Set(executor.touched), usage, stop, stopDetails, rounds, applied, cutOff: stop === 'aborted' || stop === 'max_tokens', error };
 }

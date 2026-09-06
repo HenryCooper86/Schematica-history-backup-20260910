@@ -16,7 +16,7 @@ import { findItem } from '../state.js';
 import { panelHeader, bindCollapsible } from './collapsible.js';
 import { escAttr, toast, onPress } from './press.js';
 
-const PRIVACY = 'The board\'s text is sent to the provider you choose. Keys stay in this browser.';
+const PRIVACY = 'The board\'s text and API key are sent to your chosen endpoint, through a relay when configured. Keys are saved in this browser only when you choose Remember.';
 const INTRO = 'Describe a board and it builds it; ask for a change and it edits the one you have. Every reply is a single undo step.';
 
 // Lucide icons (ISC, see THIRD_PARTY_NOTICES.md), the same stroke family as
@@ -125,6 +125,21 @@ export function initAssistant({ store, tools, render, svg }) {
     result.hidden = false;
   }
 
+  let formVersion = 0;
+  let testedConnection = null;
+  const formSettings = () => ({
+    provider: el('ai-provider').value, model: el('ai-model').value.trim(),
+    baseUrl: el('ai-base').value.trim(), effort: el('ai-effort').value,
+  });
+  const sameConnection = (a, b) => ['provider', 'model', 'baseUrl', 'effort'].every((k) => a[k] === b[k]);
+  function invalidateDraft() {
+    formVersion++;
+    testedConnection = null;
+    result.hidden = true;
+  }
+  form.addEventListener('input', invalidateDraft);
+  form.addEventListener('change', invalidateDraft);
+
   function fillForm() {
     const s = settings.get();
     el('ai-provider').value = s.provider;
@@ -156,7 +171,7 @@ export function initAssistant({ store, tools, render, svg }) {
     form.hidden = !on;
     panel.classList.toggle('settings', on);
     el('ai-gear').classList.toggle('active', on);
-    if (on) { fillForm(); result.hidden = true; } else el('ai-input').focus();
+    if (on) { invalidateDraft(); fillForm(); } else el('ai-input').focus();
     refreshMeta();
   }
 
@@ -182,18 +197,19 @@ export function initAssistant({ store, tools, render, svg }) {
 
   form.addEventListener('submit', (e) => {
     e.preventDefault();
-    settings.set({
-      provider: el('ai-provider').value,
-      model: el('ai-model').value.trim(),
-      baseUrl: el('ai-base').value.trim(),
-      effort: el('ai-effort').value,
-    });
-    settings.setKey(el('ai-key').value.trim(), el('ai-remember').checked);
+    const s = formSettings();
+    const key = el('ai-key').value.trim();
+    const previous = settings.get();
+    settings.set(s);
+    settings.setKey(key, el('ai-remember').checked);
+    if (testedConnection && sameConnection(testedConnection.settings, s) && testedConnection.key === key) settings.set({ tools: testedConnection.ok });
+    if (!sameConnection(previous, s)) { history = []; saveThread(); }
     refreshMeta();
     if (settings.configured()) { showSettings(false); toast('Assistant settings saved.'); } else showResult('warn', 'Add a model and, for this provider, a key.');
   });
 
   el('ai-forget').addEventListener('click', () => {
+    invalidateDraft();
     settings.forgetKey();
     el('ai-key').value = '';
     el('ai-remember').checked = false;
@@ -203,17 +219,25 @@ export function initAssistant({ store, tools, render, svg }) {
   });
 
   el('ai-test').addEventListener('click', async () => {
-    const s = { ...settings.get(), provider: el('ai-provider').value, model: el('ai-model').value.trim(), baseUrl: el('ai-base').value.trim() };
+    const s = formSettings();
+    const key = el('ai-key').value.trim();
+    const version = formVersion;
+    const current = () => version === formVersion && sameConnection(s, formSettings()) && key === el('ai-key').value.trim();
+    testedConnection = null;
+    if (sameConnection(s, settings.get()) && key === settings.getKey()) settings.set({ tools: null });
     el('ai-test').disabled = true;
     showResult('wait', `Connecting to ${s.model || 'the model'}…`);
     try {
-      const ok = await probeTools(makeProvider(s, el('ai-key').value.trim()));
-      settings.set({ tools: ok });
+      const ok = await probeTools(makeProvider(s, key));
+      if (!current()) return;
+      testedConnection = { settings: s, key, ok };
+      if (sameConnection(s, settings.get()) && key === settings.getKey()) settings.set({ tools: ok });
       const msg = ok ? 'Connected. This model calls tools.' : 'Connected. This model cannot call tools; the assistant will use single-shot mode.';
       showResult(ok ? 'ok' : 'warn', msg);
       toast(msg);
       refreshMeta();
     } catch (err) {
+      if (!current()) return;
       const msg = `Test failed: ${err.message}${err.hint ? `\n${err.hint}` : ''}`;
       showResult('err', msg);
       toast(msg);
@@ -223,6 +247,7 @@ export function initAssistant({ store, tools, render, svg }) {
   });
 
   el('ai-models-btn').addEventListener('click', async () => {
+    const version = formVersion;
     const p = PROVIDERS[el('ai-provider').value];
     const baseUrl = el('ai-base').value.trim();
     const apiKey = p.needsKey ? el('ai-key').value.trim() : '';
@@ -230,11 +255,13 @@ export function initAssistant({ store, tools, render, svg }) {
       const names = p.adapter === 'ollama'
         ? await listOllamaModels({ baseUrl, apiKey })
         : await listOpenAIModels({ baseUrl, apiKey });
+      if (version !== formVersion) return;
       suggestModels(names);
       const msg = names.length ? `${names.length} models listed; pick one in the Model field.` : 'The endpoint listed no models.';
       showResult(names.length ? 'ok' : 'warn', msg);
       toast(msg);
     } catch (err) {
+      if (version !== formVersion) return;
       const msg = `Could not list models: ${err.message}${err.hint ? `\n${err.hint}` : ''}`;
       showResult('err', msg);
       toast(msg);
@@ -486,6 +513,7 @@ export function initAssistant({ store, tools, render, svg }) {
   // toolbar edit aliases the same store batch and would cut the reply's
   // single undo step in half.
   function setBusy(on) {
+    form.inert = on;
     sendBtn.hidden = on;
     stopBtn.hidden = !on;
     input.disabled = on;

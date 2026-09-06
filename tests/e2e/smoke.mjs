@@ -600,6 +600,32 @@ try {
   await pick('anthropic');
   const backOnClaude = await js(`(() => ({ listHidden: document.getElementById('ai-models-btn').hidden, options: [...document.querySelectorAll('#ai-models option')].map((o) => o.value) }))()`);
   check('back on Anthropic the List models button hides and the Claude ids are suggested', backOnClaude.listHidden === true && backOnClaude.options.includes('claude-opus-5'), JSON.stringify(backOnClaude));
+  // Connection probes belong to the exact draft, including effort and key.
+  await js(`(() => {
+    window.__savedFetch = window.fetch;
+    window.fetch = async (url, init) => { window.__probeBody = JSON.parse(init.body); return new Promise((resolve) => { window.__finishProbe = () => resolve(new Response('data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"p","name":"ping","input":{}}}\\n\\ndata: {"type":"content_block_stop","index":0}\\n\\ndata: {"type":"message_delta","delta":{"stop_reason":"tool_use"}}\\n\\n')); }); };
+    document.getElementById('ai-model').value = 'probe-model';
+    document.getElementById('ai-base').value = location.origin + '/probe';
+    document.getElementById('ai-key').value = 'test-key';
+    document.getElementById('ai-effort').value = 'high';
+    document.getElementById('ai-test').click();
+    return true;
+  })()`);
+  await js(`window.__finishProbe(); true`);
+  await sleep(50);
+  const draftProbe = await js(`({ tools: JSON.parse(localStorage.getItem('schematica.ai.settings')).tools, effort: window.__probeBody.output_config.effort })`);
+  check('testing a draft uses its effort and does not mark the old model ready', draftProbe.tools === null && draftProbe.effort === 'high', JSON.stringify(draftProbe));
+  await js(`document.getElementById('ai-save').click(); true`);
+  const savedProbe = await js(`JSON.parse(localStorage.getItem('schematica.ai.settings'))`);
+  check('saving the tested draft preserves its tool capability', savedProbe.model === 'probe-model' && savedProbe.tools === true, JSON.stringify(savedProbe));
+  await js(`document.getElementById('ai-gear').click(); document.getElementById('ai-test').click(); true`);
+  await pick('zai');
+  await js(`window.__finishProbe(); true`);
+  await sleep(50);
+  const staleProbe = await js(`({ tools: JSON.parse(localStorage.getItem('schematica.ai.settings')).tools, hidden: document.getElementById('ai-test-result').hidden })`);
+  check('a late probe from the previous provider cannot mark the new provider ready', staleProbe.tools === null && staleProbe.hidden, JSON.stringify(staleProbe));
+  await js(`window.fetch = window.__savedFetch; true`);
+  await pick('anthropic');
   const foldedAi = await js(`(() => { const p = document.getElementById('assistant'); p.querySelector('.panel-toggle').click(); const out = p.classList.contains('collapsed'); p.querySelector('.panel-toggle').click(); return out; })()`);
   check('the assistant panel folds like the others', foldedAi === true, String(foldedAi));
   // With the assistant open, the journey panel must end above it (it scrolls

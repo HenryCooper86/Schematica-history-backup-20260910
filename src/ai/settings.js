@@ -96,6 +96,8 @@ export function createSettings(storage) {
 
   function set(patch) {
     const next = { ...readStored(), ...patch };
+    const current = get();
+    if (!Object.hasOwn(patch, 'tools') && ['provider', 'model', 'baseUrl', 'effort'].some((k) => Object.hasOwn(patch, k) && patch[k] !== current[k])) next.tools = null;
     let stored = false;
     try { if (storage) { storage.setItem(SETTINGS_KEY, JSON.stringify(next)); stored = true; } } catch { /* blocked or full */ }
     if (!stored) memory = next;
@@ -109,6 +111,7 @@ export function createSettings(storage) {
 
   function setKey(key, remember) {
     const provider = get().provider;
+    if (key !== getKey()) set({ tools: null });
     memoryKeys[provider] = key;
     set({ remember: !!remember });
     if (remember && key) write(keyStorageKey(provider), key);
@@ -119,6 +122,7 @@ export function createSettings(storage) {
     const provider = get().provider;
     memoryKeys[provider] = '';
     remove(keyStorageKey(provider));
+    set({ tools: null });
   }
 
   function configured() {
