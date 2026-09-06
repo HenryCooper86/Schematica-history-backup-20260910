@@ -2,3 +2,4 @@
 .worktrees/
 .e2e-profile/
 .acceptance/
+.wrangler/

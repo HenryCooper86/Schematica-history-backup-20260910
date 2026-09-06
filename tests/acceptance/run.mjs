@@ -1,6 +1,7 @@
 // Drives the real app in headless Chrome against a real model for the manual
 // acceptance checklist in docs/superpowers/plans/2026-09-05-ai-copilot-acceptance.md.
-//   PROVIDER=ollama BASE=http://localhost:11434 MODEL=glm-5.3:cloud npm run acceptance -- 1 2 3
+//   KEY=... npm run acceptance -- 1 2 3            (Ollama Cloud through the relay)
+//   PROVIDER=ollama BASE=http://localhost:11434 MODEL=glm-5.3:cloud npm run acceptance -- 1
 // Env: PROVIDER, BASE, MODEL, KEY (never written anywhere). Args: item numbers.
 // Prints one JSON line of observations per item; screenshots and request
 // dumps land in .acceptance/ (git-ignored).
@@ -15,6 +16,7 @@ import { encodeShare } from '../../src/share.js';
 import { deserialize } from '../../src/serialize.js';
 import { nodeRect, rectsIntersect } from '../../src/geometry.js';
 import { checkDoc } from '../../src/drc.js';
+import { RELAY } from '../../src/ai/settings.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const OUT = join(ROOT, '.acceptance');
@@ -32,7 +34,7 @@ function findChrome() {
   }
   throw new Error('No Chrome found; set CHROME_PATH');
 }
-const { PROVIDER = 'ollama', BASE = 'http://localhost:11434', MODEL = 'glm-5.3:cloud', KEY = '' } = process.env;
+const { PROVIDER = 'ollamacloud', BASE = `${RELAY}/ollama.com`, MODEL = 'glm-5.3', KEY = '' } = process.env;
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml' };
 const server = createServer(async (req, res) => {
   const p = decodeURIComponent(new URL(req.url, 'http://x').pathname);

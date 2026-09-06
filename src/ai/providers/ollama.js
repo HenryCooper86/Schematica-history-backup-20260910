@@ -1,6 +1,6 @@
 // Ollama's chat endpoint: newline-delimited JSON, tools as function
-// definitions, tool-call arguments already parsed. No key. The browser must
-// be an allowed origin (OLLAMA_ORIGINS); the settings help says so.
+// definitions, tool-call arguments already parsed. ollama.com takes a Bearer
+// key and is reached through the relay (relay/); a local server takes none.
 import { ndjsonParser, readStream } from './stream.js';
 import { ProviderError, mapHttpError, networkError, MAX_TOOL_INPUT } from './errors.js';
 
@@ -63,8 +63,7 @@ export function createOllamaAccumulator(onText) {
   };
 }
 
-// Local Ollama takes no key; Ollama Cloud (and a local server behind a proxy
-// that asks for one) reads a Bearer token.
+// ollama.com reads a Bearer token; a local server takes no key.
 function ollamaHeaders(apiKey, extra = {}) {
   return apiKey ? { ...extra, authorization: `Bearer ${apiKey}` } : extra;
 }

@@ -5,12 +5,13 @@ import { ollamaProvider } from './ollama.js';
 
 // A provider is a vendor entry in PROVIDERS; its `adapter` names the wire
 // format, so several vendors share one adapter (Z.AI, Kimi, and OpenRouter
-// all speak chat completions; Ollama Cloud speaks the Ollama API with a key).
+// all speak chat completions; Ollama Cloud speaks the Ollama API with a key,
+// through the relay in relay/).
 export function makeProvider(settings, key, fetchImpl = globalThis.fetch) {
   const { provider, model, baseUrl, effort } = settings;
   const entry = Object.hasOwn(PROVIDERS, provider) ? PROVIDERS[provider] : null;
   const adapter = entry?.adapter;
-  // A provider that needs no key (local Ollama) never gets one on the wire.
+  // A provider that needs no key never gets one on the wire.
   const apiKey = entry?.needsKey ? key : '';
   if (adapter === 'anthropic') return anthropicProvider({ baseUrl, apiKey, model, effort, fetchImpl });
   if (adapter === 'openai') return openaiProvider({ baseUrl, apiKey, model, fetchImpl });

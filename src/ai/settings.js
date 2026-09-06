@@ -4,11 +4,19 @@
 // touches the document, autosave, share links, or exports.
 
 // Each provider names the adapter that speaks its wire format (`anthropic`,
-// `openai` for every chat-completions endpoint, `ollama` for the Ollama API,
-// local or cloud), its public base URL, whether a key is needed, a default
+// `openai` for every chat-completions endpoint, `ollama` for ollama.com's
+// own API), its public base URL, whether a key is needed, a default
 // model, and a few suggested model ids for the settings form. Endpoints and
 // model names were taken from the vendors' documentation in September 2026;
 // "List models" fetches the live catalogue where the endpoint offers one.
+// ollama.com answers a CORS preflight with 405 and api.moonshot.ai sends no
+// allow-origin header (both verified 2026-09-06), so no browser page can call
+// them directly. Those two providers go through the relay in relay/: a small
+// Cloudflare Worker that forwards the request, key included, and adds the
+// headers. This is the deployment's own relay; the Base URL field takes any
+// other (relay/README.md deploys one in two commands).
+export const RELAY = 'https://schematica-relay.henrycooper86.workers.dev';
+
 export const PROVIDERS = {
   anthropic: {
     name: 'Anthropic (Claude)', adapter: 'anthropic', baseUrl: 'https://api.anthropic.com', model: 'claude-opus-5', needsKey: true,
@@ -18,7 +26,7 @@ export const PROVIDERS = {
   openai: {
     name: 'OpenAI-compatible', adapter: 'openai', baseUrl: 'https://api.openai.com/v1', model: '', needsKey: true,
     models: [],
-    help: 'Any endpoint that speaks chat completions with function calling. Set the base URL and pick a model; "List models" asks the endpoint.',
+    help: 'Any endpoint that speaks chat completions with function calling, a local Ollama at http://localhost:11434/v1 included (start it with OLLAMA_ORIGINS set to this site\'s origin). Set the base URL and pick a model; "List models" asks the endpoint.',
   },
   openrouter: {
     name: 'OpenRouter', adapter: 'openai', baseUrl: 'https://openrouter.ai/api/v1', model: '', needsKey: true,
@@ -31,22 +39,14 @@ export const PROVIDERS = {
     help: 'Z.AI\'s GLM models over their OpenAI-compatible endpoint. Keys come from z.ai.',
   },
   kimi: {
-    name: 'Kimi (Moonshot)', adapter: 'openai', baseUrl: 'https://api.moonshot.ai/v1', model: 'kimi-k3', needsKey: true,
+    name: 'Kimi (Moonshot)', adapter: 'openai', baseUrl: `${RELAY}/api.moonshot.ai/v1`, model: 'kimi-k3', needsKey: true,
     models: ['kimi-k3', 'kimi-k2.6', 'kimi-k2.7-code'],
-    help: 'Moonshot\'s Kimi models over their OpenAI-compatible endpoint. Keys come from platform.kimi.ai.',
+    help: 'Moonshot\'s Kimi models over their OpenAI-compatible endpoint, through the relay because api.moonshot.ai does not answer browser requests. Keys come from platform.kimi.ai.',
   },
-  ollama: {
-    name: 'Ollama (local)', adapter: 'ollama', baseUrl: 'http://localhost:11434', model: '', needsKey: false,
-    models: [],
-    help: 'For browser access, start Ollama with OLLAMA_ORIGINS including this site\'s origin (or "*"). Requests ask for a 16k context (num_ctx); the model must support tool calling or Test will switch the assistant to single-shot mode. A local Ollama signed in to ollama.com can also run cloud models by their "-cloud" name.',
-  },
-  // ollama.com answers no browser request (no CORS headers, preflight 405 as
-  // of 2026-09-06), so cloud models go through the local Ollama, which must
-  // be signed in to ollama.com. The browser never sees the API key.
   ollamacloud: {
-    name: 'Ollama Cloud (via local Ollama)', adapter: 'ollama', baseUrl: 'http://localhost:11434', model: 'glm-5.3:cloud', needsKey: false,
-    models: ['glm-5.3:cloud', 'glm-5.3-flash:cloud', 'kimi-k3:cloud', 'gpt-oss:120b:cloud', 'qwen3.5:397b-cloud', 'deepseek-v4-flash:0731-cloud'],
-    help: 'Hosted models that run on ollama.com through your local Ollama: run "ollama signin" once, then use the ":cloud" tag (glm-5.3:cloud). The browser only talks to the local server, so OLLAMA_ORIGINS applies as for local models and no API key is entered here; ollama.com itself does not accept browser requests.',
+    name: 'Ollama Cloud', adapter: 'ollama', baseUrl: `${RELAY}/ollama.com`, model: 'glm-5.3', needsKey: true,
+    models: ['glm-5.3', 'glm-5.3-flash', 'kimi-k3', 'gpt-oss:120b', 'qwen3.5:397b', 'deepseek-v4-flash:0731', 'minimax-m3', 'gemma4:31b'],
+    help: 'Hosted models at ollama.com; keys come from ollama.com/settings/keys. ollama.com does not answer browser requests, so calls go through the relay (a small Cloudflare Worker; run your own with relay/README.md and put its URL in Base URL). "List models" fetches the catalogue.',
   },
 };
 export const EFFORTS = ['low', 'medium', 'high'];

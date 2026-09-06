@@ -32,7 +32,7 @@ export function mapHttpError(status, body, provider) {
 // A fetch that threw: the network, CORS, or a blocked origin.
 export function networkError(provider, err) {
   const hint = provider === 'ollama'
-    ? 'For browser access Ollama must allow this origin: set OLLAMA_ORIGINS to include it (or "*") and restart Ollama.'
+    ? 'The request never reached the server. If the Base URL is a relay, check that it is deployed (relay/README.md); a local Ollama must allow this origin through OLLAMA_ORIGINS.'
     : '';
   return new ProviderError(`Could not reach ${provider}: ${err?.message || err}`, { code: 'network', hint });
 }

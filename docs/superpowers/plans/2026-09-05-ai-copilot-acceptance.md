@@ -61,3 +61,9 @@ Items 5 to 8 and 12 need no model; 11 and 14 to 17 are provider-specific.
     Expect: the request goes to `https://ollama.com/api/chat` with a Bearer
     key (no CORS notice needed) and a build works in the mode Test reported.
     Observed: Test against https://ollama.com from the browser failed with "Could not reach ollama: Failed to fetch": ollama.com sends no CORS headers and answers the preflight with 405, so no browser page can call it. The API key works from curl (19 models listed, glm-5.3 calls tools). The provider now points at the local Ollama with the :cloud tag (verified tags: glm-5.3:cloud, glm-5.3-flash:cloud, kimi-k3:cloud, gpt-oss:120b:cloud, qwen3.5:397b-cloud, deepseek-v4-flash:0731-cloud) and needs no key in the browser. FAIL then PASS via the local route
+
+    Later on 2026-09-06: `relay/` (a Cloudflare Worker) now fronts ollama.com;
+    Ollama Cloud goes to `https://ollama.com/api/chat` through it with the
+    Bearer key, ollama.com model names carry no `:cloud` tag, and the local
+    Ollama entry is gone (a local server is still reachable as an
+    OpenAI-compatible endpoint). Not yet re-run through the relay.

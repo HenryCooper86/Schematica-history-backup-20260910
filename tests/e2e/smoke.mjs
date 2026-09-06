@@ -10,6 +10,7 @@ import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { EXAMPLES } from '../../src/examples.js';
+import { RELAY } from '../../src/ai/settings.js';
 import { encodeShare } from '../../src/share.js';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
@@ -589,13 +590,11 @@ try {
   // suggestions, and help, and only the local Ollama entry drops the key.
   const pick = (id) => js(`(() => { const sel = document.getElementById('ai-provider'); sel.value = ${JSON.stringify(id)}; sel.dispatchEvent(new Event('change', { bubbles: true })); return { base: document.getElementById('ai-base').value, model: document.getElementById('ai-model').value, options: [...document.querySelectorAll('#ai-models option')].map((o) => o.value), keyOff: document.getElementById('ai-key').disabled, listHidden: document.getElementById('ai-models-btn').hidden, help: document.getElementById('ai-help').textContent }; })()`);
   const providerIds = await js(`[...document.querySelectorAll('#ai-provider option')].map((o) => o.value)`);
-  check('the provider menu lists Anthropic, OpenAI-compatible, OpenRouter, Z.AI, Kimi, Ollama, and Ollama Cloud', JSON.stringify(providerIds) === JSON.stringify(['anthropic', 'openai', 'openrouter', 'zai', 'kimi', 'ollama', 'ollamacloud']), JSON.stringify(providerIds));
+  check('the provider menu lists Anthropic, OpenAI-compatible, OpenRouter, Z.AI, Kimi, and Ollama Cloud', JSON.stringify(providerIds) === JSON.stringify(['anthropic', 'openai', 'openrouter', 'zai', 'kimi', 'ollamacloud']), JSON.stringify(providerIds));
   const kimi = await pick('kimi');
-  check('picking Kimi fills the Moonshot base URL, the kimi-k3 default, and model suggestions', kimi.base === 'https://api.moonshot.ai/v1' && kimi.model === 'kimi-k3' && kimi.options.includes('kimi-k3') && kimi.keyOff === false && kimi.listHidden === false, JSON.stringify(kimi));
+  check('picking Kimi fills the relayed Moonshot base URL, the kimi-k3 default, and model suggestions', kimi.base === `${RELAY}/api.moonshot.ai/v1` && kimi.model === 'kimi-k3' && kimi.options.includes('kimi-k3') && kimi.keyOff === false && kimi.listHidden === false, JSON.stringify(kimi));
   const cloud = await pick('ollamacloud');
-  check('picking Ollama Cloud points at the local Ollama with a :cloud model and no key field', cloud.base === 'http://localhost:11434' && cloud.model === 'glm-5.3:cloud' && cloud.options.includes('glm-5.3:cloud') && cloud.keyOff === true && cloud.listHidden === false && /ollama signin/.test(cloud.help), JSON.stringify(cloud));
-  const local = await pick('ollama');
-  check('picking local Ollama disables the key field and shows the CORS note', local.keyOff === true && /OLLAMA_ORIGINS/.test(local.help) && local.options.length === 0, JSON.stringify(local));
+  check('picking Ollama Cloud points at ollama.com through the relay, asks for a key, and suggests glm-5.3', cloud.base === `${RELAY}/ollama.com` && cloud.model === 'glm-5.3' && cloud.options.includes('glm-5.3') && cloud.keyOff === false && cloud.listHidden === false && /ollama\.com\/settings\/keys/.test(cloud.help), JSON.stringify(cloud));
   const zai = await pick('zai');
   check('picking Z.AI fills the GLM endpoint and glm-5.3', zai.base === 'https://api.z.ai/api/paas/v4' && zai.model === 'glm-5.3' && zai.keyOff === false, JSON.stringify(zai));
   await pick('anthropic');
