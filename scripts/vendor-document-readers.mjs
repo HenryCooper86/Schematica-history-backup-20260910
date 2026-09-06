@@ -1,7 +1,8 @@
 // Reproduce the committed browser distributions. Run: node scripts/vendor-document-readers.mjs
-import { mkdtemp, mkdir, writeFile, readFile, copyFile, rm, readdir } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, copyFile, rm, readdir, rename } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 const root = new URL('../', import.meta.url);
@@ -11,6 +12,7 @@ const packages = [
 ];
 for (const pkg of packages) {
  const temp=await mkdtemp(join(tmpdir(),'schematica-vendor-'));
+ let staging;
  try {
   const source=`https://registry.npmjs.org/${pkg.name}/-/${pkg.name}-${pkg.version}.tgz`;
   const response=await fetch(source); if(!response.ok)throw Error(`Download failed: ${response.status}`);
@@ -18,7 +20,10 @@ for (const pkg of packages) {
   if(`sha512-${createHash('sha512').update(tar).digest('base64')}`!==pkg.integrity)throw Error('Package integrity mismatch');
   await writeFile(join(temp,'package.tgz'),tar);
   execFileSync('tar',['-xzf',join(temp,'package.tgz'),'-C',temp,...pkg.files.map(f=>`package/${f}`)]);
-  const target=new URL(`vendor/${pkg.folder}/`,root); await mkdir(target,{recursive:true});
+  // Stage beside the fixed vendor destinations so replacement stays on one filesystem.
+  const vendor=new URL('vendor/',root); await mkdir(vendor,{recursive:true});
+  staging=await mkdtemp(new URL('.document-readers-',vendor));
+  const target=pathToFileURL(staging+'/');
   const assets=[];
   async function copyAsset(file, destination) {
    const input=join(temp,'package',file);
@@ -28,5 +33,12 @@ for (const pkg of packages) {
   }
   for(const file of pkg.files)await copyAsset(file,file.startsWith('build/')?file.slice(6):file);
   await writeFile(new URL('SOURCE.json',target),JSON.stringify({package:pkg.name,version:pkg.version,source,integrity:pkg.integrity,assets},null,2)+'\n');
- }finally{await rm(temp,{recursive:true,force:true});}
+  // Only these two package folders may be replaced, after download, integrity
+  // verification, extraction, copies and manifest generation all succeeded.
+  const destinations={pdfjs:new URL('vendor/pdfjs/',root),mammoth:new URL('vendor/mammoth/',root)};
+  const destination=destinations[pkg.folder];
+  if(!destination)throw Error('Unknown vendor destination');
+  await rm(destination,{recursive:true,force:true});
+  await rename(staging,destination);
+ }finally{await rm(temp,{recursive:true,force:true});if(staging)await rm(staging,{recursive:true,force:true});}
 }
