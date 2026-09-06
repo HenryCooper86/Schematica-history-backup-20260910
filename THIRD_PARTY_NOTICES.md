@@ -1,7 +1,31 @@
 # Third-party notices
 
-Schematica has no runtime dependencies. The only third-party material in the
-repository is icon artwork.
+Schematica is served as static files without a build step. Local PDF and DOCX
+extraction uses the bundled browser libraries below, loaded only when needed.
+No parser library or document is fetched from a runtime CDN or remote service.
+The repository also includes icon artwork.
+
+## PDF.js 6.3.289
+
+Official `pdfjs-dist` 6.3.289 npm distribution, Mozilla contributors, Apache-2.0.
+Bundled in `vendor/pdfjs/`: main and worker modules, character maps and standard
+font data needed for text extraction (including CJK). Rendering-only WASM, image
+decoders, viewer UI and source maps are omitted. The Apache license is reproduced
+in `vendor/pdfjs/LICENSE`; character-map and font licenses are reproduced in
+`vendor/pdfjs/cmaps/LICENSE`, `vendor/pdfjs/standard_fonts/LICENSE_FOXIT` and
+`vendor/pdfjs/standard_fonts/LICENSE_LIBERATION`.
+
+## Mammoth 1.12.2
+
+Official `mammoth` 1.12.2 npm distribution, Michael Williamson, BSD-2-Clause.
+The standalone browser bundle (including its dependencies) and license are in
+`vendor/mammoth/`. Only `extractRawText` is used, inside a terminable worker;
+document HTML is never generated.
+
+Both vendored distributions are reproduced by
+`node scripts/vendor-document-readers.mjs`. Each folder's `SOURCE.json` records
+the pinned official npm tarball URL, verified SHA-512 package integrity and SHA-256
+for every committed asset. This script is maintenance tooling, never runtime code.
 
 ## Lucide
 
