@@ -118,12 +118,14 @@ test('the security boards rate every threat and mark adversaries and victims', (
   }
 });
 
-// Animate is off when a board opens; an example must not move until the user
-// turns it on (no wire authored with flow "on", no pulsing glow).
-test('no example animates while the Animate toggle is off', () => {
+// Animate is off when a board opens; an example's wires must not flow until
+// the user turns it on (no wire authored with flow "on"). Adversary glows are
+// the one motion that ignores the toggle, like net_draw's effect halos.
+test('no example wire flows while the Animate toggle is off', () => {
   for (const ex of EXAMPLES) {
     const m = diagramMarkup(ex.doc, { selection: new Set(), animate: false, ports: false });
-    assert.ok(!/class="[^"]*\banim\b/.test(m), `${ex.id} animates with the toggle off`);
+    assert.ok(!/class="vis anim"/.test(m), `${ex.id} has wires flowing with the toggle off`);
+    assert.ok(!/class="blink"/.test(m), `${ex.id} has tags blinking with the toggle off`);
     assert.deepEqual(ex.doc.wires.filter((w) => w.flow === 'on').map((w) => w.id), [], `${ex.id} ships wires forced on`);
   }
 });

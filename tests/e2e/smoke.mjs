@@ -382,17 +382,18 @@ try {
     threatProps.sev === 'high' && threatProps.target === 'GNSS' && !threatProps.partNumber
       && threatProps.texts.includes('HIGH') && threatProps.texts.includes('ADVERSARY') && threatProps.texts.includes('GNSS'),
     JSON.stringify(threatProps));
-  check('the panel header names the part and an adversary wears a steady glow while Animate is off',
-    threatProps.header === 'Sensor spoofing' && threatProps.glow === null && threatProps.steady === true && !threatProps.animating, JSON.stringify(threatProps));
-  // Only the Animate toggle sets the board in motion: on, the glow pulses.
+  check('the panel header names the part and an adversary glows with the Animate toggle off',
+    threatProps.header === 'Sensor spoofing' && threatProps.glow === 'fxpulse' && threatProps.steady === false && !threatProps.animating, JSON.stringify(threatProps));
+  // The toggle owns the wires: none flow until it is on, and none after it is off again.
+  check('no wire flows while Animate is off', (await js(`document.querySelectorAll('#canvas .vis.anim').length`)) === 0);
   await js(`document.getElementById('btn-animate').click(); true`);
   await sleep(150);
-  const pulsing = await js(`(() => { const h = document.querySelector('#canvas g.node[data-id="t1"] .fxhalo.anim'); return { anim: !!h, name: h ? getComputedStyle(h).animationName : null, wires: document.querySelectorAll('#canvas .vis.anim').length }; })()`);
-  check('turning Animate on makes the adversary pulse and the wires flow', pulsing.anim && pulsing.name === 'fxpulse' && pulsing.wires > 0, JSON.stringify(pulsing));
+  const flowing = await js(`(() => ({ wires: document.querySelectorAll('#canvas .vis.anim').length, glow: !!document.querySelector('#canvas g.node[data-id="t1"] .fxhalo.anim') }))()`);
+  check('turning Animate on makes the wires flow and keeps the adversary pulsing', flowing.wires > 0 && flowing.glow, JSON.stringify(flowing));
   await js(`document.getElementById('btn-animate').click(); true`);
   await sleep(150);
-  const stillAgain = await js(`document.querySelectorAll('#canvas .anim').length`);
-  check('turning Animate off stops every motion again', stillAgain === 0, String(stillAgain));
+  const stillAgain = await js(`(() => ({ wires: document.querySelectorAll('#canvas .vis.anim').length, glow: !!document.querySelector('#canvas g.node[data-id="t1"] .fxhalo.anim') }))()`);
+  check('turning Animate off stops the wires but not the adversary glow', stillAgain.wires === 0 && stillAgain.glow, JSON.stringify(stillAgain));
   await js(`(() => { const s = document.querySelector('#props select[data-field="severity"]'); s.value = 'critical'; s.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`);
   await sleep(150);
   const victim = await center('#props [data-disp="victim"]');

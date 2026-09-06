@@ -260,10 +260,10 @@ function flagBadgesMarkup(flags, W) {
 }
 
 // Disposition glow, like net_draw's effect halos: adversaries and suspicious
-// objects pulse while animating (a steady ring otherwise), a victim wears a
-// steady amber ring. Flags keep their halo (pulsing only while animating)
-// when no glow outranks it. The Animate toggle owns every motion: with it
-// off a board is still.
+// objects pulse all the time, whatever the Animate toggle says (the user's
+// call: the blink is the point of the glow), a victim wears a steady amber
+// ring. Flags keep their halo (pulsing only while animating) when no glow
+// outranks it. The toggle owns the wires and flag pulses, not this glow.
 const GLOW = {
   adversary: { color: '#ef4444', pulse: true },
   suspicious: { color: '#fb923c', pulse: true },
@@ -277,7 +277,7 @@ function haloMarkup(node, W, H, animating, now) {
   let pulse;
   if (glow && (glow.pulse || !flags.length)) {
     color = glow.color;
-    pulse = glow.pulse && animating;
+    pulse = glow.pulse;
   } else if (flags.length) {
     const worst = flags.reduce((a, k) => (FLAG_META[k].sev > FLAG_META[a].sev ? k : a), flags[0]);
     color = FLAG_META[worst].color;

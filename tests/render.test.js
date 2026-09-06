@@ -376,7 +376,7 @@ test('disposition and severity render as tags in a row after the lifecycle statu
   assert.equal((plain.match(/y="-8" width=/g) || []).length, 1, 'a card without disposition or severity shows only its status');
 });
 
-test('adversaries and suspicious cards pulse while animating, victims wear a steady ring, flags fill in otherwise', () => {
+test('adversaries and suspicious cards glow all the time, victims wear a steady ring, flags fill in otherwise', () => {
   const halo = (extra, animating = false) => {
     const doc = sampleDoc();
     doc.nodes = [node('t', 'threatactor', 0, 0, { label: 'T', ...extra })];
@@ -385,13 +385,11 @@ test('adversaries and suspicious cards pulse while animating, victims wear a ste
     const m = g.match(/<rect class="(fxhalo[^"]*)"[^>]*stroke="(#[0-9a-f]{6})"[^>]*stroke-opacity="([\d.]+)"/);
     return m ? { cls: m[1], stroke: m[2], opacity: m[3] } : null;
   };
-  assert.deepEqual(halo({ disposition: 'adversary' }), { cls: 'fxhalo', stroke: '#ef4444', opacity: '0.6' }, 'steady without the Animate toggle');
-  assert.deepEqual(halo({ disposition: 'adversary' }, true), { cls: 'fxhalo anim', stroke: '#ef4444', opacity: '0.6' }, 'pulses with it');
-  assert.deepEqual(halo({ disposition: 'suspicious' }), { cls: 'fxhalo', stroke: '#fb923c', opacity: '0.6' });
-  assert.deepEqual(halo({ disposition: 'suspicious' }, true), { cls: 'fxhalo anim', stroke: '#fb923c', opacity: '0.6' });
+  assert.deepEqual(halo({ disposition: 'adversary' }), { cls: 'fxhalo anim', stroke: '#ef4444', opacity: '0.6' }, 'pulses without the Animate toggle');
+  assert.deepEqual(halo({ disposition: 'adversary' }, true), { cls: 'fxhalo anim', stroke: '#ef4444', opacity: '0.6' }, 'and with it');
+  assert.deepEqual(halo({ disposition: 'suspicious' }), { cls: 'fxhalo anim', stroke: '#fb923c', opacity: '0.6' });
   assert.deepEqual(halo({ disposition: 'victim' }), { cls: 'fxhalo', stroke: '#fbbf24', opacity: '0.6' }, 'steady ring');
-  assert.deepEqual(halo({ disposition: 'adversary', flags: ['bug'] }), { cls: 'fxhalo', stroke: '#ef4444', opacity: '0.6' }, 'glow outranks a flag');
-  assert.deepEqual(halo({ disposition: 'adversary', flags: ['bug'] }, true), { cls: 'fxhalo anim', stroke: '#ef4444', opacity: '0.6' }, 'and pulses in the glow colour');
+  assert.deepEqual(halo({ disposition: 'adversary', flags: ['bug'] }), { cls: 'fxhalo anim', stroke: '#ef4444', opacity: '0.6' }, 'glow outranks a flag');
   assert.deepEqual(halo({ disposition: 'victim', flags: ['thermal'] }), { cls: 'fxhalo', stroke: '#fb923c', opacity: '0.6' }, 'a flag outranks the steady ring');
   assert.deepEqual(halo({ disposition: 'victim', flags: ['thermal'] }, true), { cls: 'fxhalo anim', stroke: '#fb923c', opacity: '0.6' });
   assert.equal(halo({ disposition: 'friendly' }), null);
@@ -408,16 +406,15 @@ test('the overlay rings highlighted nodes, zones, and notes and glows highlighte
   assert.equal(overlayMarkup(doc, {}), '');
 });
 
-// The Animate toggle owns every motion on the canvas: with it off, an
-// adversary's glow is a steady ring, not a pulse.
-test('a disposition glow pulses only while animating', () => {
+// Like net_draw, an adversary's glow blinks whatever the Animate toggle says;
+// the toggle owns the wires and flag pulses, not the disposition glow.
+test('a disposition glow pulses with the Animate toggle off and on', () => {
   const doc = sampleDoc();
   doc.nodes = [node('a', 'threatactor', 0, 0, { label: 'APT-29', disposition: 'adversary' }), node('v', 'server', 300, 0, { label: 'Victim', disposition: 'victim' })];
   doc.wires = [];
-  const still = diagramMarkup(doc, { animate: false });
-  assert.ok(nodeGroup(still, 'a').includes('class="fxhalo"'), 'adversary halo present and steady');
-  assert.ok(!still.includes(' anim"'), 'nothing animates with the toggle off');
-  const moving = diagramMarkup(doc, { animate: true });
-  assert.ok(nodeGroup(moving, 'a').includes('class="fxhalo anim"'), 'adversary halo pulses while animating');
-  assert.ok(nodeGroup(moving, 'v').includes('class="fxhalo"') && !nodeGroup(moving, 'v').includes('fxhalo anim'), 'victim ring stays steady');
+  for (const animate of [false, true]) {
+    const m = diagramMarkup(doc, { animate });
+    assert.ok(nodeGroup(m, 'a').includes('class="fxhalo anim"'), `adversary halo pulses (animate ${animate})`);
+    assert.ok(nodeGroup(m, 'v').includes('class="fxhalo"') && !nodeGroup(m, 'v').includes('fxhalo anim'), `victim ring stays steady (animate ${animate})`);
+  }
 });
