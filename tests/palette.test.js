@@ -76,9 +76,9 @@ test('robot-compute and ADAS parts expose the camera, CAN FD, and T1 buses they 
   assert.equal(ports('vgateway').canfd2, 'canfd');
 });
 
-// net_draw's Network, Security & Edge, Process Flow, and Threats types, ported
-// one-to-one: their glyphs, per-type accents, flow shapes, and threat border.
-test('network, security, process-flow, and threat parts port net_draw types', () => {
+// The Network, Security & Edge, Process Flow, and Threats types follow
+// net_draw's model: 24-box glyphs, per-type accents, flow shapes, threat border.
+test('network, security, process-flow, and threat parts follow the net_draw model', () => {
   const byCat = (id) => Object.values(PARTS).filter((p) => p.category === id);
   for (const id of ['network', 'security', 'flow', 'threats']) {
     assert.ok(CATEGORIES.some((c) => c.id === id), `${id} category`);
@@ -143,4 +143,33 @@ test('network, security, and host parts carry IP address and DNS name fields; th
     assert.ok(p.fields.every((fd) => fd.label && fd.placeholder && !fd.options), `${p.kind} free text`);
     assert.equal(p.threat, undefined, `${p.kind} keeps its part number`);
   }
+});
+
+// The 24-box glyphs used to be byte-for-byte copies of net_draw's icons, which
+// carry no open licence. They were replaced by Lucide icons (ISC) and our own
+// flowchart shapes; these are the SHA-1 prefixes of the old markup, so a copy
+// can never come back unnoticed.
+const NET_DRAW_GLYPH_HASHES = new Set([
+  '0451aad603a7', 'd7ff2827d8d7', '1c681eedce60', 'e7d8c1558029', '087d44b04db0', '31b0d64bed84',
+  '496aeffa1513', 'e29f6535ffdd', 'a3f238326cdb', '1c2bfda6a9c1', 'fa83ceb8dcbf', 'c46f6b78c3e8',
+  '32fa6a26a147', 'bc6aecd691e6', 'f53ae71881cf', '8176086943ff', 'd457a6b14402', 'f4ff3077ed87',
+  'f3067c45ad41', '17707d40e8f7', '59236b233a61', 'd51199bd1bc5', '2876dc1a807c', 'd30762a0edb3',
+  'd17ab8efbce2', 'e51251716f1e', '78a9c503135b', 'f957b9cb530e', '928bf67bcd20',
+]);
+
+test('no 24-box glyph is one of the net_draw originals, and each is plain stroke markup', async () => {
+  const { createHash } = await import('node:crypto');
+  const seen = new Map();
+  for (const [key, part] of Object.entries(PARTS)) {
+    if (!part.glyph) continue;
+    const hash = createHash('sha1').update(part.glyph).digest('hex').slice(0, 12);
+    assert.ok(!NET_DRAW_GLYPH_HASHES.has(hash), `${key} still carries the net_draw glyph`);
+    assert.ok(!seen.has(part.glyph), `${key} shares its glyph with ${seen.get(part.glyph)}`);
+    seen.set(part.glyph, key);
+    const tags = [...part.glyph.matchAll(/<([a-z]+)/g)].map((m) => m[1]);
+    assert.ok(tags.length > 0, `${key} has markup`);
+    for (const t of tags) assert.ok(['path', 'circle', 'rect', 'ellipse', 'line', 'polyline', 'polygon', 'text'].includes(t), `${key} uses <${t}>`);
+    assert.ok(!/<(script|image|use|foreignObject)/i.test(part.glyph), `${key} glyph is inert`);
+  }
+  assert.equal(seen.size, 29);
 });

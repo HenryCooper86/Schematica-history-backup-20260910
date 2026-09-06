@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { PARTS } from '../src/palette.js';
 import { diagramMarkup, defsMarkup, flowOffset, LOOP_MS, overlayMarkup } from '../src/render.js';
 import { EXAMPLES } from '../src/examples.js';
 
@@ -329,7 +330,7 @@ test('process-flow parts render as net_draw shapes with the label centered and n
   assert.ok(sel.includes('stroke="#fbbf24" stroke-opacity="1" stroke-width="1.8"'), 'selected shape strokes solid and heavier');
 });
 
-test('threat parts wear a dashed red border and net_draw glyphs draw at 1.15x', () => {
+test('threat parts wear a dashed red border and 24-box glyphs draw at 1.15x', () => {
   const doc = sampleDoc();
   doc.nodes = [node('t', 'threatactor', 0, 0, { label: 'APT-29' }), node('r', 'router', 300, 0, { label: 'Core Router' })];
   doc.wires = [];
@@ -340,7 +341,7 @@ test('threat parts wear a dashed red border and net_draw glyphs draw at 1.15x', 
   const r = nodeGroup(m, 'r');
   assert.ok(r.includes('translate(33 8)') === false || true);
   assert.ok(r.includes('scale(1.15)" fill="none" stroke="#a78bfa" stroke-width="1.8"'), 'glyph at net_draw scale in the type accent');
-  assert.ok(r.includes('<circle cx="12" cy="12" r="9"/>'), 'glyph markup embedded verbatim');
+  assert.ok(r.includes(PARTS.router.glyph), 'glyph markup embedded verbatim');
   assert.ok(!r.includes('stroke-dasharray="5 3.5"'), 'only threats are dashed');
   const sel = nodeGroup(diagramMarkup(doc, { selection: new Set(['t']) }), 't');
   assert.ok(sel.includes('stroke="#ef4444" stroke-width="1.6"') && !sel.includes('stroke-dasharray="5 3.5"'), 'selection replaces the dashes');

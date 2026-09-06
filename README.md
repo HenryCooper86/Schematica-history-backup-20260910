@@ -88,10 +88,16 @@ export/BOM/DRC dialogs, journey and present mode, examples menu, recording).
 The assistant lives in `src/ai/`: `ops.js` is the atomic edit-operation batch (the only way the model changes a board), `layout.js` places whatever a batch creates, `context.js` renders the board and the palette catalogue as text for the model, `tools.js` exposes six tools over a `getDoc`/`commit` interface, `agent.js` runs the request loop, `providers/` holds the fetch adapters, and `src/ui/assistant-ui.js` is the panel. The smoke test drives it through a fake provider, so CI needs no key.
 See `docs/superpowers/specs/` for the design spec.
 
+## Licence
+
+Schematica is released under the [MIT licence](LICENSE). The device and threat
+icons of the Network, Security & Edge, and Threats parts come from
+[Lucide](https://lucide.dev) under the ISC licence; see
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
 ## Acknowledgements
 
 Schematica started as a hardware-focused take on the ideas in
 [net_draw](https://mr-r3b00t.github.io/net_draw/) and has since grown its own
 model: typed ports and buses, design rules, the bill of materials, vendor
-presets, and content-sized cards. The icon glyphs of the Network, Security &
-Edge, Process Flow, and Threats parts are adapted from net_draw's icon set.
+presets, and content-sized cards.

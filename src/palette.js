@@ -65,8 +65,8 @@ const part = (kind, category, name, icon, ports, extra = {}) => ({ kind, categor
 const sides = (bus, name) => [
   p('n', name, 'top', 0.5, bus), p('e', name, 'right', 0.5, bus), p('s', name, 'bottom', 0.5, bus), p('w', name, 'left', 0.5, bus),
 ];
-// A net_draw type: a 24-box glyph (inner SVG markup) and a per-type accent
-// instead of a 16-box path; `extra` carries shape, threat, or defaultLabel.
+// A net_draw-style type: a 24-box glyph (inner SVG markup) and a per-type
+// accent instead of a 16-box path; `extra` carries shape, threat, or defaultLabel.
 const nd = (kind, category, name, accent, glyph, ports, extra = {}) => ({ kind, category, name, icon: null, glyph, accent, ports, ...extra });
 
 export const PARTS = {
@@ -235,71 +235,74 @@ export const PARTS = {
     [p('ble', 'BLE', 'left', 0.5, 'rf'), p('net', 'NET', 'bottom', 0.5, 'eth')]),
   hostpc: part('hostpc', 'system', 'Host PC', 'M3 3h10v7H3z M1.5 12.5h13L13 10H3z',
     [p('usb', 'USB', 'left', 0.5, 'usb'), p('eth', 'ETH', 'bottom', 0.5, 'eth')], { fields: NET_FIELDS }),
-  // ---- net_draw's Network, Security & Edge, Process Flow, and Threats ----
-  // Ported one-to-one: 24-box glyphs, per-type accents, real flowchart shapes,
-  // and the dashed red border on threats. Devices link over Ethernet, flow
-  // shapes over the untyped "flow" bus, threats over "link".
+  // ---- Network, Security & Edge, Process Flow, and Threats ----
+  // Modelled on net_draw's types: 24-box glyphs, per-type accents, real
+  // flowchart shapes, and the dashed red border on threats. Devices link over
+  // Ethernet, flow shapes over the untyped "flow" bus, threats over "link".
+  // The device and threat glyphs are Lucide icons (ISC, see
+  // THIRD_PARTY_NOTICES.md; markup from lucide-static 1.41.0); the flow glyphs
+  // are the standard flowchart symbols drawn here.
   // Network
-  internet: nd('internet', 'network', 'Internet', '#38bdf8', '<circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/>',
+  internet: nd('internet', 'network', 'Internet', '#38bdf8', '<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>',
     sides('eth', 'ETH'), { fields: NET_FIELDS }),
-  accesspoint: nd('accesspoint', 'network', 'Access point', '#c084fc', '<path d="M4.5 9.8a11 11 0 0 1 15 0M7.5 13a7 7 0 0 1 9 0M10.4 16.1a3 3 0 0 1 3.2 0"/><circle cx="12" cy="19" r="1.3" fill="currentColor" stroke="none"/>',
+  accesspoint: nd('accesspoint', 'network', 'Access point', '#c084fc', '<path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.859a10 10 0 0 1 14 0"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/>',
     [p('rf', 'WLAN', 'top', 0.5, 'rf'), p('e', 'ETH', 'right', 0.5, 'eth'), p('s', 'ETH', 'bottom', 0.5, 'eth'), p('w', 'ETH', 'left', 0.5, 'eth')], { fields: NET_FIELDS }),
-  router: nd('router', 'network', 'Router', '#a78bfa', '<circle cx="12" cy="12" r="9"/><path d="M7 9.5h7.5M12.5 7 15 9.5l-2.5 2.5M17 14.5H9.5M11.5 12 9 14.5l2.5 2.5"/>',
+  router: nd('router', 'network', 'Router', '#a78bfa', '<rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6.01 18H6"/><path d="M10.01 18H10"/><path d="M15 10v4"/><path d="M17.84 7.17a4 4 0 0 0-5.66 0"/><path d="M20.66 4.34a8 8 0 0 0-11.31 0"/>',
     sides('eth', 'ETH'), { fields: NET_FIELDS }),
-  switch: nd('switch', 'network', 'Switch', '#60a5fa', '<rect x="3" y="7.5" width="18" height="9" rx="2"/><path d="M7 10.5h4.2M9.6 8.7l1.8 1.8-1.8 1.8M17 13.5h-4.2M14.4 11.7l-1.8 1.8 1.8 1.8"/>',
+  switch: nd('switch', 'network', 'Switch', '#60a5fa', '<rect width="20" height="12" x="2" y="6" rx="2"/><path d="M12 12h.01"/><path d="M17 12h.01"/><path d="M7 12h.01"/>',
     sides('eth', 'ETH'), { fields: NET_FIELDS }),
-  asn: nd('asn', 'network', 'ASN', '#818cf8', '<path d="M12 2.8 19.6 7.2v8.8L12 20.4 4.4 16V7.2z"/><text x="12" y="14.6" text-anchor="middle" font-size="7" font-weight="700" fill="currentColor" stroke="none">AS</text>',
+  asn: nd('asn', 'network', 'ASN', '#818cf8', '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><text x="12" y="15" text-anchor="middle" font-size="7" font-weight="700" fill="currentColor" stroke="none">AS</text>',
     sides('eth', 'ETH'), { fields: [f('asn', 'AS number', { placeholder: 'e.g. AS64500' }), f('prefix', 'Prefix', { placeholder: 'e.g. 203.0.113.0/24' })] }),
-  ipaddress: nd('ipaddress', 'network', 'IP Address', '#67e8f9', '<rect x="3" y="7" width="18" height="10" rx="2.5"/><text x="12" y="14.8" text-anchor="middle" font-size="7" font-weight="700" fill="currentColor" stroke="none">IP</text>',
+  ipaddress: nd('ipaddress', 'network', 'IP Address', '#67e8f9', '<rect width="20" height="12" x="2" y="6" rx="2"/><text x="12" y="15" text-anchor="middle" font-size="7" font-weight="700" fill="currentColor" stroke="none">IP</text>',
     sides('eth', 'ETH'), { fields: NET_FIELDS }),
   // Security & Edge
-  firewall: nd('firewall', 'security', 'Firewall', '#f87171', '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9.7h18M3 14.3h18M9 5v4.7M15 9.7v4.6M9 14.3V19"/>',
+  firewall: nd('firewall', 'security', 'Firewall', '#f87171', '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 9v6"/><path d="M16 15v6"/><path d="M16 3v6"/><path d="M3 15h18"/><path d="M3 9h18"/><path d="M8 15v6"/><path d="M8 3v6"/>',
     sides('eth', 'ETH'), { fields: NET_FIELDS }),
-  waf: nd('waf', 'security', 'WAF', '#f43f5e', '<path d="M12 2.8 20 6v6c0 4.6-3.4 7.8-8 9.2C7.4 19.8 4 16.6 4 12V6z"/><path d="M4.6 9.5h14.8M5.2 14h13.6M8.5 5.5v4M15.5 5.5v4M12 9.5V14M8.5 14v4.6M15.5 14v4.6"/>',
+  waf: nd('waf', 'security', 'WAF', '#f43f5e', '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>',
     sides('eth', 'ETH'), { fields: NET_FIELDS }),
-  proxy: nd('proxy', 'security', 'Proxy Server', '#e879f9', '<rect x="9" y="9" width="6" height="6" rx="1.5"/><path d="M3 6.5h11.5M12 4l2.5 2.5L12 9M21 17.5H9.5M12 15l-2.5 2.5L12 20"/>',
+  proxy: nd('proxy', 'security', 'Proxy Server', '#e879f9', '<path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/>',
     sides('eth', 'ETH'), { fields: NET_FIELDS }),
-  cdn: nd('cdn', 'security', 'CDN', '#38bdf8', '<circle cx="12" cy="12" r="4"/><circle cx="4.5" cy="6.5" r="2"/><circle cx="19.5" cy="6.5" r="2"/><circle cx="12" cy="20" r="1.9"/><path d="M8.8 9.7 6 7.9M15.2 9.7 18 7.9M12 16v2.1"/>',
+  cdn: nd('cdn', 'security', 'CDN', '#38bdf8', '<path d="m10.586 5.414-5.172 5.172"/><path d="m18.586 13.414-5.172 5.172"/><path d="M6 12h12"/><circle cx="12" cy="20" r="2"/><circle cx="12" cy="4" r="2"/><circle cx="20" cy="12" r="2"/><circle cx="4" cy="12" r="2"/>',
     sides('eth', 'ETH'), { fields: NET_FIELDS }),
-  loadbalancer: nd('loadbalancer', 'security', 'Load Balancer', '#2dd4bf', '<rect x="9.5" y="3" width="5" height="5" rx="1.5"/><path d="M12 8v2.5M12 10.5 5.5 14.8M12 10.5v5.8M12 10.5l6.5 4.3"/><circle cx="5.5" cy="17" r="2.2"/><circle cx="12" cy="18.6" r="2.2"/><circle cx="18.5" cy="17" r="2.2"/>',
+  loadbalancer: nd('loadbalancer', 'security', 'Load Balancer', '#2dd4bf', '<rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/>',
     sides('eth', 'ETH'), { fields: NET_FIELDS }),
-  apigateway: nd('apigateway', 'security', 'API Gateway', '#22d3ee', '<path d="M5 4v16M19 4v16"/><path d="M8 9.2h8M13.5 6.7 16 9.2l-2.5 2.5M16 15h-8M10.5 12.5 8 15l2.5 2.5"/>',
+  apigateway: nd('apigateway', 'security', 'API Gateway', '#22d3ee', '<path d="M18 16.98h-5.99c-1.1 0-1.95.94-2.48 1.9A4 4 0 0 1 2 17c.01-.7.2-1.4.57-2"/><path d="m6 17 3.13-5.78c.53-.97.1-2.18-.5-3.1a4 4 0 1 1 6.89-4.06"/><path d="m12 6 3.13 5.73C15.66 12.7 16.9 13 18 13a4 4 0 0 1 0 8"/>',
     sides('eth', 'ETH'), { fields: NET_FIELDS }),
   // Process Flow (shapes; the label sits inside, no badge or meta lines)
-  startend: nd('startend', 'flow', 'Start / End', '#34d399', '<rect x="3" y="8" width="18" height="8" rx="4"/>',
+  startend: nd('startend', 'flow', 'Start / End', '#34d399', '<rect x="2.5" y="8.5" width="19" height="7" rx="3.5"/>',
     sides('flow', 'FLOW'), { shape: 'terminator', defaultLabel: 'Start' }),
-  process: nd('process', 'flow', 'Process', '#60a5fa', '<rect x="3.5" y="7.5" width="17" height="9" rx="1.5"/>',
+  process: nd('process', 'flow', 'Process', '#60a5fa', '<rect x="3" y="7" width="18" height="10" rx="1"/>',
     sides('flow', 'FLOW'), { shape: 'process' }),
-  decision: nd('decision', 'flow', 'Decision', '#fbbf24', '<path d="M12 4.5 20.5 12 12 19.5 3.5 12z"/>',
+  decision: nd('decision', 'flow', 'Decision', '#fbbf24', '<path d="M12 4l8 8-8 8-8-8z"/>',
     sides('flow', 'FLOW'), { shape: 'decision', defaultLabel: 'Decision?' }),
-  dataio: nd('dataio', 'flow', 'Data / I-O', '#22d3ee', '<path d="M7.5 7.5H21l-4.5 9H3z"/>',
+  dataio: nd('dataio', 'flow', 'Data / I-O', '#22d3ee', '<path d="M8 7h13l-5 10H3z"/>',
     sides('flow', 'FLOW'), { shape: 'data' }),
-  document: nd('document', 'flow', 'Document', '#94a3b8', '<path d="M4 5.5h16v9.8c-2.7-2.3-5.3 2.6-8 .9s-5.3 1.9-8-.4z"/>',
+  document: nd('document', 'flow', 'Document', '#94a3b8', '<path d="M4 5h16v10c-2 2.5-4 2.5-6 1s-4-1.5-6 0-3 1.5-4 .5z"/>',
     sides('flow', 'FLOW'), { shape: 'document' }),
-  predefined: nd('predefined', 'flow', 'Subprocess', '#818cf8', '<rect x="3" y="7" width="18" height="10" rx="1.5"/><path d="M6.3 7v10M17.7 7v10"/>',
+  predefined: nd('predefined', 'flow', 'Subprocess', '#818cf8', '<rect x="3" y="7" width="18" height="10" rx="1"/><path d="M7 7v10M17 7v10"/>',
     sides('flow', 'FLOW'), { shape: 'predefined' }),
-  preparation: nd('preparation', 'flow', 'Preparation', '#a78bfa', '<path d="M7 6.5h10l4 5.5-4 5.5H7L3 12z"/>',
+  preparation: nd('preparation', 'flow', 'Preparation', '#a78bfa', '<path d="M6.5 6.5h11l3.5 5.5-3.5 5.5h-11L3 12z"/>',
     sides('flow', 'FLOW'), { shape: 'prep' }),
-  manualinput: nd('manualinput', 'flow', 'Manual Input', '#f472b6', '<path d="M3 9.5 21 6v11.5H3z"/>',
+  manualinput: nd('manualinput', 'flow', 'Manual Input', '#f472b6', '<path d="M3 10l18-4v11H3z"/>',
     sides('flow', 'FLOW'), { shape: 'manual' }),
-  delay: nd('delay', 'flow', 'Delay', '#fb923c', '<path d="M3.5 7h12a5 5 0 0 1 0 10h-12z"/>',
+  delay: nd('delay', 'flow', 'Delay', '#fb923c', '<path d="M3 7h11a5 5 0 0 1 0 10H3z"/>',
     sides('flow', 'FLOW'), { shape: 'delay' }),
-  connector: nd('connector', 'flow', 'Connector', '#64748b', '<circle cx="12" cy="12" r="6.5"/>',
+  connector: nd('connector', 'flow', 'Connector', '#64748b', '<circle cx="12" cy="12" r="7"/>',
     sides('flow', 'FLOW'), { shape: 'connector', defaultLabel: 'A' }),
   // Threats
-  threatactor: nd('threatactor', 'threats', 'Threat Actor', '#ef4444', '<path d="M12 3C7.5 3 5 6.6 5 11v6.8c2-1.2 3-1.2 4.5-.3 1.6 1 3.4 1 5 0 1.5-.9 2.5-.9 4.5.3V11c0-4.4-2.5-8-7-8z"/><circle cx="9.4" cy="11.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="14.6" cy="11.5" r="1.1" fill="currentColor" stroke="none"/>',
+  threatactor: nd('threatactor', 'threats', 'Threat Actor', '#ef4444', '<path d="m12.5 17-.5-1-.5 1h1z"/><path d="M15 22a1 1 0 0 0 1-1v-1a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20v1a1 1 0 0 0 1 1z"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="12" r="1"/>',
     sides('link', 'LINK'), { threat: true, fields: [f('type', 'Type (STIX)', { options: STIX_ACTOR_TYPES }), f('sophistication', 'Sophistication (STIX)', { options: STIX_SOPHISTICATION }), f('motivation', 'Motivation (STIX)', { options: STIX_MOTIVATION }), f('org', 'Attribution', { placeholder: 'e.g. group / country' }), SEVERITY] }),
-  insider: nd('insider', 'threats', 'Insider Threat', '#f97316', '<circle cx="9.5" cy="7.5" r="3.2"/><path d="M3.5 20a6.3 6.3 0 0 1 11.4-2.4"/><path d="M17.5 12.8 21.3 19.5h-7.6z"/><path d="M17.5 15.2v1.7M17.5 18.1h.01"/>',
+  insider: nd('insider', 'threats', 'Insider Threat', '#f97316', '<path d="m16.5 16.5 5 5"/><path d="M2 21a8 8 0 0 1 11.531-7.18"/><path d="m21.5 16.5-5 5"/><circle cx="10" cy="8" r="5"/>',
     sides('link', 'LINK'), { threat: true, fields: [f('type', 'Type (STIX)', { options: INSIDER_TYPES }), f('motivation', 'Motivation (STIX)', { options: STIX_MOTIVATION }), f('owner', 'Account used', { placeholder: 'e.g. svc-build' }), SEVERITY] }),
-  malware: nd('malware', 'threats', 'Malware', '#fb7185', '<path d="M12 7.5a4 4 0 0 1 4 4v3a4 4 0 0 1-8 0v-3a4 4 0 0 1 4-4z"/><path d="M12 7.5V5M9 5.5 10.3 7M15 5.5 13.7 7M8 12.5H5.5M18.5 12.5H16M8.6 16 6.5 18M15.4 16l2.1 2M12 10.5v8"/>',
+  malware: nd('malware', 'threats', 'Malware', '#fb7185', '<path d="M12 20v-9"/><path d="M14 7a4 4 0 0 1 4 4v3a6 6 0 0 1-12 0v-3a4 4 0 0 1 4-4z"/><path d="M14.12 3.88 16 2"/><path d="M21 21a4 4 0 0 0-3.81-4"/><path d="M21 5a4 4 0 0 1-3.55 3.97"/><path d="M22 13h-4"/><path d="M3 21a4 4 0 0 1 3.81-4"/><path d="M3 5a4 4 0 0 0 3.55 3.97"/><path d="M6 13H2"/><path d="m8 2 1.88 1.88"/><path d="M9 7.13V6a3 3 0 1 1 6 0v1.13"/>',
     sides('link', 'LINK'), { threat: true, fields: [f('family', 'Family / variant', { placeholder: 'e.g. LockBit 3.0' }), f('type', 'Type (STIX)', { options: STIX_MALWARE_TYPES }), SEVERITY] }),
-  ransomware: nd('ransomware', 'threats', 'Ransomware', '#f43f5e', '<rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><text x="12" y="17.6" text-anchor="middle" font-size="7.5" font-weight="700" fill="currentColor" stroke="none">$</text>',
+  ransomware: nd('ransomware', 'threats', 'Ransomware', '#f43f5e', '<path d="M4 9.8V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.706.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2h-3"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M9 17v-2a2 2 0 0 0-4 0v2"/><rect width="8" height="5" x="3" y="17" rx="1"/>',
     sides('link', 'LINK'), { threat: true, fields: [f('family', 'Family / variant', { placeholder: 'e.g. LockBit 3.0' }), SEVERITY] }),
-  botnet: nd('botnet', 'threats', 'Botnet', '#a855f7', '<rect x="7.5" y="8.5" width="9" height="7" rx="2"/><path d="M10.5 12h.01M13.5 12h.01M12 8.5V6M5.5 19 8.5 15.5M18.5 19 15.5 15.5"/><circle cx="12" cy="4.6" r="1.4"/><circle cx="4.5" cy="20.2" r="1.4"/><circle cx="19.5" cy="20.2" r="1.4"/>',
+  botnet: nd('botnet', 'threats', 'Botnet', '#a855f7', '<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/>',
     sides('link', 'LINK'), { threat: true, fields: [f('family', 'Family / variant', { placeholder: 'e.g. Mirai' }), f('size', 'Size', { placeholder: 'e.g. 40k bots' }), SEVERITY] }),
-  phishing: nd('phishing', 'threats', 'Phishing', '#eab308', '<path d="M12 4.5v8.5a4.5 4.5 0 0 0 8.8 1.4"/><path d="M21.5 11.6 20.8 14.6 18 13.4"/><circle cx="12" cy="3.6" r="1.5"/><path d="M6.5 8.5 3 12l3.5 3.5M9.5 8.5 6 12l3.5 3.5" stroke-width="1.4"/>',
+  phishing: nd('phishing', 'threats', 'Phishing', '#eab308', '<path d="M6.5 12c.94-3.46 4.94-6 8.5-6 3.56 0 6.06 2.54 7 6-.94 3.47-3.44 6-7 6s-7.56-2.53-8.5-6Z"/><path d="M18 12v.5"/><path d="M16 17.93a9.77 9.77 0 0 1 0-11.86"/><path d="M7 10.67C7 8 5.58 5.97 2.73 5.5c-1 1.5-1 5 .23 6.5-1.24 1.5-1.24 5-.23 6.5C5.58 18.03 7 16 7 13.33"/><path d="M10.46 7.26C10.2 5.88 9.17 4.24 8 3h5.8a2 2 0 0 1 1.98 1.67l.23 1.4"/><path d="m16.01 17.93-.23 1.4A2 2 0 0 1 13.8 21H9.5a5.96 5.96 0 0 0 1.49-3.98"/>',
     sides('link', 'LINK'), { threat: true, fields: [f('campaign', 'Campaign', { placeholder: 'e.g. Q3 invoice lure' }), f('email', 'Sender / lure address', { placeholder: 'e.g. billing@example.net' }), SEVERITY] }),
-  c2: nd('c2', 'threats', 'C2 Server', '#f87171', '<rect x="3.5" y="12" width="13" height="6" rx="1.5"/><path d="M6.5 15h.01M10 15h4"/><path d="M17.8 6.8a5.5 5.5 0 0 1 1.7 4M20.5 4.5a9 9 0 0 1 2.6 6.3" stroke-width="1.6"/><path d="M15.5 9a2.5 2.5 0 0 1 .8 1.8"/>',
+  c2: nd('c2', 'threats', 'C2 Server', '#f87171', '<path d="M4.9 16.1C1 12.2 1 5.8 4.9 1.9"/><path d="M7.8 4.7a6.14 6.14 0 0 0-.8 7.5"/><circle cx="12" cy="9" r="2"/><path d="M16.2 4.8c2 2 2.26 5.11.8 7.47"/><path d="M19.1 1.9a9.96 9.96 0 0 1 0 14.1"/><path d="M9.5 18h5"/><path d="m8 22 4-11 4 11"/>',
     sides('link', 'LINK'), { threat: true, fields: [f('ip', 'IP address', { placeholder: 'e.g. 198.51.100.7' }), f('dns', 'DNS name', { placeholder: 'e.g. cdn-update.example.net' }), SEVERITY] }),
   // More threats and weaknesses, drawn in Schematica's own 16-box icon style.
   vulnerability: part('vulnerability', 'threats', 'Vulnerability', 'M8 1.5 13.5 3.5v4c0 3.5-2.5 6-5.5 7-3-1-5.5-3.5-5.5-7v-4z M8 5v3.5 M8 10.5h.01',

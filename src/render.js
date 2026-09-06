@@ -117,8 +117,9 @@ export function bakeFrame(root, nowMs) {
 // with a 1.8px stroke, so scale ours to the same 27.6px glyph and stroke.
 const ICON_SCALE = 27.6 / 16;
 
-// net_draw types carry their original 24-box glyph markup, drawn at net_draw's
-// own 1.15 scale; Schematica parts carry a 16-box path scaled to match.
+// net_draw-style types carry 24-box glyph markup (Lucide icons and flowchart
+// shapes), drawn at net_draw's 1.15 scale; Schematica parts carry a 16-box
+// path scaled to match.
 function badgeMarkup(W, color, part) {
   const c = esc(color);
   let s = `<rect x="${W / 2 - 19}" y="8" width="38" height="38" rx="11" fill="${c}" opacity="0.13"/>`;
