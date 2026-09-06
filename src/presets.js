@@ -1,3 +1,4 @@
+import { rdkPresets } from './rdk/catalogue.js';
 // Vendor presets: real products offered in the Part number field of a generic
 // part. Picking one fills the part number and, when they are blank, the rail
 // and a one-line spec note. Palette kinds stay generic; vendors are data.
@@ -5,16 +6,7 @@
 // product pages, September 2026).
 export const PRESETS = {
   aisbc: [
-    { name: 'D-Robotics RDK X5', sublabel: 'RDK X5', rail: '5V',
-      notes: 'D-Robotics RDK X5: 8x Cortex-A55 @1.5GHz, 10 TOPS BPU, 4/8GB LPDDR4; 2x 4-lane MIPI CSI, 4x USB 3.0, GbE with PoE, Wi-Fi 6 / BT 5.4, 1x CAN FD, 40-pin header (28 GPIO), HDMI + MIPI DSI; 5V/5A.' },
-    { name: 'D-Robotics RDK X3', sublabel: 'RDK X3', rail: '5V',
-      notes: 'D-Robotics RDK X3: 4x Cortex-A53 @1.5GHz, dual-core Bernoulli BPU 5 TOPS, 2/4GB LPDDR4; 2x 2-lane MIPI CSI, USB 3.0 + 2x USB 2.0, RJ45, Wi-Fi / BT 4.2, 40-pin header, HDMI 1.4; 5V/3A. Raspberry Pi 4B / CM4 compatible.' },
-    { name: 'D-Robotics RDK X3 Module', sublabel: 'RDK X3 Module', rail: '5V',
-      notes: 'D-Robotics RDK X3 Module: CM4-form-factor module of the RDK X3 (Sunrise 3, 5 TOPS BPU) for custom carrier boards.' },
-    { name: 'D-Robotics RDK S100', sublabel: 'RDK S100', rail: '12V',
-      notes: 'D-Robotics RDK S100: 6x Cortex-A78AE @1.5GHz + 4x Cortex-R52+ real-time cores, BPU Nash 80 TOPS, 12GB LPDDR5, 64GB eMMC; GMSL and MIPI camera headers, 4x USB 3.0, 2x GbE, M.2 Key M + Key E (PCIe 3.0), HDMI 1.4; 12-20V DC.' },
-    { name: 'D-Robotics RDK S100P', sublabel: 'RDK S100P', rail: '12V',
-      notes: 'D-Robotics RDK S100P: 6x Cortex-A78AE @2.0GHz + 4x Cortex-R52+, BPU Nash 128 TOPS, 24GB LPDDR5, 64GB eMMC; same I/O as the RDK S100; 12-20V DC.' },
+    ...rdkPresets('aisbc'),
     { name: 'Raspberry Pi 5', sublabel: 'Raspberry Pi 5', rail: '5V',
       notes: 'Raspberry Pi 5: BCM2712; 2x MIPI CSI/DSI, GbE, USB 3, 40-pin header.' },
     { name: 'NVIDIA Jetson Orin Nano', sublabel: 'Jetson Orin Nano', rail: '5V',
@@ -50,18 +42,9 @@ export const PRESETS = {
     { name: 'Horizon SuperDrive HSD 1200', sublabel: 'HSD 1200', rail: '12V',
       notes: 'Horizon SuperDrive HSD 1200 on Journey 6P: 11 cameras, 3 radars, optional LiDAR; the top HSD sensor package for full-scenario assisted driving.' },
   ],
-  mipicam: [
-    { name: 'D-Robotics RDK Camera RS800W', sublabel: 'RS800W', rail: '',
-      notes: 'D-Robotics RDK Camera RS800W: 8MP rolling-shutter MIPI CSI module for RDK X5 / X3.' },
-    { name: 'D-Robotics RDK X3 Camera RS400W', sublabel: 'RS400W', rail: '',
-      notes: 'D-Robotics RDK X3 Camera RS400W: 4MP rolling-shutter MIPI CSI module.' },
-    { name: 'Sony IMX219 module', sublabel: 'IMX219', rail: '', notes: '8MP MIPI CSI-2 camera module (Camera Module v2 class).' },
-    { name: 'Sony IMX477 (HQ camera)', sublabel: 'IMX477', rail: '', notes: '12.3MP MIPI CSI-2 with a C/CS-mount lens.' },
-    { name: 'OmniVision OV5647', sublabel: 'OV5647', rail: '', notes: '5MP MIPI CSI-2 camera module (Camera Module v1 class).' },
-  ],
+  mipicam: rdkPresets('mipicam'),
   depthcam: [
-    { name: 'D-Robotics RDK Stereo Camera Module', sublabel: 'RDK Stereo Camera', rail: '',
-      notes: 'D-Robotics RDK Stereo Camera Module: 2MP stereo pair over MIPI CSI for depth on RDK boards.' },
+    ...rdkPresets('depthcam'),
     { name: 'Intel RealSense D435i', sublabel: 'RealSense D435i', rail: '', notes: 'Stereo depth, RGB, and IMU over USB 3.' },
     { name: 'Orbbec Gemini 2', sublabel: 'Gemini 2', rail: '', notes: 'Stereo depth and RGB over USB 3.' },
   ],

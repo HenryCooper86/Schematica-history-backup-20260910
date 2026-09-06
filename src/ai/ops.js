@@ -1,3 +1,4 @@
+import { nodePart } from '../rdk/profiles.js';
 // Edit operations: the only way the assistant changes a board. A batch is
 // applied to a working copy and reaches the document only if every
 // operation succeeds. No operation carries a coordinate; src/ai/layout.js
@@ -190,7 +191,7 @@ const busList = (ports) => [...new Set(ports.map((p) => p.bus))].join(', ');
 // bus when the bus is shared, the first free one otherwise, a side port for
 // the untyped buses when the part has none of that bus.
 export function pickPort(doc, node, bus) {
-  const ports = getPart(node.kind).ports;
+  const ports = nodePart(node).ports;
   const ofBus = ports.filter((p) => p.bus === bus);
   if (!ofBus.length) {
     if (UNTYPED_BUSES.has(bus)) {
@@ -215,8 +216,8 @@ export function pickPort(doc, node, bus) {
 // ports the bus is given, or inferred when the parts share exactly one bus
 // besides power and ground.
 export function pickPorts(doc, a, b, portA, portB, bus) {
-  const pa = getPart(a.kind).ports;
-  const pb = getPart(b.kind).ports;
+  const pa = nodePart(a).ports;
+  const pb = nodePart(b).ports;
   if (portA !== undefined || portB !== undefined) {
     if (portA === undefined || portB === undefined) fail('give both ports or neither');
     const A = pa.find((p) => p.id === portA) || fail(`node ${a.id} has no port "${portA}"; ports: ${portList(pa)}`);

@@ -1,5 +1,6 @@
+import { displayPart, nodePart } from './rdk/profiles.js';
 import { BUSES } from './buses.js';
-import { getPart, CATEGORY_COLORS, DISPOSITIONS, SEVERITY_COLORS } from './palette.js';
+import { CATEGORY_COLORS, DISPOSITIONS, SEVERITY_COLORS } from './palette.js';
 import {
   portPosition, wireGeom, wireGeomToPoint, wireLanes, curvePoint, wrapText, noteHeight,
   nodeRect, nodeSize, nodeMeta, NOTE_W, LANE_TITLE_H, WIRE_FAN,
@@ -160,11 +161,11 @@ function portsMarkup(node, part, acc, W, H) {
   for (const port of part.ports) {
     const pos = portPosition(local, port);
     const bus = BUSES[port.bus];
-    s += `<g class="portg" data-node="${esc(node.id)}" data-port="${esc(port.id)}">`
-      + `<circle class="port" cx="${pos.x}" cy="${pos.y}" r="5" fill="${CHIP_BG}" stroke="${esc(acc)}" stroke-width="1.6"/>`
+    s += `<g class="portg${port.unsupported ? ' unsupported' : ''}"${port.unsupported ? ' data-unsupported="true" aria-disabled="true"' : ''} data-node="${esc(node.id)}" data-port="${esc(port.id)}">`
+      + `<circle class="port" cx="${pos.x}" cy="${pos.y}" r="5" fill="${CHIP_BG}" stroke="${port.unsupported ? '#f87171' : esc(acc)}" stroke-width="1.6"/>`
       + `<text class="port-name" x="${pos.x}" y="${pos.y - 11}" text-anchor="middle" font-size="9.5" font-weight="600"`
       + ` font-family="${MONO}" fill="#7dd3fc" paint-order="stroke" stroke="${CANVAS_BG}" stroke-width="3"`
-      + ` pointer-events="none">${esc(port.name)} · ${esc(bus ? bus.short : '')}</text></g>`;
+      + ` pointer-events="none">${port.unsupported ? 'Unsupported: ' : ''}${esc(port.name)} · ${esc(bus ? bus.short : '')}</text></g>`;
   }
   return s + '</g>';
 }
@@ -290,8 +291,8 @@ function haloMarkup(node, W, H, animating, now) {
     + ` fill="none" stroke="${color}" stroke-width="2.2" stroke-opacity="${opacity}"/>`;
 }
 
-function nodeMarkup(node, selected, ui, animating, now) {
-  const part = getPart(node.kind);
+function nodeMarkup(node, selected, ui, animating, now, wires) {
+  const part = displayPart(node, wires);
   const acc = node.color || part.accent || CATEGORY_COLORS[part.category] || ACCENT;
   const { w: W, h: H } = nodeSize(node);
   let s = `<g class="node" data-id="${esc(node.id)}" data-type="node" transform="translate(${node.x} ${node.y})">`;
@@ -334,6 +335,8 @@ function wireMarkup(byId, wire, lane, selected, ui, animating, now) {
   const a = byId.get(wire.from.node);
   const b = byId.get(wire.to.node);
   if (!a || !b) return '';
+  const invalid = !nodePart(a).ports.some((p) => p.id === wire.from.port)
+    || !nodePart(b).ports.some((p) => p.id === wire.to.port);
   const bus = BUSES[wire.bus] || BUSES.gpio;
   const geo = wireGeom(nodeRect(a), nodeRect(b), lane);
   const sneak = wire.style === 'sneakernet';
@@ -343,9 +346,9 @@ function wireMarkup(byId, wire, lane, selected, ui, animating, now) {
   const wants = wire.flow === 'on' || (wire.flow !== 'off' && animating);
   const flowing = wants && !sneak && bus.flows;
   const dash = DASH[wire.style] || (flowing ? DASH.flow : null);
-  const stroke = selected ? WIRE_SEL : (sneak ? WIRE_SNEAK : WIRE);
+  const stroke = invalid ? '#f87171' : selected ? WIRE_SEL : (sneak ? WIRE_SNEAK : WIRE);
   const width = selected ? 2.4 : (sneak ? 1.5 : 2);
-  let s = `<g class="wire${selected ? ' sel' : ''}" data-id="${esc(wire.id)}" data-type="wire"`
+  let s = `<g class="wire${invalid ? ' invalid' : ''}${selected ? ' sel' : ''}" data-id="${esc(wire.id)}" data-type="wire"`
     + ` data-from="${esc(wire.from.node)}:${esc(wire.from.port)}" data-to="${esc(wire.to.node)}:${esc(wire.to.port)}"`
     + `${sneak ? ` data-g="${geoData(geo)}"` : ''}>`;
   s += `<path d="${geo.d}" fill="none" stroke="transparent" stroke-width="14" pointer-events="stroke"/>`;
@@ -514,7 +517,7 @@ export function diagramMarkup(doc, ui = {}) {
   const lanes = wireLanes(doc.wires);
   const zones = doc.zones.map((z) => zoneMarkup(z, sel.has(z.id))).join('');
   const wires = doc.wires.map((w) => wireMarkup(byId, w, lanes.get(w.id) || 0, sel.has(w.id), ui, animating, now)).join('');
-  const nodes = doc.nodes.map((n) => nodeMarkup(n, sel.has(n.id), ui, animating, now)).join('');
+  const nodes = doc.nodes.map((n) => nodeMarkup(n, sel.has(n.id), ui, animating, now, doc.wires)).join('');
   const notes = doc.notes.map((n) => noteMarkup(n, sel.has(n.id))).join('');
   return `<g class="layer-zones">${zones}</g><g class="layer-wires">${wires}</g>`
     + `<g class="layer-nodes">${nodes}</g><g class="layer-notes">${notes}</g>`;

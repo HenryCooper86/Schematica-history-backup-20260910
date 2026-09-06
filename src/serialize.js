@@ -1,5 +1,6 @@
+import { knownPorts } from './rdk/profiles.js';
 import { BUSES, DEFAULT_BUS } from './buses.js';
-import { PARTS, getPart, DISPOSITIONS, PORT_ALIASES } from './palette.js';
+import { PARTS, DISPOSITIONS, PORT_ALIASES } from './palette.js';
 import { newDoc, NODE_STATUSES, NODE_FLAGS, SCHEMA_VERSION } from './state.js';
 import { nodeSize } from './geometry.js';
 
@@ -163,7 +164,7 @@ export function deserialize(text) {
     if (!node) return null;
     // A renamed port keeps its wires through the alias table.
     const port = PORT_ALIASES[node.kind]?.[ref.port] ?? ref.port;
-    if (getPart(node.kind).ports.some((p) => p.id === port)) {
+    if (knownPorts(node.kind).some((p) => p.id === port)) {
       return { node: ref.node, port, remapped: false };
     }
     if (coerced.has(ref.node)) return { node: ref.node, port: fallbackPort, remapped: true };

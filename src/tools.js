@@ -7,7 +7,7 @@ import {
   rewireEnd, resolveBus,
 } from './state.js';
 import { BUSES, BUS_ORDER } from './buses.js';
-import { getPart } from './palette.js';
+import { nodePart } from './rdk/profiles.js';
 import { esc } from './render.js';
 
 // requestRender(kind): 'all' (default) rebuilds the diagram, 'view' only moves
@@ -148,7 +148,7 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave })
   }
 
   function portUnder(e) {
-    return document.elementFromPoint(e.clientX, e.clientY)?.closest?.('.portg') || null;
+    return document.elementFromPoint(e.clientX, e.clientY)?.closest?.('.portg:not([data-unsupported])') || null;
   }
 
   function portRef(el) {
@@ -192,6 +192,7 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave })
     const pt = toWorld(e);
 
     const portEl = e.target.closest('.portg');
+    if (portEl?.dataset.unsupported) return;
     if (portEl) {
       ui.wireDraft = { from: portRef(portEl), cursor: pt };
       drag = { mode: 'wire' };
@@ -506,12 +507,13 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave })
   function portBus(ref) {
     const node = store.doc.nodes.find((n) => n.id === ref.node);
     if (!node) return null;
-    return getPart(node.kind).ports.find((p) => p.id === ref.port)?.bus ?? null;
+    return nodePart(node).ports.find((p) => p.id === ref.port)?.bus ?? null;
   }
 
   function finishWire(from, to, e) {
     const busFrom = portBus(from);
     const busTo = portBus(to);
+    if (!busFrom || !busTo) return;
     if (busFrom && busFrom === busTo) {
       const id = addWire(store, busFrom, from, to);
       store.setSelection([id]);
@@ -533,6 +535,7 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave })
     const other = end === 'to' ? wire.from : wire.to;
     const busOther = portBus(other);
     const busNew = portBus(ref);
+    if (!busNew) return;
     const bus = resolveBus(wire.bus, busOther, busNew);
     if (bus) {
       rewireEnd(store, id, end, ref, bus);
