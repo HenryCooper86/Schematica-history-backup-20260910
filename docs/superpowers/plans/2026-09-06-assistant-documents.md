@@ -15,7 +15,7 @@
 - At most 20 accepted documents in a collection, at most 10 MiB raw bytes per file, at most 40 MiB raw bytes across accepted files.
 - At most 100,000 extracted characters per document. Larger extraction is visibly marked partial. PDF extraction stops at 100 pages and reports partial coverage.
 - At most 60,000 characters of framed attachment context per model request. The UI uses the same calculation and reports partial inclusion before Send.
-- No original file contents enter board JSON, autosave, share links, export, settings or persisted chat history.
+- Raw attachment payloads never enter board JSON, autosave, share links, export, settings or persisted chat history. Ordinary user messages and model replies retain their existing history behavior and may quote or discuss a source.
 - Files remain in this tab's memory until reload, New thread or board replacement. No model request occurs on import.
 - No runtime CDN or remote parsing service; static deploy without a build step. Bundle pinned parsers/licenses and update dependency claims.
 - Document text and filenames are untrusted reference data, never executable HTML, commands or higher-priority model instructions.
