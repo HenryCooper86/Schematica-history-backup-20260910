@@ -1,6 +1,6 @@
 # RDK Integration Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Make RDK product data, connections, design checks, assistant guidance, and starter guides work together in Schematica.
 
@@ -33,7 +33,7 @@
 - `displayPart(node, wires=[])`: supported ports plus any wired legacy ports, tagged `unsupported:true`; unmatched generic products retain foreign preserved ports as unsupported too.
 - `profileSummary(profile)`: compact plain text with requirements and source URLs for subsequent tasks.
 
-- [ ] **Step 1: Add failing consumer tests.** Use real deserialize/serialize, applyEdits, and diagramMarkup. Independently assert X3 has one available CSI, X5 two, and GS130W has `csi` plus `csi-right`. Generic stereo name must not resolve to GS130W. A saved X3 wire on `csi2` and a changed stereo wire on `csi-right` must round-trip intact and render as invalid. An AI batch trying X3 `csi2` must reject atomically.
+- [x] **Step 1: Add failing consumer tests.** Use real deserialize/serialize, applyEdits, and diagramMarkup. Independently assert X3 has one available CSI, X5 two, and GS130W has `csi` plus `csi-right`. Generic stereo name must not resolve to GS130W. A saved X3 wire on `csi2` and a changed stereo wire on `csi-right` must round-trip intact and render as invalid. An AI batch trying X3 `csi2` must reject atomically.
 
 ```js
 const doc = newDoc();
@@ -48,10 +48,10 @@ assert.equal(doc.nodes.length, 0);
 
 Use the existing exported EDIT_SCHEMA; the fixture intentionally requests an unavailable X3 connector.
 
-- [ ] **Step 2:** Run `node --test tests/rdk-profiles.test.js`, inspect expected missing-feature failures, then implement.
-- [ ] **Step 3:** Verify official source pages listed in the spec plus S100/S100P hardware references. Record only supported facts. Catalogue X3, X5, S100, S100P, carrier-dependent X3 Module, existing legacy cameras, GS130W/WI, and named generic sensor-module entries without assuming all vendors share compatibility. Populate software records (`hobot_sensor`, `hobot_dnn`, `hobot_codec`, `hobot_render`) with `kind:'rdksoftware'` for Task 3; those records use flow ports and support evidence. Software compatibility uses `boardIds` and runtime strings (`Humble`, `Foxy`, `Jazzy`) only where sourced; `null` is unknown.
-- [ ] **Step 4:** Implement catalogue lookup and port resolution. Generate RDK presets from data and remove duplicated RDK prose. Keep generic palette ports unchanged; resolve node ports in render/manual wiring/AI. Use the known-port union only for restoration/display, never for accepting new AI connections. Display invalid ports distinctly and prevent pointer wiring from using them. Profile changes must never silently overwrite existing rail/notes.
-- [ ] **Step 5:** Run `node --test tests/rdk-profiles.test.js tests/presets.test.js tests/serialize.test.js tests/render.test.js tests/ai-ops.test.js`; fix regressions. Commit only Task 1 files and report exact evidence.
+- [x] **Step 2:** Run `node --test tests/rdk-profiles.test.js`, inspect expected missing-feature failures, then implement.
+- [x] **Step 3:** Verify official source pages listed in the spec plus S100/S100P hardware references. Record only supported facts. Catalogue X3, X5, S100, S100P, carrier-dependent X3 Module, existing legacy cameras, GS130W/WI, and named generic sensor-module entries without assuming all vendors share compatibility. Populate software records (`hobot_sensor`, `hobot_dnn`, `hobot_codec`, `hobot_render`) with `kind:'rdksoftware'` for Task 3; those records use flow ports and support evidence. Software compatibility uses `boardIds` and runtime strings (`Humble`, `Foxy`, `Jazzy`) only where sourced; `null` is unknown.
+- [x] **Step 4:** Implement catalogue lookup and port resolution. Generate RDK presets from data and remove duplicated RDK prose. Keep generic palette ports unchanged; resolve node ports in render/manual wiring/AI. Use the known-port union only for restoration/display, never for accepting new AI connections. Display invalid ports distinctly and prevent pointer wiring from using them. Profile changes must never silently overwrite existing rail/notes.
+- [x] **Step 5:** Run `node --test tests/rdk-profiles.test.js tests/presets.test.js tests/serialize.test.js tests/render.test.js tests/ai-ops.test.js`; fix regressions. Commit only Task 1 files and report exact evidence.
 
 ## Task 2: RDK compatibility checks
 
@@ -59,7 +59,7 @@ Use the existing exported EDIT_SCHEMA; the fixture intentionally requests an una
 
 **Consumes:** Task 1 `profileFor`, `nodePart`, `knownPorts`, product records. **Produces:** `checkRdk(doc)` with existing finding shape, and `cameraOccupancy(doc,node)` for UI if useful (document signature in report).
 
-- [ ] **Step 1:** Write hand-built board fixtures to test valid stereo pair, missing right link, repeated host connector, split-board pair, reversed wire orientation, unavailable X3 connector, and valid shared I2C. Assert rule IDs and involved IDs, not complete message strings.
+- [x] **Step 1:** Write hand-built board fixtures to test valid stereo pair, missing right link, repeated host connector, split-board pair, reversed wire orientation, unavailable X3 connector, and valid shared I2C. Assert rule IDs and involved IDs, not complete message strings.
 
 ```js
 const failures = checkDoc(stereoDoc);
@@ -68,10 +68,10 @@ stereoDoc.wires = stereoDoc.wires.filter(w => w.id !== 'right');
 assert.ok(checkDoc(stereoDoc).some(f => f.rule === 'rdk-stereo-links' && f.ids.includes('camera')));
 ```
 
-- [ ] **Step 2:** Run `node --test tests/rdk-checks.test.js`; inspect the red assertions.
-- [ ] **Step 3:** Implement the spec's six rules. Check interface availability for both endpoints, enforce exclusive CSI connectors, validate stereo pairs against actual supported ports on the same board, and distinguish documented conflicts from unverified combinations. An unknown board cannot be asserted compatible merely because it has generic CSI ports. Carrier-dependent products show requirements. Required adapters must be represented by an exact known adapter identity on the actual connection path; if current schema/data cannot establish a path, report unverified instead of assuming an unrelated adapter elsewhere on the board satisfies it.
-- [ ] **Step 4:** Add power fixtures for a 12V board input into X5, valid 5V input, unknown rail strings, and 3.3V I2C peripherals. Parse only complete numeric volt strings/ranges; do not treat a regulator input as output voltage. Add software fixtures for missing target, deleted target, known unsupported runtime, unknown package/runtime, and a supported combination. Software node fields are `{package,runtime,target}`. Unknown metadata generates a warning without claiming incompatibility.
-- [ ] **Step 5:** Integrate findings into checkDoc and ordering, using node-aware ports for general port checks. Run `node --test tests/rdk-checks.test.js tests/drc.test.js tests/rdk-profiles.test.js`; commit task files and report.
+- [x] **Step 2:** Run `node --test tests/rdk-checks.test.js`; inspect the red assertions.
+- [x] **Step 3:** Implement the spec's six rules. Check interface availability for both endpoints, enforce exclusive CSI connectors, validate stereo pairs against actual supported ports on the same board, and distinguish documented conflicts from unverified combinations. An unknown board cannot be asserted compatible merely because it has generic CSI ports. Carrier-dependent products show requirements. Required adapters must be represented by an exact known adapter identity on the actual connection path; if current schema/data cannot establish a path, report unverified instead of assuming an unrelated adapter elsewhere on the board satisfies it.
+- [x] **Step 4:** Add power fixtures for a 12V board input into X5, valid 5V input, unknown rail strings, and 3.3V I2C peripherals. Parse only complete numeric volt strings/ranges; do not treat a regulator input as output voltage. Add software fixtures for missing target, deleted target, known unsupported runtime, unknown package/runtime, and a supported combination. Software node fields are `{package,runtime,target}`. Unknown metadata generates a warning without claiming incompatibility.
+- [x] **Step 5:** Integrate findings into checkDoc and ordering, using node-aware ports for general port checks. Run `node --test tests/rdk-checks.test.js tests/drc.test.js tests/rdk-profiles.test.js`; commit task files and report.
 
 ## Task 3: Software blocks, properties, assistant reference, and guide
 
@@ -79,7 +79,7 @@ assert.ok(checkDoc(stereoDoc).some(f => f.rule === 'rdk-stereo-links' && f.ids.i
 
 **Consumes:** Tasks 1–2 catalogue/profiles/checks. **Produces:** `rdkGuide(doc)` returns Markdown or empty string when no RDK board; `rdkDetails(node,doc)` escaped HTML; `rdk_reference({query})` tool output; `rdksoftware` kind fields `{package,runtime,target}` with input/output flow ports.
 
-- [ ] **Step 1:** Write failing integration tests against real createExecutor: query X5 and GS130W, unknown query, get_board includes connector constraints/source, tool call does not mutate Store, AI adds a software node and resolves its target ref to an existing/new board ID, serialize/deserialize preserves fields. Existing single-shot board context must include concise relevant profiles.
+- [x] **Step 1:** Write failing integration tests against real createExecutor: query X5 and GS130W, unknown query, get_board includes connector constraints/source, tool call does not mutate Store, AI adds a software node and resolves its target ref to an existing/new board ID, serialize/deserialize preserves fields. Existing single-shot board context must include concise relevant profiles.
 
 ```js
 const before = serialize(store.doc);
@@ -90,10 +90,10 @@ assert.match(result.text, /https:\/\/d-robotics/);
 assert.equal(serialize(store.doc), before);
 ```
 
-- [ ] **Step 2:** Write guide tests: board-specific BOM and endpoints, findings present, software target mapping, official sources, no commands, hostile title/labels escaped to harmless Markdown, empty document yields no guide. Verify the generator's only input is a document, not settings or provider state. Run focused tests and inspect red results.
-- [ ] **Step 3:** Add software kind and presets, source-linked assistant reference lookup, profile summary in get_board/node context, and a concise prompt rule to look up RDK constraints and avoid hardware-certification claims. Keep the reference tool capped. Clarify tools receive data, not instructions. Do not expose command execution or new AI mutations beyond existing atomic ops.
-- [ ] **Step 4:** When duplicating a selected board and software stage together, remap the copied stage target to the copied board; copying only the stage keeps its original target. Cover both with real state tests. Reuse `src/export.js` download helper for its existing Blob lifecycle. Render compact RDK details in properties: identity/date, supported ports, CSI occupancy, power/adapters, compatibility, links. Software properties select target from existing RDK board nodes and retain a missing target value visibly. A user-triggered Download setup guide button is available for an RDK board and emits Markdown using Blob and a temporary download anchor; revoke the object URL. Escape text and allow only HTTPS links. Style within existing panel proportions.
-- [ ] **Step 5:** Run new unit tests plus existing palette, search, presets, AI tools/context/ops, serialize, and render suites. Update prior fixed tool-count tests to the intentional added reference tool. Commit task files and report.
+- [x] **Step 2:** Write guide tests: board-specific BOM and endpoints, findings present, software target mapping, official sources, no commands, hostile title/labels escaped to harmless Markdown, empty document yields no guide. Verify the generator's only input is a document, not settings or provider state. Run focused tests and inspect red results.
+- [x] **Step 3:** Add software kind and presets, source-linked assistant reference lookup, profile summary in get_board/node context, and a concise prompt rule to look up RDK constraints and avoid hardware-certification claims. Keep the reference tool capped. Clarify tools receive data, not instructions. Do not expose command execution or new AI mutations beyond existing atomic ops.
+- [x] **Step 4:** When duplicating a selected board and software stage together, remap the copied stage target to the copied board; copying only the stage keeps its original target. Cover both with real state tests. Reuse `src/export.js` download helper for its existing Blob lifecycle. Render compact RDK details in properties: identity/date, supported ports, CSI occupancy, power/adapters, compatibility, links. Software properties select target from existing RDK board nodes and retain a missing target value visibly. A user-triggered Download setup guide button is available for an RDK board and emits Markdown using Blob and a temporary download anchor; revoke the object URL. Escape text and allow only HTTPS links. Style within existing panel proportions.
+- [x] **Step 5:** Run new unit tests plus existing palette, search, presets, AI tools/context/ops, serialize, and render suites. Update prior fixed tool-count tests to the intentional added reference tool. Commit task files and report.
 
 ## Task 4: Corrected starter diagrams and end-to-end verification
 
