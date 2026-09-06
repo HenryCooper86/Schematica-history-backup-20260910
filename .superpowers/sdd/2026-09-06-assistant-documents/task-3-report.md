@@ -26,3 +26,11 @@ Reviewed the full authored diff against the task brief. The acceptance module us
 Password-protected PDF behavior and the forced 30-second extraction timeout are implemented in Task 1 but not forced here; constructing a deterministic encrypted PDF or waiting 30 seconds per browser run was not proportionate after real success/error/cancel worker coverage. Busy-control locking is exercised by cancellation and existing request smoke behavior but is not represented as a separate named assertion. Dropped directories are covered by controller logic but not synthesized because that would require replacing the browser's native directory entry boundary. No product concern remains from the covered behavior.
 
 Files changed by this task: `README.md`, `tests/e2e/smoke.mjs`, `tests/e2e/documents.mjs`, `tests/fixtures/documents/README.md`, `tests/fixtures/documents/generate.py`, `tests/fixtures/documents/large.txt`, `tests/fixtures/documents/unsupported.bin`, and `tests/fixtures/documents/collection/*`.
+
+## Review fixes
+
+The Task 3 review found four assertion gaps. The c404e4e test source had no literal Chinese assertion, did not measure the serialized source block or reject the large fixture's tail marker, used a 300 ms sleep for stale work, and covered hostile content but not an HTML-significant filename.
+
+Added an original fixture named `<img src=x onerror=SCHEMATICA_NAME_8>.md` and verifies its literal list/preview title with zero injected images. Provider-round assertions now require the real DOCX Chinese `电源` text, locate the actual source block on both rounds, prove each serialized block is at most 60,000 characters, and prove `SCHEMATICA_LARGE_END` is omitted. The stale-import case now holds the actual selected PDF's `File.arrayBuffer()` call, observes that read start, resets the thread, explicitly releases and settles the read, restores the native method in `finally`, and then proves no document reappears. Successful PDF/DOCX parsing remains unmodified.
+
+Focused GREEN: `DOCUMENT_E2E_ONLY=1 npm run e2e` — 23/23 passed, no console errors or exceptions (`/tmp/task3-review-focused.log`). Final full GREEN: `npm run e2e` — 116/116 passed, no console errors or exceptions (`/tmp/task3-review-full.log`). No unit rerun because only browser acceptance code and generated fixtures changed.

@@ -32,7 +32,8 @@ export async function runDocumentChecks(harness) {
   const requestsBeforeImport = fakeSeen.length;
   await setInput('#ai-documents [data-doc-files]', [
     fixture('requirements.md'), fixture('hostile.txt'), fixture('requirements.pdf'),
-    fixture('requirements.docx'), fixture('large.txt'), fixture('corrupt.pdf'), fixture('unsupported.bin'),
+    fixture('requirements.docx'), fixture('large.txt'), fixture('<img src=x onerror=SCHEMATICA_NAME_8>.md'),
+    fixture('corrupt.pdf'), fixture('unsupported.bin'),
   ]);
   await settle();
   const imported = await js(`(() => ({
@@ -42,9 +43,9 @@ export async function runDocumentChecks(harness) {
     summary: document.querySelector('#ai-documents [data-doc-summary]').textContent,
   }))()`);
   check('choosing documents does not call the provider', fakeSeen.length === requestsBeforeImport, `${fakeSeen.length} vs ${requestsBeforeImport}`);
-  check('file input runs real MD, TXT, PDF and DOCX extraction with Unicode markers', imported.rows === 5
+  check('file input runs real MD, TXT, PDF and DOCX extraction with Unicode markers', imported.rows === 6
     && /SCHEMATICA/.test(imported.summary) === false && /corrupt\.pdf/i.test(imported.issues) && /unsupported\.bin/i.test(imported.issues)
-    && /Partial/.test(imported.text), JSON.stringify(imported));
+    && /Partial/.test(imported.text) && imported.text.includes('<img src=x onerror=SCHEMATICA_NAME_8>.md'), JSON.stringify(imported));
 
   const names = await js(`[...document.querySelectorAll('#ai-documents [data-doc-index] label span')].map(e => e.textContent)`);
   check('a failed parser is isolated from successful files', names.includes('requirements.pdf') && names.includes('requirements.docx') && !names.includes('corrupt.pdf'), JSON.stringify(names));
@@ -58,20 +59,31 @@ export async function runDocumentChecks(harness) {
   await sleep(50);
   check('Escape closes the source preview', await js(`!document.querySelector('dialog.ai-document-preview')?.open`));
 
+  const hostileName = '<img src=x onerror=SCHEMATICA_NAME_8>.md';
+  const hostileNameIndex = names.indexOf(hostileName);
+  await js(`document.querySelector('#ai-documents [data-doc-index="${hostileNameIndex}"] [data-doc-preview]').click(); true`);
+  const filenameSafety = await js(`(() => { const d=document.querySelector('dialog.ai-document-preview'); return { title:d.querySelector('h3').textContent, dialogImages:d.querySelectorAll('img').length, listImages:document.querySelectorAll('#ai-documents img').length }; })()`);
+  check('hostile filename stays literal in list and preview', filenameSafety.title === hostileName && filenameSafety.dialogImages === 0 && filenameSafety.listImages === 0, JSON.stringify(filenameSafety));
+  await js(`document.querySelector('dialog.ai-document-preview [data-doc-close]').click(); true`);
+
   const mdIndex = names.indexOf('requirements.md');
   await js(`(() => { const c=document.querySelector('#ai-documents [data-doc-index="${mdIndex}"] [data-doc-select]'); c.click(); return !c.checked; })()`);
   const deselected = await js(`document.querySelector('#ai-documents [data-doc-index="${mdIndex}"]').textContent`);
   check('individual source selection updates request inclusion', /Not selected/.test(deselected), deselected);
   await js(`document.querySelector('#ai-documents [data-doc-index="${hostileIndex}"] [data-doc-remove]').click(); true`);
-  check('Remove deletes exactly one source', await rows() === 4 && !(await js(`document.querySelector('#ai-documents [data-doc-list]').textContent`)).includes('hostile.txt'));
+  check('Remove deletes exactly one source', await rows() === 5 && !(await js(`document.querySelector('#ai-documents [data-doc-list]').textContent`)).includes('hostile.txt'));
 
   const sendStart = fakeSeen.length;
   await js(`(() => { const i=document.getElementById('ai-input'); i.value='Use the attached sources'; document.getElementById('ai-send').click(); return true; })()`);
   await waitFor(`document.getElementById('ai-stop').hidden && document.querySelectorAll('#ai-thread .ai-msg.assistant').length > 0`);
   const roundBodies = fakeSeen.slice(sendStart).map(item => JSON.stringify(item.body));
+  const sourceFrames = fakeSeen.slice(sendStart).map(item => item.body.messages.flatMap(message => message.content).find(block => block.text?.includes('SCHEMATICA_LARGE_START'))?.text || '');
   check('selected source payload reaches the provider through its tool round', roundBodies.length === 2
-    && roundBodies.every(body => body.includes('SCHEMATICA_PDF_SENSOR_42') && body.includes('SCHEMATICA_DOCX_CAMERA_73') && body.includes('SCHEMATICA_LARGE_START')),
+    && roundBodies.every(body => body.includes('SCHEMATICA_PDF_SENSOR_42') && body.includes('SCHEMATICA_DOCX_CAMERA_73') && body.includes('SCHEMATICA_LARGE_START') && body.includes('电源')),
     `${roundBodies.length} provider calls`);
+  check('serialized source frame respects the 60,000-character budget', sourceFrames.length === 2
+    && sourceFrames.every(frame => frame.length <= 60000 && !frame.includes('SCHEMATICA_LARGE_END')),
+    JSON.stringify(sourceFrames.map(frame => frame.length)));
   check('deselected and removed raw source payloads are absent from the request', roundBodies.every(body => !body.includes('SCHEMATICA_MARKDOWN_19') && !body.includes('SCHEMATICA_HOSTILE_9')));
   const stored = await sourceStorage();
   check('raw source payload is absent from board and persisted thread storage', !/SCHEMATICA_(PDF_SENSOR_42|DOCX_CAMERA_73|LARGE_START)/.test(stored));
@@ -108,10 +120,17 @@ export async function runDocumentChecks(harness) {
   const cancelled = await js(`({ progress:document.querySelector('[data-doc-progress]').textContent, rows:document.querySelectorAll('[data-doc-index]').length, sendDisabled:document.getElementById('ai-send').disabled })`);
   check('Cancel settles real parser work without locking the composer', /cancelled/i.test(cancelled.progress) && cancelled.rows <= 1 && !cancelled.sendDisabled, JSON.stringify(cancelled));
 
-  await setInput('#ai-documents [data-doc-files]', [fixture('many-pages.pdf')]);
-  await js(`document.getElementById('ai-new').click(); true`);
-  await sleep(300);
-  check('New thread invalidates stale parser completion', await rows() === 0);
+  await js(`(() => { window.__documentArrayBuffer=File.prototype.arrayBuffer; window.__heldReadStarted=false; window.__releaseHeldRead=null; File.prototype.arrayBuffer=function(){ if (this.name !== 'requirements.pdf') return window.__documentArrayBuffer.call(this); window.__heldReadStarted=true; return new Promise(resolve => { window.__releaseHeldRead=() => window.__documentArrayBuffer.call(this).then(resolve); }); }; return true; })()`);
+  try {
+    await setInput('#ai-documents [data-doc-files]', [fixture('requirements.pdf')]);
+    await waitFor(`window.__heldReadStarted`);
+    await js(`document.getElementById('ai-new').click(); true`);
+    await js(`window.__releaseHeldRead(); true`);
+    await waitFor(`document.querySelector('#ai-documents [data-doc-cancel]').disabled`);
+  } finally {
+    await js(`File.prototype.arrayBuffer=window.__documentArrayBuffer; true`);
+  }
+  check('New thread invalidates stale parser completion after its held read resolves', await rows() === 0);
 
   // An individual drop uses bytes fetched from the synthetic fixture server.
   await js(`(async () => { const bytes=await (await fetch('/tests/fixtures/documents/requirements.md')).arrayBuffer(); const file=new File([bytes], 'dropped.md', {type:'text/markdown'}); const dt=new DataTransfer(); dt.items.add(file); document.getElementById('ai-documents').dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer:dt})); return true; })()`);
