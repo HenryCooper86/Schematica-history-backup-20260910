@@ -107,3 +107,11 @@ test('custom nodes list their ports and template so the model can connect by bus
   assert.match(nodeLine({ nodes: [bare], wires: [], zones: [], notes: [] }, bare), /custom-ports=- pn=/);
   assert.equal(templateLine({ id: 'lp1', ...part }), 'template lp1  Motor driver x4  ports: p1:VCC(power), p2:CAN(can)  [library]');
 });
+
+test('the rules cover custom parts and the single-shot schema names them', () => {
+  assert.match(ROLE_RULES, /kind custom/);
+  assert.match(ROLE_RULES, /only when no kind fits/);
+  assert.match(ROLE_RULES, /say in your reply that you made a custom part/);
+  assert.match(ROLE_RULES, /custom-ports/);
+  assert.match(SINGLE_SHOT_RULES, /kind custom/);
+});
