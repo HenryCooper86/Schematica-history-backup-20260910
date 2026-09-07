@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { filterParts, partHaystack } from '../src/search.js';
+import { filterParts, partHaystack, filterTemplates, templateHaystack } from '../src/search.js';
 import { PARTS } from '../src/palette.js';
 
 test('an empty query matches every part', () => {
@@ -22,4 +22,18 @@ test('every word must match, case-insensitively', () => {
   assert.ok(both.has('mipicam'));
   assert.ok(!both.has('lidar'));
   assert.match(partHaystack(PARTS.aisbc), /rdk x5/);
+});
+
+test('library templates match by name, category, port names, buses, and the words custom and library', () => {
+  const templates = [
+    { id: 'lp1', name: 'Motor driver x4', category: 'actuators', accent: null, icon: { text: 'MD' }, ports: [{ id: 'p1', name: 'CAN', side: 'left', bus: 'can', required: false }], fields: [] },
+    { id: 'lp2', name: 'Fan', category: 'misc', accent: null, icon: { text: 'F' }, ports: [], fields: [] },
+  ];
+  assert.deepEqual(filterTemplates('motor', templates).map((t) => t.id), ['lp1']);
+  assert.deepEqual(filterTemplates('can', templates).map((t) => t.id), ['lp1'], 'a bus name');
+  assert.deepEqual(filterTemplates('actuators', templates).map((t) => t.id), ['lp1'], 'a category name');
+  assert.deepEqual(filterTemplates('custom', templates).map((t) => t.id), ['lp1', 'lp2']);
+  assert.deepEqual(filterTemplates('', templates).length, 2);
+  assert.deepEqual(filterTemplates('zzz', templates), []);
+  assert.match(templateHaystack(templates[0]), /motor driver x4 actuators can/);
 });

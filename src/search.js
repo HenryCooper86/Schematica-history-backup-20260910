@@ -26,3 +26,24 @@ export function filterParts(query) {
   }
   return hits;
 }
+
+const words = (query) => String(query ?? '').toLowerCase().split(/\s+/).filter(Boolean);
+
+// Library templates (custom part definitions with an id) search the same way.
+// The list is passed in so this module stays free of storage.
+export function templateHaystack(t) {
+  const bits = [
+    t.name, CATEGORY_NAME[t.category] || t.category,
+    ...(t.ports || []).flatMap((p) => [p.name, BUSES[p.bus]?.name, BUSES[p.bus]?.short]),
+    'custom', 'library',
+  ];
+  return bits.filter(Boolean).join(' ').toLowerCase();
+}
+
+export function filterTemplates(query, templates) {
+  const ws = words(query);
+  return templates.filter((t) => {
+    const hay = templateHaystack(t);
+    return ws.every((w) => hay.includes(w));
+  });
+}
