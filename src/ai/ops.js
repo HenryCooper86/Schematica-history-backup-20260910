@@ -3,7 +3,7 @@ import { nodePart, profileFor } from '../rdk/profiles.js';
 // applied to a working copy and reaches the document only if every
 // operation succeeds. No operation carries a coordinate; src/ai/layout.js
 // places whatever a batch creates.
-import { PARTS, getPart, DISPOSITIONS } from '../palette.js';
+import { PARTS, DISPOSITIONS } from '../palette.js';
 import { normalizePart, partOf, mergePortIds, mergeFieldIds } from '../custom.js';
 import { BUSES } from '../buses.js';
 import { uid, NODE_STATUSES, NODE_FLAGS } from '../state.js';
