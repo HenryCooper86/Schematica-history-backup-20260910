@@ -370,24 +370,24 @@ export function draftProblems(raw) {
 // so an RDK profile's ports come through. Renames later ports with duplicate
 // names on the same side by appending " 2", " 3", etc., keeping ids unchanged.
 export function definitionFrom(part) {
-  const supply = (p) => (p.bus === 'power' || p.bus === 'gnd') && (p.id === 'vcc' || p.id === 'gnd' || p.id.startsWith('vin')) && (p.side === 'left' || p.side === 'top');
+  const supply = (p) => (p.bus === 'power' || p.bus === 'gnd') && (p.id === 'vcc' || p.id === 'gnd' || p.id.startsWith('vin'));
   const filtered = part.ports.filter((p) => !p.unsupported);
 
   // Track name counts by side to rename duplicates
-  const nameCounts = new Map(); // key: "side|lowerName", value: { name, count }
+  const nameCounts = new Map(); // key: "side|lowerName", value: { baseSliced, count }
   const ports = filtered.map((p) => {
     const baseNameSliced = p.name.slice(0, LIMITS.portName);
-    const key = `${p.side}|${p.name.toLowerCase()}`;
+    const key = `${p.side}|${baseNameSliced.toLowerCase()}`;
     const entry = nameCounts.get(key);
     let finalName;
     if (!entry) {
-      nameCounts.set(key, { name: baseNameSliced, count: 1 });
+      nameCounts.set(key, { baseSliced: baseNameSliced, count: 1 });
       finalName = baseNameSliced;
     } else {
       entry.count += 1;
-      // Append " 2", " 3", etc., then truncate to LIMITS.portName
+      // Append " 2", " 3", etc., ensuring the digit survives truncation
       const suffix = ` ${entry.count}`;
-      finalName = (entry.name + suffix).slice(0, LIMITS.portName);
+      finalName = entry.baseSliced.slice(0, LIMITS.portName - suffix.length) + suffix;
     }
     return {
       id: p.id, name: finalName, side: p.side, bus: p.bus, required: supply(p),

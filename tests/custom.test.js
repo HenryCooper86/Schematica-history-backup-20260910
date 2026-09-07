@@ -286,10 +286,26 @@ test('definitionFrom a built-in part keeps port ids, marks supply pins required,
   assert.equal(t.fields.find((f) => f.id === 'severity').options.length, 5, 'schema fields become plain choice fields');
   assert.equal(t.icon.kind, 'threatactor');
   const bat = definitionFrom(nodePart({ kind: 'battery' }));
-  assert.deepEqual(bat.ports.filter((p) => p.required), [], 'a supply output is not a required input');
+  assert.deepEqual(bat.ports.filter((p) => p.required).map((p) => p.id), ['gnd'], 'a supply output is not required; its ground return is, as the checker says');
+  assert.equal(bat.ports.find((p) => p.id === 'out').required, false);
   const { part, warnings } = normalizePart(d);
   assert.deepEqual(warnings, [], 'the definition is valid as is');
   assert.equal(part.ports.length, d.ports.length);
+});
+
+test('definitionFrom renames duplicate ports at the name character limit without losing the digit', () => {
+  const maxName = 'A'.repeat(LIMITS.portName); // 12 chars
+  const synth = {
+    kind: 'mcu', name: 'X', category: 'misc', ports: [
+      { id: 'p1', name: maxName, side: 'bottom', bus: 'gpio' },
+      { id: 'p2', name: maxName, side: 'bottom', bus: 'gpio' },
+    ], fields: [],
+  };
+  const d = definitionFrom(synth);
+  assert.deepEqual(d.ports.map((p) => p.name), ['AAAAAAAAAAAA', 'AAAAAAAAAA 2']);
+  const { part, warnings } = normalizePart(d);
+  assert.deepEqual(warnings, []);
+  assert.equal(part.ports.length, 2);
 });
 
 test('siblings are the other custom nodes from the same template', () => {
