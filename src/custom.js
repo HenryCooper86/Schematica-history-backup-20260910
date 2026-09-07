@@ -358,7 +358,12 @@ export function draftProblems(raw) {
     const label = str(f?.label);
     if (!label) { problems.push(`Field ${i + 1} needs a label.`); return; }
     const typed = f.options !== undefined && f.options !== null && String(f.options).trim() !== '';
-    if (typed && optionList(f.options).length < 2) problems.push(`Field "${label}" needs two or more choices.`);
+    if (typed) {
+      const options = optionList(f.options);
+      if (options.length < 2) problems.push(`Field "${label}" needs two or more choices.`);
+      if (options.length > LIMITS.options) problems.push(`Field "${label}" has too many choices (${LIMITS.options} max).`);
+      if (options.some((o) => o.length > LIMITS.option)) problems.push(`Field "${label}" has a choice longer than ${LIMITS.option} characters.`);
+    }
   });
   return problems;
 }

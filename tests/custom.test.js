@@ -269,6 +269,8 @@ test('draftProblems names what blocks Save and is empty for a good draft', () =>
   assert.deepEqual(draftProblems({ ...good, icon: { text: '' } }), [`Initials are 1 to ${LIMITS.text} characters.`]);
   assert.deepEqual(draftProblems({ ...good, fields: [{ label: '', options: '' }] }), ['Field 1 needs a label.']);
   assert.deepEqual(draftProblems({ ...good, fields: [{ label: 'Drive', options: 'only' }] }), ['Field "Drive" needs two or more choices.']);
+  assert.deepEqual(draftProblems({ ...good, fields: [{ label: 'Drive', options: Array.from({ length: LIMITS.options + 1 }, (_, i) => `c${i}`).join(', ') }] }), [`Field "Drive" has too many choices (${LIMITS.options} max).`]);
+  assert.deepEqual(draftProblems({ ...good, fields: [{ label: 'Drive', options: `a, ${'x'.repeat(LIMITS.option + 1)}` }] }), [`Field "Drive" has a choice longer than ${LIMITS.option} characters.`]);
   assert.deepEqual(draftProblems({ ...good, ports: Array.from({ length: LIMITS.ports + 1 }, (_, i) => ({ name: `P${i}`, side: 'left', bus: 'gpio' })) }), [`Too many ports (${LIMITS.ports} max).`]);
   assert.equal(draftProblems({ name: '', ports: [{ name: '', side: 'top' }], fields: [{ label: '' }] }).length, 3, 'every problem is listed');
 });
