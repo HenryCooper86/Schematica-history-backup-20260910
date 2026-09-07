@@ -1,0 +1,96 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createLibrary, LIBRARY_KEY, EXPORT_MARK } from '../src/library.js';
+import { LIMITS } from '../src/custom.js';
+
+function mapStorage() {
+  const m = new Map();
+  return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => { m.set(k, String(v)); }, removeItem: (k) => { m.delete(k); }, map: m };
+}
+
+const DEF = { name: 'Motor driver x4', category: 'actuators', ports: [{ name: 'CAN', side: 'left', bus: 'can' }] };
+
+test('save adds a normalized template with an id and a timestamp; list and get return clones', () => {
+  const storage = mapStorage();
+  const lib = createLibrary(storage);
+  assert.deepEqual(lib.list(), []);
+  const id = lib.save({ ...DEF, lib: 'ignored' });
+  assert.match(id, /^lp[0-9a-z]{12}$/);
+  const [t] = lib.list();
+  assert.equal(t.id, id);
+  assert.equal(t.name, 'Motor driver x4');
+  assert.equal(t.ports[0].id, 'p1');
+  assert.equal('lib' in t, false, 'a template never carries lib');
+  assert.match(t.updated, /^\d{4}-\d{2}-\d{2}T/);
+  t.name = 'mutated';
+  assert.equal(lib.get(id).name, 'Motor driver x4', 'clones');
+  assert.equal(lib.get('nope'), null);
+  assert.ok(storage.map.get(LIBRARY_KEY).includes('"version":1'));
+});
+
+test('save with an id replaces, or creates under that id; remove returns the entry; subscribers hear every change', () => {
+  const lib = createLibrary(mapStorage());
+  let calls = 0;
+  const off = lib.subscribe(() => { calls += 1; });
+  const id = lib.save(DEF);
+  assert.equal(lib.save({ ...DEF, name: 'Renamed' }, id), id);
+  assert.equal(lib.list().length, 1);
+  assert.equal(lib.get(id).name, 'Renamed');
+  assert.equal(lib.save(DEF, 'lp-given'), 'lp-given', 'an unknown id is created as given');
+  const gone = lib.remove(id);
+  assert.equal(gone.name, 'Renamed');
+  assert.equal(lib.remove(id), null);
+  assert.deepEqual(lib.list().map((t) => t.id), ['lp-given']);
+  assert.equal(calls, 4);
+  off();
+  lib.save(DEF);
+  assert.equal(calls, 4);
+});
+
+test('save refuses a nameless definition and a full library', () => {
+  const lib = createLibrary(mapStorage());
+  assert.throws(() => lib.save({ name: '' }), /no name/);
+  for (let i = 0; i < LIMITS.library; i++) lib.save({ ...DEF, name: `P${i}` });
+  assert.throws(() => lib.save(DEF), /full/);
+  assert.equal(lib.list().length, LIMITS.library);
+  assert.doesNotThrow(() => lib.save({ ...DEF, name: 'replace' }, lib.list()[0].id), 'replacing never needs room');
+});
+
+test('corrupt or foreign storage reads as empty; blocked storage falls back to memory', () => {
+  const corrupt = mapStorage();
+  corrupt.setItem(LIBRARY_KEY, '{nope');
+  assert.deepEqual(createLibrary(corrupt).list(), []);
+  const foreign = mapStorage();
+  foreign.setItem(LIBRARY_KEY, JSON.stringify({ version: 1, parts: [{ id: 'bad id', name: 'x' }, { id: 'ok', name: 'Ok' }, { id: 'ok', name: 'Dup' }, 'junk'] }));
+  assert.deepEqual(createLibrary(foreign).list().map((t) => [t.id, t.name]), [['ok', 'Ok']], 'bad ids, duplicates, and junk are skipped');
+  const blocked = { getItem: () => { throw new Error('blocked'); }, setItem: () => { throw new Error('blocked'); } };
+  const lib = createLibrary(blocked);
+  const id = lib.save(DEF);
+  assert.equal(lib.get(id).name, 'Motor driver x4', 'lives in memory for the session');
+  const none = createLibrary(null);
+  none.save(DEF);
+  assert.equal(none.list().length, 1);
+});
+
+test('export and import round-trip; import merges by id, adds the rest, skips junk with warnings', () => {
+  const a = createLibrary(mapStorage());
+  const id = a.save(DEF);
+  a.save({ ...DEF, name: 'Fan' });
+  const text = a.exportJSON();
+  const parsed = JSON.parse(text);
+  assert.equal(parsed[EXPORT_MARK], 1);
+  assert.equal(parsed.parts.length, 2);
+  const b = createLibrary(mapStorage());
+  b.save({ ...DEF, name: 'Old driver' }, id);
+  b.save({ ...DEF, name: 'Mine' });
+  const res = b.importJSON(text);
+  assert.deepEqual([res.added, res.replaced], [1, 1]);
+  assert.equal(b.get(id).name, 'Motor driver x4', 'same id replaced');
+  assert.equal(b.list().length, 3);
+  const junk = b.importJSON(JSON.stringify({ schematicaParts: 1, parts: [{ name: '' }, { id: 'z', name: 'Z', ports: [{ name: 'X', side: 'nowhere', bus: 'gpio' }] }] }));
+  assert.deepEqual([junk.added, junk.replaced], [1, 0]);
+  assert.ok(junk.warnings.some((w) => /Entry 1/.test(w)));
+  assert.ok(junk.warnings.some((w) => /Entry 2/.test(w) && /no name or side/.test(w)));
+  assert.throws(() => b.importJSON('{nope'), /could not parse/);
+  assert.throws(() => b.importJSON('{"parts": 5}'), /Not a parts file/);
+});
