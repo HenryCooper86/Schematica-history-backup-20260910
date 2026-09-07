@@ -929,6 +929,62 @@ try {
   check('saving makes the MCU a custom part with the new port, every wire intact, and an Edit part button', customized.closed && customized.en && customized.i2c && customized.wires === wiresBefore && customized.invalid === 0 && /^MCU/.test(customized.header) && customized.edit, JSON.stringify(customized));
   const undoneCustomize = await js(`(() => { document.getElementById('undo').click(); return { en: !!document.querySelector('#canvas g.node[data-id="n5"] .portg[data-port="p1"]'), customize: !!document.getElementById('props-customize') }; })()`);
   check('one undo restores the built-in MCU', undoneCustomize.en === false && undoneCustomize.customize === true, JSON.stringify(undoneCustomize));
+
+  // ---- Custom parts: New part, place it, wire it, check it, keep it ----
+  await loadBoard(EMPTY);
+  await js(`document.querySelector('#palette .palette-item[data-kind="mcu"]').click(); true`);
+  await sleep(100);
+  await js(`document.getElementById('parts-new').click(); true`);
+  await sleep(100);
+  const newOpen = await js(`(() => ({ open: document.getElementById('part-dialog').open, focus: document.activeElement?.id, saveOff: document.getElementById('pe-save').disabled, libLocked: document.getElementById('pe-save-lib').checked && document.getElementById('pe-save-lib').disabled }))()`);
+  check('+ New opens the editor with the name focused, Save disabled, and Save to library locked on', newOpen.open && newOpen.focus === 'pe-name' && newOpen.saveOff && newOpen.libLocked, JSON.stringify(newOpen));
+  const filled = await js(`(() => {
+    const fire = (el) => { el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); };
+    const set = (el, v) => { el.value = v; fire(el); };
+    set(document.getElementById('pe-name'), 'Motor driver x4');
+    set(document.getElementById('pe-category'), 'actuators');
+    const add = (name, side, bus) => { document.getElementById('pe-port-add').click(); const row = document.querySelector('#pe-ports tr:last-child'); set(row.querySelector('[data-pname]'), name); set(row.querySelector('[data-pside]'), side); set(row.querySelector('[data-pbus]'), bus); };
+    add('VCC', 'top', 'power'); add('GND', 'top', 'gnd'); add('CAN', 'left', 'can');
+    return { rows: document.querySelectorAll('#pe-ports tr').length, req: [...document.querySelectorAll('#pe-ports [data-preq]')].map((c) => c.checked), preview: document.querySelectorAll('#pe-preview .portg').length, initials: [...document.querySelectorAll('#pe-preview text')].some((t) => t.textContent === 'MD'), saveOn: !document.getElementById('pe-save').disabled };
+  })()`);
+  check('three ports with supply pins required by default, previewed live with initials, and Save enabled', filled.rows === 3 && JSON.stringify(filled.req) === '[true,true,false]' && filled.preview === 3 && filled.initials && filled.saveOn, JSON.stringify(filled));
+  await js(`document.getElementById('pe-save').click(); true`);
+  await sleep(150);
+  const savedPart = await js(`(() => { const lib = JSON.parse(localStorage.getItem('schematica.parts') || '{}'); return { closed: !document.getElementById('part-dialog').open, mine: [...document.querySelectorAll('#my-parts .pi-name')].map((e) => e.textContent), stored: lib.parts?.length, ports: lib.parts?.[0]?.ports?.length, nodes: document.querySelectorAll('#canvas g.node').length, placed: document.querySelectorAll('#canvas .portg[data-port="p3"]').length }; })()`);
+  check('Save lists the part under My parts, stores it, and places one on the canvas', savedPart.closed && JSON.stringify(savedPart.mine) === '["Motor driver x4"]' && savedPart.stored === 1 && savedPart.ports === 3 && savedPart.nodes === 2 && savedPart.placed === 1, JSON.stringify(savedPart));
+  // The new card sits on top of the MCU at the centre; move it aside, then wire CAN to CAN.
+  const mdCard = await center('#canvas g.node:has(.portg[data-port="p3"]) .card');
+  await drag(mdCard.x, mdCard.y, mdCard.x + 340, mdCard.y);
+  await sleep(150);
+  const ids = await js(`({ md: document.querySelector('#canvas g.node:has(.portg[data-port="p3"])').dataset.id, mcu: document.querySelector('#canvas g.node:has(.portg[data-port="can"])').dataset.id })`);
+  const fromPort = await center(`#canvas .portg[data-node="${ids.md}"][data-port="p3"] .port`);
+  const toPort = await center(`#canvas .portg[data-node="${ids.mcu}"][data-port="can"] .port`);
+  await drag(fromPort.x, fromPort.y, toPort.x, toPort.y);
+  await sleep(200);
+  const wiredCustom = await js(`(() => { const w = document.querySelector('#canvas g.wire'); return { wires: document.querySelectorAll('#canvas g.wire').length, from: w?.dataset.from, to: w?.dataset.to, popover: !document.getElementById('bus-popover').hidden }; })()`);
+  check('a wire drags from the custom CAN port to the MCU CAN port with no bus popover', wiredCustom.wires === 1 && wiredCustom.from === `${ids.md}:p3` && wiredCustom.to === `${ids.mcu}:can` && !wiredCustom.popover, JSON.stringify(wiredCustom));
+  await js(`document.getElementById('btn-check').click(); true`);
+  await sleep(100);
+  const drcCustom = await js(`(() => ({ open: document.getElementById('drc-dialog').open, text: document.getElementById('drc-list').textContent }))()`);
+  check("Check reports the custom part's unwired VCC and GND pins", drcCustom.open && /Motor driver x4's VCC pin is unconnected/.test(drcCustom.text) && /Motor driver x4's GND pin is unconnected/.test(drcCustom.text), drcCustom.text.slice(0, 200));
+  await key('Escape', 'Escape', 27);
+  await sleep(700);
+  await send('Page.navigate', { url: 'about:blank' });
+  await sleep(200);
+  await send('Page.navigate', { url: `${origin}/` });
+  await sleep(1200);
+  const afterReload = await js(`(() => ({ mine: [...document.querySelectorAll('#my-parts .pi-name')].map((e) => e.textContent), nodes: document.querySelectorAll('#canvas g.node').length, ports: document.querySelectorAll('#canvas .portg[data-port="p3"]').length, onBoardHidden: document.getElementById('board-parts').hidden }))()`);
+  check('after a reload My parts still lists the template and the board keeps its custom part', JSON.stringify(afterReload.mine) === '["Motor driver x4"]' && afterReload.nodes === 2 && afterReload.ports === 1 && afterReload.onBoardHidden === true, JSON.stringify(afterReload));
+  await js(`document.querySelector('#my-parts .custom-item [data-del]').click(); true`);
+  await sleep(100);
+  const orphan = await js(`(() => ({ mine: document.querySelectorAll('#my-parts .palette-item').length, onBoard: !document.getElementById('board-parts').hidden, adopt: !!document.querySelector('#board-parts [data-adopt]'), toast: document.getElementById('toast').textContent }))()`);
+  check('removing the template offers Undo and lists the orphaned board part under On this board', orphan.mine === 0 && orphan.onBoard && orphan.adopt && /Removed Motor driver x4/.test(orphan.toast) && /Undo/.test(orphan.toast), JSON.stringify(orphan));
+  await js(`document.querySelector('#board-parts [data-adopt]').click(); true`);
+  await sleep(100);
+  const adopted = await js(`(() => ({ mine: [...document.querySelectorAll('#my-parts .pi-name')].map((e) => e.textContent), onBoardHidden: document.getElementById('board-parts').hidden }))()`);
+  check('Add to library brings it back under the same template id', JSON.stringify(adopted.mine) === '["Motor driver x4"]' && adopted.onBoardHidden === true, JSON.stringify(adopted));
+  const searchedMine = await js(`(() => { const visible = ${visible}; const s = document.getElementById('palette-search'); s.value = 'motor driver x4'; s.dispatchEvent(new Event('input', { bubbles: true })); const out = { mine: [...document.querySelectorAll('#my-parts .palette-item')].filter(visible).length, catalogue: [...document.querySelectorAll('#palette .cat-grid:not(#my-parts):not(#board-parts) .palette-item')].filter(visible).length }; s.value = ''; s.dispatchEvent(new Event('input', { bubbles: true })); return out; })()`);
+  check('palette search finds the template by its full name', searchedMine.mine === 1, JSON.stringify(searchedMine));
   }
 } catch (err) {
   failed += 1;

@@ -194,7 +194,7 @@ store.subscribe(() => {
 });
 
 // ---- Panels, dialogs, menus ----
-initPalette({ svg, store, tools });
+initPalette({ svg, store, tools, library, editor });
 initLegend();
 dialogs = initDialogs({ store });
 const recorder = initRecording({ svg, store });
