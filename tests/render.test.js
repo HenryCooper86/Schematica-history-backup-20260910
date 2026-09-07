@@ -443,3 +443,16 @@ test('custom cards draw initials, a referenced icon, or a path in the badge, and
   assert.match(nodeGroup(markup, 'p'), /<path d="M1 1h2v2H1z"\/>/, 'a path icon draws as given');
   assert.match(nodeGroup(markup, 't'), new RegExp(`fill="${CATEGORY_COLORS.actuators}"`), 'accent is the category colour');
 });
+
+test('an icon path is escaped in the badge, even one that bypassed validation', () => {
+  const doc = {
+    ...sampleDoc(),
+    nodes: [node('x', 'custom', 0, 0, {
+      part: { name: 'X', category: 'misc', accent: null, icon: { path: 'M1 1"<' }, ports: [], fields: [] },
+    })],
+    wires: [],
+  };
+  const g = nodeGroup(diagramMarkup(doc), 'x');
+  assert.ok(g.includes('d="M1 1&quot;&lt;"'), 'the path is escaped');
+  assert.ok(!g.includes('d="M1 1"<'), 'the raw path never lands in the markup');
+});
