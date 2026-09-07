@@ -1010,6 +1010,154 @@ try {
     await sleep(150);
   }
   check('the assistant adds a part from a library template by id', fromTemplate.nodes === 3 && fromTemplate.p3 === 2, JSON.stringify(fromTemplate));
+
+  // ---- Custom parts: Add to library always saves the board's own node ----
+  // Controller ruling: My parts' board-subscription re-render must be keyed
+  // on the custom nodes' `part` object identity, not a derived lib+name
+  // string (two boards can share an orphan lib id and name with a different
+  // port count), and the Add-to-library click handler must resolve the node
+  // fresh at click time rather than trust the object closed over at render.
+  // Orphan the template again, then load a different board whose only node
+  // reuses the SAME (now-orphaned) lib id but has five ports, not three.
+  await js(`document.querySelector('#my-parts .custom-item [data-del]').click(); true`);
+  await sleep(100);
+  const fivePortBoard = {
+    schema: 2,
+    title: 'Stale race',
+    nodes: [{
+      id: 'md5', kind: 'custom', x: 100, y: 100, label: 'Motor driver x4', sublabel: '', color: null,
+      addr: '', rail: '', notes: '', status: null, flags: [],
+      part: {
+        lib: templateId, name: 'Motor driver x4', category: 'actuators', accent: null, icon: { text: 'MD' },
+        ports: [
+          { id: 'p1', name: 'VCC', side: 'top', bus: 'power', required: true },
+          { id: 'p2', name: 'GND', side: 'top', bus: 'gnd', required: true },
+          { id: 'p3', name: 'CAN', side: 'left', bus: 'can', required: false },
+          { id: 'p4', name: 'SDA', side: 'left', bus: 'i2c', required: false },
+          { id: 'p5', name: 'SCL', side: 'left', bus: 'i2c', required: false },
+        ],
+        fields: [],
+      },
+    }],
+    wires: [], zones: [], notes: [], journey: [],
+  };
+  // loadBoard clears localStorage, so My parts is empty and this node's lib
+  // matches nothing in it — exactly the orphan case the On this board tile
+  // is for.
+  await loadBoard(fivePortBoard);
+  const staleRaceTile = await js(`({ hidden: document.getElementById('board-parts').hidden, tiles: document.querySelectorAll('#board-parts .custom-item').length })`);
+  check('a freshly loaded board with an orphaned lib id gets its own On this board tile', !staleRaceTile.hidden && staleRaceTile.tiles === 1, JSON.stringify(staleRaceTile));
+  await js(`document.querySelector('#board-parts [data-adopt]').click(); true`);
+  await sleep(150);
+  const staleRaceSaved = await js(`JSON.parse(localStorage.getItem('schematica.parts')).parts[0].ports.length`);
+  check("Add to library saves this board's own five-port definition, never a stale render from an earlier board", staleRaceSaved === 5, String(staleRaceSaved));
+
+  // Clear the canvas so the apply-to-all scenario below starts from exactly
+  // the two nodes it places.
+  const loneNodeId = await js(`document.querySelector('#canvas g.node').dataset.id`);
+  const loneCentre = await center(`#canvas g.node[data-id="${loneNodeId}"] .card`);
+  await click(loneCentre.x, loneCentre.y);
+  await sleep(100);
+  await key('Delete', 'Delete', 46);
+  await sleep(150);
+
+  // ---- Custom parts: apply-to-all stamps an edit onto every sibling ----
+  await js(`document.querySelector('#my-parts .custom-item').click(); true`);
+  await sleep(150);
+  await js(`document.querySelector('#my-parts .custom-item').click(); true`);
+  await sleep(150);
+  const stampedIds = await js(`[...document.querySelectorAll('#canvas g.node')].map((n) => n.dataset.id)`);
+  const secondStamped = await center(`#canvas g.node[data-id="${stampedIds[1]}"] .card`);
+  await drag(secondStamped.x, secondStamped.y, secondStamped.x + 300, secondStamped.y);
+  await sleep(150);
+  const firstStamped = await center(`#canvas g.node[data-id="${stampedIds[0]}"] .card`);
+  await click(firstStamped.x, firstStamped.y);
+  await sleep(100);
+  await js(`document.getElementById('props-edit-part').click(); true`);
+  await sleep(100);
+  const applyAllOffered = await js(`({ hidden: document.getElementById('pe-apply-all-row').hidden, label: document.getElementById('pe-apply-all-label').textContent })`);
+  check('editing one of two nodes stamped from the same template offers apply-to-all naming the 1 other part', !applyAllOffered.hidden && /1 other part/.test(applyAllOffered.label), JSON.stringify(applyAllOffered));
+  await js(`(() => {
+    const fire = (el) => { el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); };
+    document.getElementById('pe-port-add').click();
+    const row = document.querySelector('#pe-ports tr:last-child [data-pname]');
+    row.value = 'EN'; fire(row);
+    document.getElementById('pe-save').click();
+    return true;
+  })()`);
+  await sleep(150);
+  const enOnBoth = await js(`[...document.querySelectorAll('#canvas .portg[data-port]')].filter((g) => (g.querySelector('.port-name')?.textContent || '').startsWith('EN')).length`);
+  check('apply-to-all (ticked) stamps the new port onto both custom nodes', enOnBoth === 2, String(enOnBoth));
+  const firstStamped2 = await center(`#canvas g.node[data-id="${stampedIds[0]}"] .card`);
+  await click(firstStamped2.x, firstStamped2.y);
+  await sleep(100);
+  await js(`document.getElementById('props-edit-part').click(); true`);
+  await sleep(100);
+  await js(`document.getElementById('pe-apply-all').click(); true`);
+  await js(`(() => {
+    const fire = (el) => { el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); };
+    document.getElementById('pe-port-add').click();
+    const row = document.querySelector('#pe-ports tr:last-child [data-pname]');
+    row.value = 'CLK'; fire(row);
+    document.getElementById('pe-save').click();
+    return true;
+  })()`);
+  await sleep(150);
+  const portCountsAfterUntick = await js(`[...document.querySelectorAll('#canvas g.node')].map((n) => n.querySelectorAll('.portg').length).sort((a, b) => a - b)`);
+  check('apply-to-all (unticked) changes only the edited node: one node gains a seventh port, the other keeps six', JSON.stringify(portCountsAfterUntick) === '[6,7]', JSON.stringify(portCountsAfterUntick));
+
+  // ---- Custom parts: dropping a template tile on the canvas places it ----
+  const nodesBeforeDrop = await js(`document.querySelectorAll('#canvas g.node').length`);
+  const dropTemplateId = await js(`JSON.parse(localStorage.getItem('schematica.parts')).parts[0].id`);
+  const dropOutcome = await js(`(() => {
+    const canvas = document.getElementById('canvas');
+    const r = canvas.getBoundingClientRect();
+    const x = r.left + r.width / 2 + 90;
+    const y = r.top + r.height / 2 + 90;
+    const id = ${JSON.stringify(dropTemplateId)};
+    let usedFallback = false;
+    let evt;
+    try {
+      const dt = new DataTransfer();
+      dt.setData('text/schematica-template', id);
+      evt = new DragEvent('drop', { dataTransfer: dt, clientX: x, clientY: y, bubbles: true, cancelable: true });
+    } catch (e) {
+      usedFallback = true;
+      evt = new Event('drop', { bubbles: true, cancelable: true });
+      Object.defineProperty(evt, 'dataTransfer', { value: { getData: (t) => (t === 'text/schematica-template' ? id : '') } });
+      Object.defineProperty(evt, 'clientX', { value: x });
+      Object.defineProperty(evt, 'clientY', { value: y });
+    }
+    canvas.dispatchEvent(evt);
+    return { usedFallback };
+  })()`);
+  await sleep(700);
+  const droppedState = await js(`({ nodes: document.querySelectorAll('#canvas g.node').length, lib: JSON.parse(localStorage.getItem('schematica.autosave')).nodes.at(-1).part.lib })`);
+  check('dropping a template tile on the canvas places a node from that template', droppedState.nodes === nodesBeforeDrop + 1 && droppedState.lib === dropTemplateId, JSON.stringify({ ...droppedState, usedFallback: dropOutcome.usedFallback, nodesBeforeDrop }));
+
+  // ---- Custom parts: the editor closes on Escape, Cancel, and an outside
+  // click, none of them adding a node ----
+  const nodesBeforeDialogChecks = await js(`document.querySelectorAll('#canvas g.node').length`);
+  await js(`document.getElementById('parts-new').click(); true`);
+  await sleep(100);
+  await key('Escape', 'Escape', 27);
+  await sleep(100);
+  const escapedDialog = await js(`({ open: document.getElementById('part-dialog').open, nodes: document.querySelectorAll('#canvas g.node').length })`);
+  check('Escape closes the part editor and adds no node', escapedDialog.open === false && escapedDialog.nodes === nodesBeforeDialogChecks, JSON.stringify(escapedDialog));
+
+  await js(`document.getElementById('parts-new').click(); true`);
+  await sleep(100);
+  await js(`document.getElementById('pe-cancel').click(); true`);
+  await sleep(100);
+  const cancelledDialog = await js(`({ open: document.getElementById('part-dialog').open, nodes: document.querySelectorAll('#canvas g.node').length })`);
+  check('Cancel closes the part editor and adds no node', cancelledDialog.open === false && cancelledDialog.nodes === nodesBeforeDialogChecks, JSON.stringify(cancelledDialog));
+
+  await js(`document.getElementById('parts-new').click(); true`);
+  await sleep(100);
+  await js(`document.getElementById('part-dialog').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 })); true`);
+  await sleep(100);
+  const outsideClickDialog = await js(`({ open: document.getElementById('part-dialog').open, nodes: document.querySelectorAll('#canvas g.node').length })`);
+  check('a pointerdown on the dialog backdrop closes the part editor and adds no node', outsideClickDialog.open === false && outsideClickDialog.nodes === nodesBeforeDialogChecks, JSON.stringify(outsideClickDialog));
   }
 } catch (err) {
   failed += 1;
