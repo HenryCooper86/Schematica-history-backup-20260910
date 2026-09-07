@@ -193,9 +193,22 @@ test('mergePortIds keeps the ids of ports matched by name, same side first, and 
   assert.ok(ports.every((p, i) => p.name === fresh[i].name), 'order and names are the new list');
 });
 
-test('mergePortIds with no old ports keeps the new ids', () => {
-  const fresh = [{ id: 'p1', name: 'A', side: 'left', bus: 'gpio', required: false }];
+test('mergePortIds with no old ports keeps non-sequential given ids', () => {
+  const fresh = [
+    { id: 'zz', name: 'A', side: 'left', bus: 'gpio', required: false },
+    { id: 'yy', name: 'B', side: 'right', bus: 'gpio', required: false },
+  ];
   assert.deepEqual(mergePortIds([], fresh).ports, fresh);
+});
+
+test('mergePortIds keeps uncontested given ids when old ports exist', () => {
+  const old = [{ id: 'a', name: 'A', side: 'left', bus: 'gpio', required: false }];
+  const fresh = [
+    { id: 'a', name: 'A', side: 'left', bus: 'gpio', required: false },
+    { id: 'zzz', name: 'Z', side: 'right', bus: 'gpio', required: false },
+  ];
+  const { ports } = mergePortIds(old, fresh);
+  assert.deepEqual(ports.map((p) => p.id), ['a', 'zzz']);
 });
 
 test('mergeFieldIds matches by label and mints ids that no old field had', () => {
@@ -204,4 +217,14 @@ test('mergeFieldIds matches by label and mints ids that no old field had', () =>
   const out = mergeFieldIds(old, fresh);
   assert.deepEqual(out.map((f) => f.id), ['f2', 'f3']);
   assert.deepEqual(out[0].options, ['a', 'b', 'c']);
+});
+
+test('mergeFieldIds keeps uncontested given ids when old fields exist', () => {
+  const old = [{ id: 'f1', label: 'Channels' }];
+  const fresh = [
+    { id: 'f1', label: 'Channels' },
+    { id: 'zzz', label: 'Rating' },
+  ];
+  const out = mergeFieldIds(old, fresh);
+  assert.deepEqual(out.map((f) => f.id), ['f1', 'zzz']);
 });

@@ -182,11 +182,12 @@ export function partOf(node) {
 }
 
 // When a definition is replaced (the assistant's update_part with `custom`),
-// the new ports take the ids of the old ports they stand for, matched by
-// name case-insensitively with a same-side match preferred, so wires on
-// unchanged ports keep pointing at them. Every other new port gets an id no
-// old port ever had, so a stale wire can never land on the wrong pin.
-// `kept` is the set of old ids that survived.
+// matched new ports reuse their old port's id, so wires keep pointing at them.
+// Unmatched new ports keep their given id when that id is neither an old port's id
+// nor already assigned in this merge; otherwise they get a fresh p<n> that avoids
+// old ids, the new list's given ids, and assigned ids. So wires on changed pins
+// get new ids and can never land on the wrong pin. `kept` is the set of old ids
+// that survived.
 export function mergePortIds(oldPorts, newPorts) {
   const free = new Map();
   for (const p of oldPorts) {
@@ -195,6 +196,10 @@ export function mergePortIds(oldPorts, newPorts) {
     free.get(k).push(p);
   }
   const kept = new Set();
+  const oldIds = new Set(oldPorts.map((p) => p.id));
+  const newIds = new Set(newPorts.map((p) => p.id));
+
+  // Match ports by name/side preference
   const matched = newPorts.map((p) => {
     const cands = free.get(p.name.toLowerCase()) || [];
     const i = cands.findIndex((o) => o.side === p.side);
@@ -203,7 +208,11 @@ export function mergePortIds(oldPorts, newPorts) {
     kept.add(old.id);
     return old.id;
   });
-  const used = new Set([...oldPorts.map((p) => p.id), ...(oldPorts.length > 0 ? newPorts.map((p) => p.id) : [])]);
+
+  // Build used set for fresh ID generation
+  const assigned = new Set(matched.filter(Boolean));
+  const used = new Set([...oldIds, ...newIds, ...assigned]);
+
   let counter = 0;
   const fresh = () => {
     let id;
@@ -211,11 +220,33 @@ export function mergePortIds(oldPorts, newPorts) {
     used.add(id);
     return id;
   };
-  return { ports: newPorts.map((p, i) => ({ ...p, id: matched[i] ?? fresh() })), kept };
+
+  // Assign final ids: keep matched, try to keep uncontested given ids, or generate fresh
+  const assignedIds = new Set();
+  const ports = newPorts.map((p, i) => {
+    if (matched[i]) {
+      assignedIds.add(matched[i]);
+      return { ...p, id: matched[i] };
+    }
+    // Unmatched: try to keep given id if available (not an old id, not already assigned)
+    if (!oldIds.has(p.id) && !assignedIds.has(p.id)) {
+      assignedIds.add(p.id);
+      return { ...p, id: p.id };
+    }
+    // Otherwise generate fresh
+    const freshId = fresh();
+    assignedIds.add(freshId);
+    return { ...p, id: freshId };
+  });
+
+  return { ports, kept };
 }
 
-// The same for fields, matched by label, so values keyed by field id survive
-// a definition change.
+// The same for fields: matched new fields reuse their old field's id so values
+// keyed by field id survive a definition change. Unmatched new fields keep their
+// given id when that id is neither an old field's id nor already assigned in this
+// merge; otherwise they get a fresh f<n> that avoids old ids, the new list's given
+// ids, and assigned ids.
 export function mergeFieldIds(oldFields, newFields) {
   const free = new Map();
   for (const f of oldFields) {
@@ -223,8 +254,16 @@ export function mergeFieldIds(oldFields, newFields) {
     if (!free.has(k)) free.set(k, []);
     free.get(k).push(f);
   }
+  const oldIds = new Set(oldFields.map((f) => f.id));
+  const newIds = new Set(newFields.map((f) => f.id));
+
+  // Match fields by label
   const matched = newFields.map((f) => (free.get(f.label.toLowerCase()) || []).shift()?.id ?? null);
-  const used = new Set([...oldFields.map((f) => f.id), ...matched.filter(Boolean)]);
+
+  // Build used set for fresh ID generation
+  const assigned = new Set(matched.filter(Boolean));
+  const used = new Set([...oldIds, ...newIds, ...assigned]);
+
   let counter = 0;
   const fresh = () => {
     let id;
@@ -232,5 +271,22 @@ export function mergeFieldIds(oldFields, newFields) {
     used.add(id);
     return id;
   };
-  return newFields.map((f, i) => ({ ...f, id: matched[i] ?? fresh() }));
+
+  // Assign final ids: keep matched, try to keep uncontested given ids, or generate fresh
+  const assignedIds = new Set();
+  return newFields.map((f, i) => {
+    if (matched[i]) {
+      assignedIds.add(matched[i]);
+      return { ...f, id: matched[i] };
+    }
+    // Unmatched: try to keep given id if available (not an old id, not already assigned)
+    if (!oldIds.has(f.id) && !assignedIds.has(f.id)) {
+      assignedIds.add(f.id);
+      return { ...f, id: f.id };
+    }
+    // Otherwise generate fresh
+    const freshId = fresh();
+    assignedIds.add(freshId);
+    return { ...f, id: freshId };
+  });
 }
