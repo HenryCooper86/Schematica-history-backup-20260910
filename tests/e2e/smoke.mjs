@@ -58,6 +58,16 @@ async function fakeAnthropic(req, res) {
     let ops;
     if (/^Fix this finding/i.test(lastText)) {
       ops = [{ op: 'add_note', ref: 'fx', text: 'Fix acknowledged by the fake assistant' }];
+    } else if (/^Add a custom part/i.test(lastText)) {
+      ops = [
+        { op: 'add_part', ref: 'md', kind: 'custom', custom: { name: 'Motor driver', category: 'actuators', ports: [
+          { name: 'VCC', side: 'top', bus: 'power', required: true },
+          { name: 'GND', side: 'top', bus: 'gnd', required: true },
+          { name: 'CAN', side: 'left', bus: 'can' },
+        ] } },
+        { op: 'add_part', ref: 'mcu', kind: 'mcu' },
+        { op: 'connect', from: { node: 'md' }, to: { node: 'mcu' }, bus: 'can' },
+      ];
     } else {
       ops = [
         { op: 'set_title', title: 'Fake Build' },
@@ -810,6 +820,28 @@ try {
   }
   const fixSeen = fakeSeen.find((f) => /^Fix this finding/.test(f.lastText));
   check('Fix closes the dialog, opens the panel, sends the finding, and the reply applies', fixed.dialogOpen === false && fixed.panelOpen && fixed.notes === notesBefore + 1 && !!fixSeen && /ids:/.test(fixSeen.lastText), JSON.stringify({ ...fixed, sent: fixSeen?.lastText.slice(0, 80) }));
+
+  // A custom part defined by the assistant lands with its ports, its
+  // initials in the badge, and a wire picked by bus.
+  await loadBoard(EMPTY);
+  await seedFake();
+  if (await js(`document.getElementById('assistant').hidden`)) { await key('a', 'KeyA', 65); await sleep(100); }
+  await js(`(() => { const i = document.getElementById('ai-input'); i.value = 'Add a custom part called Motor driver'; i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); return true; })()`);
+  let customBuilt = null;
+  for (let i = 0; i < 40; i++) {
+    customBuilt = await js(`(() => ({
+      nodes: document.querySelectorAll('#canvas g.node').length,
+      wires: document.querySelectorAll('#canvas g.wire').length,
+      ports: [...document.querySelectorAll('#canvas g.node .portg')].map((p) => p.dataset.port),
+      initials: [...document.querySelectorAll('#canvas g.node text')].some((t) => t.textContent === 'MD'),
+      sending: !document.getElementById('ai-stop').hidden,
+    }))()`);
+    if (customBuilt.nodes === 2 && !customBuilt.sending) break;
+    await sleep(150);
+  }
+  check('the assistant defines a custom part with ports, draws its initials, and wires it by bus',
+    customBuilt.nodes === 2 && customBuilt.wires === 1 && customBuilt.ports.includes('p1') && customBuilt.ports.includes('p3') && customBuilt.initials,
+    JSON.stringify(customBuilt));
 
   // The thread survives a reload of the same board (autosave restores it, no
   // hash, so the store's generation stays put) and clears when a share link
