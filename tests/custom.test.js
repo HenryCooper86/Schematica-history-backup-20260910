@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LIMITS, SIDES, PATH_RE, initials, portsWithOffsets, normalizePart, partOf } from '../src/custom.js';
+import { LIMITS, SIDES, PATH_RE, initials, portsWithOffsets, normalizePart, partOf, mergePortIds, mergeFieldIds } from '../src/custom.js';
 import { PARTS } from '../src/palette.js';
 
 const DEF = {
@@ -171,4 +171,37 @@ test('partOf falls through to the catalogue for built-in nodes and broken custom
   assert.equal(partOf({ kind: 'mcu' }), PARTS.mcu);
   assert.equal(partOf({ kind: 'custom' }), PARTS.generic, 'custom without a definition is the generic box');
   assert.equal(partOf({ kind: 'nope' }), PARTS.generic);
+});
+
+test('mergePortIds keeps the ids of ports matched by name, same side first, and mints fresh ids for the rest', () => {
+  const old = [
+    { id: 'vcc', name: 'VCC', side: 'left', bus: 'power', required: true },
+    { id: 'gnd', name: 'GND', side: 'left', bus: 'gnd', required: true },
+    { id: 'p3', name: 'IO', side: 'right', bus: 'gpio', required: false },
+    { id: 'p4', name: 'IO', side: 'bottom', bus: 'gpio', required: false },
+  ];
+  const fresh = [
+    { id: 'p1', name: 'io', side: 'bottom', bus: 'gpio', required: false },
+    { id: 'p2', name: 'GND', side: 'top', bus: 'gnd', required: true },
+    { id: 'p3', name: 'EN', side: 'left', bus: 'gpio', required: false },
+    { id: 'p4', name: 'IO', side: 'top', bus: 'gpio', required: false },
+  ];
+  const { ports, kept } = mergePortIds(old, fresh);
+  assert.deepEqual(ports.map((p) => p.id), ['p4', 'gnd', 'p5', 'p3'], 'io matches the bottom IO first; the second IO takes the remaining old IO; EN is new');
+  assert.deepEqual([...kept].sort(), ['gnd', 'p3', 'p4']);
+  assert.ok(!ports.some((p) => p.id === 'vcc'), 'a removed port id never comes back');
+  assert.ok(ports.every((p, i) => p.name === fresh[i].name), 'order and names are the new list');
+});
+
+test('mergePortIds with no old ports keeps the new ids', () => {
+  const fresh = [{ id: 'p1', name: 'A', side: 'left', bus: 'gpio', required: false }];
+  assert.deepEqual(mergePortIds([], fresh).ports, fresh);
+});
+
+test('mergeFieldIds matches by label and mints ids that no old field had', () => {
+  const old = [{ id: 'f1', label: 'Channels' }, { id: 'f2', label: 'Drive', options: ['a', 'b'] }];
+  const fresh = [{ id: 'f1', label: 'drive', options: ['a', 'b', 'c'] }, { id: 'f2', label: 'Rating' }];
+  const out = mergeFieldIds(old, fresh);
+  assert.deepEqual(out.map((f) => f.id), ['f2', 'f3']);
+  assert.deepEqual(out[0].options, ['a', 'b', 'c']);
 });

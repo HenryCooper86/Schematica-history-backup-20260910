@@ -180,3 +180,57 @@ export function partOf(node) {
   }
   return part;
 }
+
+// When a definition is replaced (the assistant's update_part with `custom`),
+// the new ports take the ids of the old ports they stand for, matched by
+// name case-insensitively with a same-side match preferred, so wires on
+// unchanged ports keep pointing at them. Every other new port gets an id no
+// old port ever had, so a stale wire can never land on the wrong pin.
+// `kept` is the set of old ids that survived.
+export function mergePortIds(oldPorts, newPorts) {
+  const free = new Map();
+  for (const p of oldPorts) {
+    const k = p.name.toLowerCase();
+    if (!free.has(k)) free.set(k, []);
+    free.get(k).push(p);
+  }
+  const kept = new Set();
+  const matched = newPorts.map((p) => {
+    const cands = free.get(p.name.toLowerCase()) || [];
+    const i = cands.findIndex((o) => o.side === p.side);
+    const old = i >= 0 ? cands.splice(i, 1)[0] : cands.shift();
+    if (!old) return null;
+    kept.add(old.id);
+    return old.id;
+  });
+  const used = new Set([...oldPorts.map((p) => p.id), ...(oldPorts.length > 0 ? newPorts.map((p) => p.id) : [])]);
+  let counter = 0;
+  const fresh = () => {
+    let id;
+    do { counter += 1; id = `p${counter}`; } while (used.has(id));
+    used.add(id);
+    return id;
+  };
+  return { ports: newPorts.map((p, i) => ({ ...p, id: matched[i] ?? fresh() })), kept };
+}
+
+// The same for fields, matched by label, so values keyed by field id survive
+// a definition change.
+export function mergeFieldIds(oldFields, newFields) {
+  const free = new Map();
+  for (const f of oldFields) {
+    const k = f.label.toLowerCase();
+    if (!free.has(k)) free.set(k, []);
+    free.get(k).push(f);
+  }
+  const matched = newFields.map((f) => (free.get(f.label.toLowerCase()) || []).shift()?.id ?? null);
+  const used = new Set([...oldFields.map((f) => f.id), ...matched.filter(Boolean)]);
+  let counter = 0;
+  const fresh = () => {
+    let id;
+    do { counter += 1; id = `f${counter}`; } while (used.has(id));
+    used.add(id);
+    return id;
+  };
+  return newFields.map((f, i) => ({ ...f, id: matched[i] ?? fresh() }));
+}
