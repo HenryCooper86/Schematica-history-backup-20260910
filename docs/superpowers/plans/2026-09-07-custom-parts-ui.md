@@ -1529,3 +1529,14 @@ Deferred minors the final review left for this plan (fix when touching the code,
 - `ID_RE` admits `__proto__`/`constructor` as ids; harmless today, a one-line reserved-name check.
 - Tests to add: a space-containing port name is quoted in board text; a name-matched port whose bus changed; two point-to-point wires contending for one port; a `part` payload on a non-custom kind is ignored; a custom part's non-required port with id `vcc` stays silent.
 - Cosmetic: `nodeSize` filters the port list four times; the BOM key repeats the sublabel suffix; `filterParts` could call the module-level `words()`.
+
+## Deferred after the UI branch (2026-09-08)
+
+Left by the whole-branch review as polish, none user-visible today:
+
+- Palette: keyboard placement rebuilds the tiles and drops focus (remember the focused template id and refocus); the delete toast's Undo is unguarded and re-appends the template at the end; `library.list()` is parsed three times per render (pass the list down); `{ lib: id, ...m.part }` should be `{ ...m.part, lib: id }`; the "clicking a category heading" browser check now exercises the My parts heading (`#palette > h3` would restore the original target).
+- Editor: the preview repeats the canvas's SVG `defs` ids; `.pe-field` carries dead flex declarations; `#props button.secondary` sits in the editor CSS block; `normalizePart` warnings are discarded on save; `centre()`/`place()` are duplicated between the editor and the palette.
+- Library: `importJSON` persists and notifies on a no-op; an import entry with no id gets a fresh id silently (re-importing a hand-written file adds duplicates); `save(def, '')` mints a fresh id; `updated` is not validated as ISO on foreign storage.
+- CSS: `#palette-search + h3` no longer matches anything (retarget to `#my-parts-group > h3`).
+- README: the Assistant row does not say the assistant can define custom parts or place library templates.
+- Engine carry-overs above remain open.
