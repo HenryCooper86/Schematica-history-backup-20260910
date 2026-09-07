@@ -21,7 +21,7 @@ export function nodeLine(doc, node) {
   const profile = rdkProfile(node);
   if (profile) s += ` rdk-profile=${profile.id} effective-RDK-ports=${profile.ports ? profile.ports.map(p => `${p.id}(${p.bus})`).join(',') : 'unverified (generic drawing ports are not validated connectors)'}`;
   if (part.custom) {
-    s += ` custom-ports=${part.ports.map((p) => `${p.id}:${p.name}(${p.bus})`).join(',') || '-'}`;
+    s += ` custom-ports=${part.ports.map((p) => `${p.id}:${value(p.name)}(${p.bus})`).join(',') || '-'}`;
     if (node.part?.lib) s += ` template=${node.part.lib}`;
   }
   if (node.sublabel) s += ` pn=${value(node.sublabel)}`;
