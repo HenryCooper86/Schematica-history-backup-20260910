@@ -61,8 +61,14 @@ then Settings → Pages → deploy from branch `main`, root folder.
 | Check | Check button — design rule checks: I2C address conflicts, unconnected power pins, floating parts, bus mismatches, lifecycle risks (the Sensor Node example passes them all) |
 | Assistant | `A` or the sparkle button — describe a board and it builds it, ask for a change and it edits the board, press Fix on a check finding or "Fix checks" and it resolves them, "Fill in details" fills part numbers from presets. Add files, a folder, or drop individual files to use local documents as sources; review, select, preview, or remove them before Send. Bring your own key: Claude by default, plus OpenRouter, Z.AI GLM, Moonshot Kimi, and any OpenAI-compatible endpoint (including local Ollama and Ollama Cloud via `/v1`). Kimi and Ollama Cloud refuse browser requests, so they go through the small relay worker in `relay/` (deploy your own in two commands; see relay/README.md). Each reply is one undo step and what it touched glows until your next click. The key is sent to your configured endpoint (through the relay for Kimi and Ollama Cloud), saved in this browser only if you tick remember, and never included in the board, autosave, or share links |
 | Wire options | Select a wire — bus, label, arrowheads (→ or ↔), line style (solid, dashed, dotted, air gap), traffic flow, delete |
+| Custom parts | **+ New** under My parts in the palette defines a part: name, category, accent, an icon (a built-in one, initials, or an SVG path), typed ports on any side, and extra fields. It is saved to My parts (this browser) and placed on the board. **Customize…** on any built-in card starts from its definition, so an MCU with a second CAN port keeps its wires. **Edit part…** on a custom card changes it and, when it came from a template, offers to update its siblings. Export and Import move My parts between machines as a JSON file. Custom parts in a board file travel with it; an older build of the app opens them as custom boxes |
 
 Work is autosaved to the browser's localStorage and restored on reload.
+
+Custom parts carry their definition inside the board file, so share links and
+saved files are self-contained. The library of templates lives in this
+browser only; export it to a `.schematica-parts.json` file to move or share
+it. Ports marked "req" in the editor are reported by Check when unwired.
 
 Assistant documents stay in memory for the current tab. Reloading, starting a
 new thread, or replacing the board clears them. Selecting a file only extracts
@@ -141,7 +147,10 @@ Both run in GitHub Actions on every push and pull request (`.github/workflows/ci
 Layout: `src/state.js` owns the document model + undo; `src/render.js` draws
 it into layered SVG; `src/tools.js` is the pointer/keyboard state machine;
 `src/serialize.js` validates files; `src/export.js` builds standalone
-SVG/PNG. `src/gif.js` is a zero-dependency GIF89a encoder; `src/journey.js`
+SVG/PNG. `src/custom.js` validates custom part definitions and resolves a
+custom node to a catalogue-shaped part; `src/library.js` keeps the templates;
+`src/ui/part-editor.js` is the editor dialog. `src/gif.js` is a
+zero-dependency GIF89a encoder; `src/journey.js`
 holds journey steps and camera tween math; `src/recorder.js` drives frame
 capture and MediaRecorder. `src/main.js` only boots the app; the panels,
 dialogs, and menus live in `src/ui/` (properties panel, palette, legend,

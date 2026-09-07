@@ -56,7 +56,7 @@ const ACTION_CARDS = [
   { act: 'fill', icon: 'fill', title: 'Fill in details', desc: 'Part numbers, addresses, and rails from the presets' },
 ];
 
-export function initAssistant({ store, tools, render, svg }) {
+export function initAssistant({ store, tools, render, svg, library = null }) {
   const panel = document.getElementById('assistant');
   const btn = document.getElementById('btn-assistant');
   // Reading `window.localStorage` throws outright when site data is blocked,
@@ -554,6 +554,7 @@ export function initAssistant({ store, tools, render, svg }) {
       getDoc: () => store.doc,
       commit: (fn) => store.mutate(fn),
       selection: () => [...store.selection],
+      library,
     });
     const board = boardText(store.doc, { selection: [...store.selection], findings: checkDoc(store.doc) });
     const system = [stable, perRequestSystem({ date: new Date().toISOString().slice(0, 10), effort: s.effort, singleShot: s.tools === false })];

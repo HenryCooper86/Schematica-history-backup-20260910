@@ -201,7 +201,7 @@ const recorder = initRecording({ svg, store });
 initJourney({ svg, store, tools, render, recorder, propsPanel });
 initExamplesMenu({ store });
 initLayoutToggles();
-initAssistant({ store, tools, render, svg });
+initAssistant({ store, tools, render, svg, library });
 
 render();
 syncAnimation();

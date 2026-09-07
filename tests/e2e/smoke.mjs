@@ -68,6 +68,9 @@ async function fakeAnthropic(req, res) {
         { op: 'add_part', ref: 'mcu', kind: 'mcu' },
         { op: 'connect', from: { node: 'md' }, to: { node: 'mcu' }, bus: 'can' },
       ];
+    } else if (/^Add my template/i.test(lastText)) {
+      const id = /lp[0-9a-z-]+/.exec(lastText)?.[0];
+      ops = [{ op: 'add_part', ref: 'md', kind: 'custom', template: id }];
     } else {
       ops = [
         { op: 'set_title', title: 'Fake Build' },
@@ -994,6 +997,19 @@ try {
   check('Add to library brings it back under the same template id', JSON.stringify(adopted.mine) === '["Motor driver x4"]' && adopted.onBoardHidden === true, JSON.stringify(adopted));
   const searchedMine = await js(`(() => { const visible = ${visible}; const s = document.getElementById('palette-search'); s.value = 'motor driver x4'; s.dispatchEvent(new Event('input', { bubbles: true })); const out = { mine: [...document.querySelectorAll('#my-parts .palette-item')].filter(visible).length, catalogue: [...document.querySelectorAll('#palette .cat-grid:not(#my-parts):not(#board-parts) .palette-item')].filter(visible).length }; s.value = ''; s.dispatchEvent(new Event('input', { bubbles: true })); return out; })()`);
   check('palette search finds the template by its full name', searchedMine.mine === 1, JSON.stringify(searchedMine));
+
+  // The assistant can place a library template by id.
+  await seedFake();
+  const templateId = await js(`JSON.parse(localStorage.getItem('schematica.parts')).parts[0].id`);
+  if (await js(`document.getElementById('assistant').hidden`)) { await key('a', 'KeyA', 65); await sleep(100); }
+  await js(`(() => { const i = document.getElementById('ai-input'); i.value = 'Add my template ${templateId}'; i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); return true; })()`);
+  let fromTemplate = null;
+  for (let i = 0; i < 40; i++) {
+    fromTemplate = await js(`(() => ({ nodes: document.querySelectorAll('#canvas g.node').length, p3: document.querySelectorAll('#canvas .portg[data-port="p3"]').length, sending: !document.getElementById('ai-stop').hidden }))()`);
+    if (fromTemplate.nodes === 3 && !fromTemplate.sending) break;
+    await sleep(150);
+  }
+  check('the assistant adds a part from a library template by id', fromTemplate.nodes === 3 && fromTemplate.p3 === 2, JSON.stringify(fromTemplate));
   }
 } catch (err) {
   failed += 1;
