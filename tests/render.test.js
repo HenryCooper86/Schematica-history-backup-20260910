@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PARTS } from '../src/palette.js';
+import { PARTS, CATEGORY_COLORS } from '../src/palette.js';
 import { diagramMarkup, defsMarkup, flowOffset, LOOP_MS, overlayMarkup } from '../src/render.js';
 import { EXAMPLES } from '../src/examples.js';
 
@@ -417,4 +417,29 @@ test('a disposition glow pulses with the Animate toggle off and on', () => {
     assert.ok(nodeGroup(m, 'a').includes('class="fxhalo anim"'), `adversary halo pulses (animate ${animate})`);
     assert.ok(nodeGroup(m, 'v').includes('class="fxhalo"') && !nodeGroup(m, 'v').includes('fxhalo anim'), `victim ring stays steady (animate ${animate})`);
   }
+});
+
+test('custom cards draw initials, a referenced icon, or a path in the badge, and their ports', () => {
+  const custom = (id, icon, ports = []) => node(id, 'custom', 0, 0, {
+    part: { name: 'Motor driver x4', category: 'actuators', accent: null, icon, ports, fields: [] },
+  });
+  const doc = {
+    ...sampleDoc(),
+    nodes: [
+      custom('t', { text: 'MD' }, [{ id: 'p1', name: 'VCC', side: 'top', bus: 'power', required: true }]),
+      custom('k', { kind: 'motor' }),
+      custom('p', { path: 'M1 1h2v2H1z' }),
+    ],
+    wires: [],
+  };
+  const markup = diagramMarkup(doc, {});
+  const t = nodeGroup(markup, 't');
+  assert.match(t, /<text[^>]*font-size="13"[^>]*>MD<\/text>/, 'initials in the badge');
+  // Everything before the ports group is the card, badge, label, and tags; none carries a path when initials draw.
+  assert.ok(!/<path d="M/.test(t.split('class="ports"')[0]), 'no icon path when initials are used');
+  assert.match(t, /data-port="p1"/, 'custom ports render');
+  assert.match(t, /VCC · PWR/, 'port label names the port and its bus');
+  assert.match(nodeGroup(markup, 'k'), new RegExp(`<path d="${PARTS.motor.icon.slice(0, 12)}`), 'a kind icon draws that part\'s path');
+  assert.match(nodeGroup(markup, 'p'), /<path d="M1 1h2v2H1z"\/>/, 'a path icon draws as given');
+  assert.match(nodeGroup(markup, 't'), new RegExp(`fill="${CATEGORY_COLORS.actuators}"`), 'accent is the category colour');
 });

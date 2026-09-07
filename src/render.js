@@ -127,9 +127,13 @@ function badgeMarkup(W, color, part) {
   if (part.glyph) {
     s += `<g transform="translate(${W / 2 - 13.8} 13.2) scale(1.15)" fill="none" stroke="${c}" stroke-width="1.8"`
       + ` stroke-linecap="round" stroke-linejoin="round" color="${c}">${part.glyph}</g>`;
+  } else if (part.text) {
+    // A custom part with no icon: up to three letters, centred in the badge.
+    s += `<text x="${W / 2}" y="31.8" text-anchor="middle" font-size="13" font-weight="700" fill="${c}"`
+      + ` pointer-events="none">${esc(part.text)}</text>`;
   } else {
     s += `<g transform="translate(${W / 2 - 13.8} 13.2) scale(${ICON_SCALE})" fill="none" stroke="${c}"`
-      + ` stroke-width="${(1.8 / ICON_SCALE).toFixed(3)}" stroke-linecap="round" stroke-linejoin="round"><path d="${part.icon}"/></g>`;
+      + ` stroke-width="${(1.8 / ICON_SCALE).toFixed(3)}" stroke-linecap="round" stroke-linejoin="round"><path d="${esc(part.icon)}"/></g>`;
   }
   return s;
 }
