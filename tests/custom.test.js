@@ -100,7 +100,7 @@ test('ports: ids are generated and unique, bad entries drop, buses fall back, sa
   });
   const ports = res.part.ports;
   assert.deepEqual(ports.map((p) => p.name), ['VCC', 'VCC', 'Y', 'Z', 'Q']);
-  assert.deepEqual(ports.map((p) => p.id), ['p1', 'p2', 'p3', 'p4', 'p5'], 'explicit p1 collides with the generated one and is regenerated');
+  assert.deepEqual(ports.map((p) => p.id), ['p2', 'p3', 'p4', 'p1', 'p5'], 'explicit p1 is reserved for Z first; generated ids fill in around it');
   assert.equal(ports[2].bus, 'gpio');
   assert.equal(ports[3].required, true);
   assert.equal(ports[0].required, false);
@@ -113,6 +113,26 @@ test('ports: ids are generated and unique, bad entries drop, buses fall back, sa
   assert.ok(many.warnings.some((w) => /first 24 ports/.test(w)));
   assert.equal(normalizePart({ name: 'P', ports: [{ name: 'ABCDEFGHIJKLMNOP', side: 'left', bus: 'gpio' }] }).part.ports[0].name.length, LIMITS.portName);
   assert.deepEqual(normalizePart({ name: 'P', ports: 'nope' }).part.ports, []);
+});
+
+test('explicit ids are reserved before generated ones are minted', () => {
+  const res = normalizePart({
+    name: 'P',
+    ports: [
+      { name: 'NEW', side: 'left', bus: 'gpio' },
+      { id: 'p1', name: 'CAN', side: 'left', bus: 'can' },
+    ],
+  });
+  assert.deepEqual(res.part.ports.map((p) => p.id), ['p2', 'p1'], 'the explicit p1 wins it; the generated id skips over it');
+});
+
+test('names and labels trim and collapse internal whitespace, including newlines, to single spaces', () => {
+  const part = normalizePart({
+    name: 'Motor \n  driver',
+    ports: [{ name: 'A\nB', side: 'left', bus: 'gpio' }],
+  }).part;
+  assert.equal(part.name, 'Motor driver');
+  assert.equal(part.ports[0].name, 'A B');
 });
 
 test('fields: labels required, choices need two or more, ids generated', () => {

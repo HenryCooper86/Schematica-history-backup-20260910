@@ -20,7 +20,10 @@ const HEX_COLOR = /^#[0-9a-fA-F]{3,8}$/;
 const ID_RE = /^[A-Za-z0-9_-]+$/;
 const CATEGORY_IDS = new Set(CATEGORIES.map((c) => c.id));
 
-const str = (v) => (typeof v === 'string' ? v.trim() : '');
+// Trims and collapses internal whitespace (including newlines) to single
+// spaces: a name or label can never break the assistant's one-line board
+// text or a DRC message onto a second line.
+const str = (v) => (typeof v === 'string' ? v.trim().replace(/\s+/g, ' ') : '');
 
 // Up to two letters for a badge with no icon: "Motor driver x4" -> "MD".
 export function initials(name) {
@@ -55,41 +58,60 @@ function normalizeIcon(raw, name, warnings) {
   return { text: initials(name) };
 }
 
-// A stable id: the given one when it is a short plain token not yet taken,
-// otherwise the next free `<prefix><n>`.
-function idAllocator(prefix) {
+// Two passes: every valid explicit id (a non-empty string of at most
+// LIMITS.id chars matching ID_RE) is reserved first, the first entry to want
+// a given id winning it — a later entry asking for the same id is treated as
+// having none. Entries with no valid id then get the next free `<prefix><n>`
+// that skips every reserved id. So an explicit id always outranks a
+// generated one and a wire saved on it never drifts onto the wrong pin.
+// `ids` is the raw ids of every entry that will make it into the output, in
+// order, and the returned allocator must be called once per entry in that
+// same order.
+function idAllocator(prefix, ids) {
+  const isValid = (id) => id && id.length <= LIMITS.id && ID_RE.test(id);
+  const reserved = new Set();
+  for (const raw of ids) {
+    const id = str(raw);
+    if (isValid(id)) reserved.add(id);
+  }
   const taken = new Set();
   let counter = 0;
   return (wanted) => {
-    let id = str(wanted);
-    if (!id || id.length > LIMITS.id || !ID_RE.test(id) || taken.has(id)) {
-      do { counter += 1; id = `${prefix}${counter}`; } while (taken.has(id));
+    const id = str(wanted);
+    if (isValid(id) && reserved.has(id) && !taken.has(id)) {
+      taken.add(id);
+      return id;
     }
-    taken.add(id);
-    return id;
+    let fresh;
+    do { counter += 1; fresh = `${prefix}${counter}`; } while (reserved.has(fresh) || taken.has(fresh));
+    taken.add(fresh);
+    return fresh;
   };
 }
 
 function normalizePorts(raw, name, warnings) {
   if (raw === undefined) return [];
   if (!Array.isArray(raw)) { warnings.push(`Ports on "${name}" must be a list; ignored.`); return []; }
-  const ports = [];
+  const kept = [];
   const names = new Set();
-  const nextId = idAllocator('p');
   for (const p of raw.slice(0, LIMITS.ports)) {
     const pname = str(p?.name).slice(0, LIMITS.portName);
     const side = SIDES.includes(p?.side) ? p.side : null;
     if (!pname || !side) { warnings.push(`Dropped a port on "${name}" with no name or side.`); continue; }
     const key = `${side}|${pname.toLowerCase()}`;
     if (names.has(key)) { warnings.push(`Dropped duplicate port "${pname}" on the ${side} of "${name}".`); continue; }
+    names.add(key);
+    kept.push({ p, pname, side });
+  }
+  const nextId = idAllocator('p', kept.map(({ p }) => p.id));
+  const ports = kept.map(({ p, pname, side }) => {
     let bus = typeof p.bus === 'string' ? p.bus : '';
     if (!Object.hasOwn(BUSES, bus)) {
       warnings.push(`Port "${pname}" on "${name}" has unknown bus "${bus}"; using GPIO.`);
       bus = 'gpio';
     }
-    names.add(key);
-    ports.push({ id: nextId(p.id), name: pname, side, bus, required: p.required === true });
-  }
+    return { id: nextId(p.id), name: pname, side, bus, required: p.required === true };
+  });
   if (raw.length > LIMITS.ports) warnings.push(`"${name}" keeps the first ${LIMITS.ports} ports.`);
   return ports;
 }
@@ -97,11 +119,14 @@ function normalizePorts(raw, name, warnings) {
 function normalizeFields(raw, name, warnings) {
   if (raw === undefined) return [];
   if (!Array.isArray(raw)) { warnings.push(`Fields on "${name}" must be a list; ignored.`); return []; }
-  const fields = [];
-  const nextId = idAllocator('f');
+  const kept = [];
   for (const f of raw.slice(0, LIMITS.fields)) {
     const label = str(f?.label).slice(0, LIMITS.fieldLabel);
     if (!label) { warnings.push(`Dropped a field on "${name}" with no label.`); continue; }
+    kept.push({ f, label });
+  }
+  const nextId = idAllocator('f', kept.map(({ f }) => f.id));
+  const fields = kept.map(({ f, label }) => {
     const field = { id: nextId(f.id), label };
     if (f.options !== undefined) {
       const options = Array.isArray(f.options)
@@ -112,8 +137,8 @@ function normalizeFields(raw, name, warnings) {
     }
     const placeholder = str(f.placeholder).slice(0, LIMITS.placeholder);
     if (placeholder) field.placeholder = placeholder;
-    fields.push(field);
-  }
+    return field;
+  });
   if (raw.length > LIMITS.fields) warnings.push(`"${name}" keeps the first ${LIMITS.fields} fields.`);
   return fields;
 }
