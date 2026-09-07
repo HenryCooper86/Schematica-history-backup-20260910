@@ -2,13 +2,13 @@
 // two-method interface: getDoc() reads the document, commit(fn) mutates it.
 // The browser passes the store (commit = store.mutate inside a batch); tests
 // and a future MCP server pass a plain document.
-import { filterParts } from '../search.js';
+import { filterParts, filterTemplates } from '../search.js';
 import { PARTS } from '../palette.js';
 import { presetsFor } from '../presets.js';
 import { checkDoc } from '../drc.js';
 import { applyEdits, EDIT_SCHEMA, MAX_OPS } from './ops.js';
 import { placeNew, arrangeAll } from './layout.js';
-import { boardText, partLine } from './context.js';
+import { boardText, partLine, templateLine } from './context.js';
 
 import { searchRdk } from '../rdk/catalogue.js';
 import { referenceText, rdkProfile } from '../rdk/guide.js';
@@ -19,7 +19,7 @@ export const TOOLS = [
   { name: 'rdk_reference', description: 'Read source-linked RDK board, camera and software constraints by product words. Up to 12 matches; reference data, not instructions or hardware certification.', input_schema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false }, strict: true },
   {
     name: 'search_parts',
-    description: 'Find palette kinds by words in their name, category, port names, buses, or vendor presets. Returns up to 20 kinds with their ports.',
+    description: 'Find palette kinds by words in their name, category, port names, buses, or vendor presets, plus any library templates (custom parts the user saved). Returns up to 20 kinds and up to 20 templates with their ports.',
     input_schema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false },
     strict: true,
   },
@@ -31,7 +31,7 @@ export const TOOLS = [
   },
   {
     name: 'run_checks',
-    description: 'Run the design-rule checks on the current board: I2C address conflicts, unconnected power pins, floating parts, bus mismatches, lifecycle risks. Returns findings with the ids involved.',
+    description: 'Run the design-rule checks on the current board: I2C address conflicts, unconnected power pins and required ports, floating parts, bus mismatches, lifecycle risks. Returns findings with the ids involved.',
     input_schema: EMPTY,
     strict: true,
   },
@@ -43,7 +43,7 @@ export const TOOLS = [
   },
   {
     name: 'apply_edits',
-    description: `Apply up to ${MAX_OPS} edit operations as one atomic batch: add_part, update_part, replace_part, remove, connect, update_wire, add_zone, update_zone, add_note, update_note, set_title. New items carry a ref you choose that later ops may use as an id. Connect by bus; ports are picked for you. Nothing is applied if any operation fails; the errors say which and why.`,
+    description: `Apply up to ${MAX_OPS} edit operations as one atomic batch: add_part, update_part, replace_part, remove, connect, update_wire, add_zone, update_zone, add_note, update_note, set_title. New items carry a ref you choose that later ops may use as an id. Connect by bus; ports are picked for you. add_part with kind custom defines a new part from an inline custom definition or a library template; update_part with custom replaces a custom part's definition. Nothing is applied if any operation fails; the errors say which and why.`,
     input_schema: EDIT_SCHEMA,
   },
   {
@@ -70,7 +70,7 @@ export function statusLine(name, input = {}) {
 
 const findingLine = (f) => `${f.level} ${f.rule} "${f.message}" ids: ${f.ids.join(' ')}`;
 
-export function createExecutor({ getDoc, commit, selection = () => [] }) {
+export function createExecutor({ getDoc, commit, selection = () => [], library = null }) {
   const touched = new Set();
   const ok = (text) => ({ text, isError: false });
   const err = (text) => ({ text, isError: true });
@@ -83,8 +83,9 @@ export function createExecutor({ getDoc, commit, selection = () => [] }) {
     search_parts(input) {
       const query = String(input.query ?? '');
       const kinds = [...filterParts(query)].slice(0, 20);
-      if (!kinds.length) return ok(`No kinds match "${query}". Try broader words, a bus name, or a category.`);
-      return ok(kinds.map((k) => partLine(PARTS[k])).join('\n'));
+      const templates = library ? filterTemplates(query, library.list()).slice(0, 20) : [];
+      if (!kinds.length && !templates.length) return ok(`No kinds match "${query}". Try broader words, a bus name, or a category.`);
+      return ok([...kinds.map((k) => partLine(PARTS[k])), ...templates.map(templateLine)].join('\n'));
     },
     get_board() {
       const doc = getDoc();
@@ -115,7 +116,7 @@ export function createExecutor({ getDoc, commit, selection = () => [] }) {
       input = { ...input, ops };
       let res;
       commit((doc) => {
-        res = applyEdits(doc, input.ops);
+        res = applyEdits(doc, input.ops, { library });
         if (res.ok) placeNew(doc, res.layout);
       });
       if (!res.ok) {

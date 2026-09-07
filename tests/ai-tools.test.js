@@ -113,3 +113,36 @@ test('apply_edits accepts ops given as a JSON string', () => {
   const bad = ex.run('apply_edits', { ops: 'not json' });
   assert.match(bad.text, /ops array/);
 });
+
+const TEMPLATE = {
+  id: 'lp1', updated: '2026-09-07', name: 'Motor driver x4', category: 'actuators', accent: null, icon: { text: 'MD' },
+  ports: [{ id: 'p1', name: 'CAN', side: 'left', bus: 'can', required: false }], fields: [],
+};
+const library = { list: () => [TEMPLATE], get: (id) => (id === 'lp1' ? TEMPLATE : null) };
+
+test('search_parts lists library templates after catalogue kinds when a library is present', () => {
+  const doc = newDoc('T');
+  const ex = createExecutor({ getDoc: () => doc, commit: (fn) => fn(doc), library });
+  const hit = ex.run('search_parts', { query: 'motor driver' });
+  assert.match(hit.text, /^motor  Motor \+ driver/m, 'catalogue kinds still listed');
+  assert.match(hit.text, /^template lp1  Motor driver x4  ports: p1:CAN\(can\)  \[library\]$/m);
+  assert.match(ex.run('search_parts', { query: 'zzzz' }).text, /No kinds match/);
+  const bare = plain(newDoc('T')).run('search_parts', { query: 'motor driver' });
+  assert.ok(!/template lp1/.test(bare.text), 'no library, no templates');
+});
+
+test('apply_edits passes the library through so template adds work', () => {
+  const doc = newDoc('T');
+  const ex = createExecutor({ getDoc: () => doc, commit: (fn) => fn(doc), library });
+  const res = ex.run('apply_edits', { ops: [{ op: 'add_part', ref: 'f', kind: 'custom', template: 'lp1' }] });
+  assert.equal(res.isError, false, res.text);
+  assert.equal(doc.nodes[0].part.lib, 'lp1');
+  assert.ok(ex.touched.has(doc.nodes[0].id));
+});
+
+test('tool descriptions mention custom parts where the model needs to know', () => {
+  const by = Object.fromEntries(TOOLS.map((t) => [t.name, t.description]));
+  assert.match(by.search_parts, /library templates/);
+  assert.match(by.apply_edits, /kind custom/);
+  assert.match(by.run_checks, /required ports/);
+});
