@@ -83,3 +83,27 @@ test('a clean board yields no findings', () => {
   );
   assert.deepEqual(checkDoc(d), []);
 });
+
+test('custom parts report unwired required ports by bus; optional ports and built-in heuristics are unchanged', () => {
+  const part = {
+    name: 'Driver', category: 'actuators', accent: null, icon: { text: 'D' }, fields: [],
+    ports: [
+      { id: 'p1', name: 'VIN', side: 'top', bus: 'power', required: true },
+      { id: 'p2', name: 'GND', side: 'top', bus: 'gnd', required: true },
+      { id: 'p3', name: 'EN', side: 'left', bus: 'gpio', required: true },
+      { id: 'p4', name: 'OUT', side: 'right', bus: 'power', required: false },
+      { id: 'p5', name: 'CAN', side: 'left', bus: 'can', required: false },
+    ],
+  };
+  const d = doc(
+    [node('c', 'custom', { part }), node('m', 'mcu')],
+    [wire('w1', 'gnd', 'c', 'p2', 'm', 'gnd'), wire('w2', 'can', 'c', 'p5', 'm', 'can')],
+  );
+  const findings = checkDoc(d).filter((f) => f.ids.includes('c'));
+  const power = findings.filter((f) => f.rule === 'unconnected-power');
+  const port = findings.filter((f) => f.rule === 'unconnected-port');
+  assert.deepEqual(power.map((f) => f.message), ["c's VIN pin is unconnected."]);
+  assert.deepEqual(port.map((f) => f.message), ["c's EN pin is unconnected."]);
+  assert.equal(port[0].level, 'warning');
+  assert.ok(!findings.some((f) => /OUT|CAN|GND/.test(f.message)), 'optional and wired ports are silent');
+});

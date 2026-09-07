@@ -65,15 +65,20 @@ export function checkDoc(doc) {
     }
   }
 
-  // 2. Unconnected VCC/GND pins (consumption pins only).
+  // 2. Unconnected supply pins. Built-in parts: VCC/GND/VIN* consumption pins
+  //    by name. Custom parts: every port the definition marks required, on any
+  //    bus; power and ground report under the same rule as built-ins.
   for (const n of doc.nodes) {
-    for (const port of nodePart(n).ports) {
-      if ((port.bus === 'power' || port.bus === 'gnd')
-        && (port.id === 'vcc' || port.id === 'gnd' || port.id.startsWith('vin'))
-        && !wiredPorts.has(`${n.id}|${port.id}`)) {
+    const part = nodePart(n);
+    for (const port of part.ports) {
+      const supply = port.bus === 'power' || port.bus === 'gnd';
+      const must = part.custom
+        ? port.required === true
+        : supply && (port.id === 'vcc' || port.id === 'gnd' || port.id.startsWith('vin'));
+      if (must && !wiredPorts.has(`${n.id}|${port.id}`)) {
         findings.push({
           level: 'warning',
-          rule: 'unconnected-power',
+          rule: supply ? 'unconnected-power' : 'unconnected-port',
           message: `${n.label}'s ${port.name} pin is unconnected.`,
           ids: [n.id],
         });
