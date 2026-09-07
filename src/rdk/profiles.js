@@ -1,16 +1,25 @@
-import { getPart } from '../palette.js';
+import { partOf } from '../custom.js';
 import { RDK_PRODUCTS, profileFor } from './catalogue.js';
 export { profileFor } from './catalogue.js';
+
+// The part a node resolves to: its custom definition, or its catalogue part
+// with the RDK profile's ports when a vendor preset names one.
 export function nodePart(node) {
-  const part = getPart(node.kind);
-  const profile = profileFor(node);
+  const part = partOf(node);
+  const profile = part.custom ? null : profileFor(node);
   return profile?.ports ? { ...part, ports: profile.ports } : part;
 }
-export function knownPorts(kind) {
-  const ports = new Map(getPart(kind).ports.map((p) => [p.id, p]));
-  for (const product of RDK_PRODUCTS.filter((p) => p.kind === kind)) {
-    for (const port of product.ports || [])
-      if (!ports.has(port.id)) ports.set(port.id, port);
+
+// Every port id a saved wire on this node may legitimately name: the part's
+// own ports plus any port of an RDK product of the same kind (a preset switch
+// keeps old endpoints as "unsupported" rather than dropping them).
+export function knownPorts(node) {
+  const part = partOf(node);
+  const ports = new Map(part.ports.map((p) => [p.id, p]));
+  if (!part.custom) {
+    for (const product of RDK_PRODUCTS.filter((p) => p.kind === node.kind)) {
+      for (const port of product.ports || []) if (!ports.has(port.id)) ports.set(port.id, port);
+    }
   }
   return [...ports.values()];
 }
@@ -24,7 +33,7 @@ export function displayPart(node, wires = []) {
   );
   const supported = new Set(part.ports.map((p) => p.id));
   const ports = [...part.ports];
-  for (const legacy of knownPorts(node.kind)) {
+  for (const legacy of knownPorts(node)) {
     if (!used.has(legacy.id) || supported.has(legacy.id)) continue;
     const occupied = ports
       .filter((p) => p.side === legacy.side)

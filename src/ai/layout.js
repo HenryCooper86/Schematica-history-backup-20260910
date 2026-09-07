@@ -3,7 +3,8 @@
 // to the right, rows ordered by their neighbours. Incremental placement
 // (Task 9) puts one new item beside an anchor and never moves anything that
 // already has a position. Same input, same output; ties break on id.
-import { getPart, CATEGORIES } from '../palette.js';
+import { CATEGORIES } from '../palette.js';
+import { partOf } from '../custom.js';
 import { nodeSize, nodeRect, snap, contentBounds, zoneMembers, NOTE_W, noteHeight, rectsIntersect } from '../geometry.js';
 
 export const COL_GAP = 96;
@@ -14,7 +15,7 @@ export const SLOT_MARGIN = 24;
 export const ORIGIN = 40;
 
 const CAT_INDEX = new Map(CATEGORIES.map((c, i) => [c.id, i]));
-const category = (node) => getPart(node.kind).category;
+const category = (node) => partOf(node).category;
 const isPower = (node) => category(node) === 'power';
 const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 

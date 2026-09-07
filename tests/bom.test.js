@@ -61,3 +61,19 @@ test('bomMarkdown renders a table and escapes pipes', () => {
   assert.equal(lines.length, 2 + 3);
   assert.ok(md.includes('A\\|B'));
 });
+
+test('custom nodes group by template, or by name without one, and show the definition name', () => {
+  const part = (lib) => ({ ...(lib ? { lib } : {}), name: 'Motor driver x4', category: 'actuators', accent: null, icon: { text: 'MD' }, ports: [], fields: [] });
+  const rows = buildBOM({
+    schema: 2, title: 'T', wires: [], zones: [], notes: [], journey: [],
+    nodes: [
+      node('c1', 'custom', 'Left', 'MD-4', { part: part('lp1') }),
+      node('c2', 'custom', 'Right', 'MD-4', { part: part('lp1') }),
+      node('c3', 'custom', 'Spare', 'MD-4', { part: part(null) }),
+      node('m', 'mcu', 'Brain', 'STM32', {}),
+    ],
+  });
+  const md = rows.filter((r) => r.part === 'Motor driver x4');
+  assert.equal(md.length, 2, 'template copies group together; the one-off is its own row');
+  assert.deepEqual(md.map((r) => r.qty).sort(), [1, 2]);
+});

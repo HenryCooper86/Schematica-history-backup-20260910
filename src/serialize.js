@@ -164,7 +164,7 @@ export function deserialize(text) {
     if (!node) return null;
     // A renamed port keeps its wires through the alias table.
     const port = PORT_ALIASES[node.kind]?.[ref.port] ?? ref.port;
-    if (knownPorts(node.kind).some((p) => p.id === port)) {
+    if (knownPorts(node).some((p) => p.id === port)) {
       return { node: ref.node, port, remapped: false };
     }
     if (coerced.has(ref.node)) return { node: ref.node, port: fallbackPort, remapped: true };

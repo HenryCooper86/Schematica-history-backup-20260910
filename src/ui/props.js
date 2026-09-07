@@ -2,7 +2,8 @@
 import { updateItem, findItem, deleteItems, NODE_STATUSES, NODE_FLAGS } from '../state.js';
 import { BUSES, BUS_ORDER } from '../buses.js';
 import { presetsFor, presetPatch } from '../presets.js';
-import { getPart, DISPOSITIONS } from '../palette.js';
+import { DISPOSITIONS } from '../palette.js';
+import { partOf } from '../custom.js';
 import { onPress, escAttr, toast } from './press.js';
 import { panelHeader, bindCollapsible } from './collapsible.js';
 
@@ -71,10 +72,11 @@ function addrRailFields(item) {
 }
 
 function nodeFields(item, doc) {
-  const part = getPart(item.kind);
+  const part = partOf(item);
   let html = propField('Label', `<input type="text" data-prop="label" value="${escAttr(item.label)}">`);
   if (!part.threat) html += partNumberField(item);
-  html += part.fields ? schemaFields(part, item, doc) : addrRailFields(item);
+  if (part.custom) html += addrRailFields(item) + (part.fields ? schemaFields(part, item, doc) : '');
+  else html += part.fields ? schemaFields(part, item, doc) : addrRailFields(item);
   html += propField('Notes', `<textarea data-prop="notes" placeholder="Free-form notes...">${escAttr(item.notes)}</textarea>`);
   html += `<label>Lifecycle</label><div class="chips">${NODE_STATUSES.map((st) => (
     `<button class="chip${item.status === st ? ' active' : ''}" data-status="${st}">${STATUS_LABELS[st]}</button>`
@@ -245,7 +247,7 @@ export function createPropsPanel({ store }) {
     }
     const { type, item } = found;
     let html;
-    if (type === 'node') html = panelHeader(getPart(item.kind).name, 'props') + nodeFields(item, store.doc);
+    if (type === 'node') html = panelHeader(partOf(item).name, 'props') + nodeFields(item, store.doc);
     else if (type === 'wire') html = panelHeader('Wire', 'props') + wireFields(item);
     else if (type === 'zone' && item.kind === 'swimlane') html = panelHeader('Swimlane', 'props') + swimlaneFields(item);
     else if (type === 'zone') {

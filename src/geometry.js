@@ -1,4 +1,4 @@
-import { getPart } from './palette.js';
+import { partOf } from './custom.js';
 
 export function snap(v, grid = 8) {
   // "+ 0" folds the -0 that rounding small negatives produces into +0, so
@@ -15,14 +15,23 @@ export const NODE_H = 74;
 const NODE_MAX_W = 240;
 const META_LINE_H = 12.5;
 
+// Custom cards grow so their port dots stay apart: 15px per port down the
+// left or right edge, 22px along the top or bottom. Built-in cards never
+// grow this way, so existing boards keep their geometry.
+const PORT_GAP_Y = 15;
+const PORT_GAP_X = 22;
+
 export function nodeMeta(node) {
-  const part = getPart(node.kind);
+  const part = partOf(node);
   // Mono lines under the label: the part number (threats have none), then a
   // schema part's fields (severity has its own tag), or else the hardware
-  // address and rail. At most three lines.
+  // address and rail. A custom part shows all of them. At most three lines.
   const lines = [];
   if (!part.threat) lines.push(['sublabel', node.sublabel]);
-  if (part.fields) {
+  if (part.custom) {
+    lines.push(['addr', node.addr], ['rail', node.rail]);
+    for (const fd of part.fields || []) lines.push([`fields.${fd.id}`, node.fields?.[fd.id]]);
+  } else if (part.fields) {
     for (const fd of part.fields) if (fd.id !== 'severity') lines.push([`fields.${fd.id}`, node.fields?.[fd.id]]);
   } else {
     lines.push(['addr', node.addr], ['rail', node.rail]);
@@ -51,7 +60,7 @@ function shapeSize(shape, label) {
 }
 
 export function nodeSize(node) {
-  const part = getPart(node.kind);
+  const part = partOf(node);
   if (part.shape) return shapeSize(part.shape, String(node.label ?? ''));
   const meta = nodeMeta(node);
   const need = Math.max(
@@ -59,7 +68,14 @@ export function nodeSize(node) {
     String(node.label ?? '').length * 6.8 + 24,
     ...meta.map((m) => m.text.length * 5.9 + 26),
   );
-  return { w: Math.min(NODE_MAX_W, need), h: NODE_H + meta.length * META_LINE_H };
+  let w = Math.min(NODE_MAX_W, need);
+  let h = NODE_H + meta.length * META_LINE_H;
+  if (part.custom) {
+    const on = (side) => part.ports.filter((p) => p.side === side).length;
+    h = Math.max(h, PORT_GAP_Y * (Math.max(on('left'), on('right')) + 1));
+    w = Math.max(w, Math.min(NODE_MAX_W, PORT_GAP_X * (Math.max(on('top'), on('bottom')) + 1)));
+  }
+  return { w, h };
 }
 
 export function nodeRect(node) {

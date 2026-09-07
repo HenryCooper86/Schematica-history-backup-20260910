@@ -116,7 +116,7 @@ test('catalogue lookup is exact, searchable and provenance-backed', async () => 
     ).length,
     1,
   );
-  assert.ok(knownPorts('depthcam').some((p) => p.id === 'csi-right'));
+  assert.ok(knownPorts({ kind: 'depthcam' }).some((p) => p.id === 'csi-right'));
   assert.equal(
     displayPart(node('b', 'depthcam', 'unknown'), [
       {

@@ -216,3 +216,22 @@ test('a network device lists its model, IP, and DNS name and drops the hardware 
   assert.deepEqual(nodeMeta({ kind: 'firewall', label: 'FW', sublabel: '', fields: { dns: 'fw.lan' } }), [{ field: 'fields.dns', text: 'fw.lan' }]);
   assert.deepEqual(nodeMeta({ kind: 'malware', label: 'M', sublabel: 'stale', fields: { family: 'Mirai' } }), [{ field: 'fields.family', text: 'Mirai' }], 'threats never show a part number');
 });
+
+test('custom cards grow with the ports on their busiest sides; built-in cards do not change', () => {
+  const def = (ports) => ({ name: 'C', category: 'misc', accent: null, icon: { text: 'C' }, ports, fields: [] });
+  const side = (n, s) => Array.from({ length: n }, (_, i) => ({ id: `${s}${i}`, name: `${s}${i}`, side: s, bus: 'gpio', required: false }));
+  assert.deepEqual(nodeSize({ kind: 'custom', label: 'C', part: def([]) }), { w: 104, h: 74 });
+  assert.deepEqual(nodeSize({ kind: 'custom', label: 'C', part: def(side(4, 'left')) }), { w: 104, h: 75 });
+  assert.deepEqual(nodeSize({ kind: 'custom', label: 'C', part: def(side(8, 'right')) }), { w: 104, h: 135 });
+  assert.deepEqual(nodeSize({ kind: 'custom', label: 'C', part: def(side(6, 'top')) }), { w: 154, h: 74 });
+  assert.equal(nodeSize({ kind: 'custom', label: 'C', part: def(side(24, 'bottom')) }).w, 240, 'width stays capped');
+  assert.deepEqual(nodeSize({ kind: 'mcu', label: 'MCU' }), { w: 104, h: 74 }, 'an MCU with nine ports keeps its size');
+});
+
+test('custom meta lines: part number, address, rail, then field values, three at most', () => {
+  const part = { name: 'C', category: 'misc', accent: null, icon: { text: 'C' }, ports: [], fields: [{ id: 'f1', label: 'Channels' }, { id: 'f2', label: 'Drive' }] };
+  const node = { kind: 'custom', label: 'C', sublabel: 'MD-4', addr: '', rail: '12V', fields: { f1: '4', f2: 'brushed' }, part };
+  assert.deepEqual(nodeMeta(node), [
+    { field: 'sublabel', text: 'MD-4' }, { field: 'rail', text: '12V' }, { field: 'fields.f1', text: '4' },
+  ]);
+});

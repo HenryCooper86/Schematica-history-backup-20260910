@@ -1,12 +1,13 @@
 // Bill of materials: pure derivation from a document. Zero dependencies.
 
-import { getPart } from './palette.js';
+import { partOf } from './custom.js';
 
 export function buildBOM(doc) {
   const groups = new Map();
   for (const node of doc.nodes) {
-    const part = getPart(node.kind);
-    const key = `${node.kind}|${node.sublabel}`;
+    const part = partOf(node);
+    // Copies of one library template are one line; a one-off groups by name.
+    const key = part.custom ? `custom:${part.lib || part.name}|${node.sublabel}` : `${node.kind}|${node.sublabel}`;
     let g = groups.get(key);
     if (!g) {
       g = {
