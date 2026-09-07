@@ -327,3 +327,18 @@ test('replaceDoc bumps the generation counter', () => {
   store.apply((doc) => { doc.title = 'edit'; });
   assert.equal(store.generation, 1, 'ordinary edits do not count');
 });
+
+test('addNode with a definition makes a custom node labelled by its name', () => {
+  const store = new Store();
+  const def = { name: 'Motor driver x4', category: 'actuators', ports: [{ name: 'VCC', side: 'top', bus: 'power', required: true }] };
+  const id = addNode(store, 'custom', 10, 20, def);
+  const node = store.doc.nodes[0];
+  assert.equal(node.id, id);
+  assert.equal(node.kind, 'custom');
+  assert.equal(node.label, 'Motor driver x4');
+  assert.equal(node.part.ports[0].id, 'p1', 'the definition is normalized');
+  assert.notEqual(node.part, def, 'a copy, not the caller\'s object');
+  addNode(store, 'custom', 0, 0, { name: '' });
+  assert.equal(store.doc.nodes[1].kind, 'generic', 'an unusable definition falls back to the custom box');
+  assert.equal('part' in store.doc.nodes[1], false);
+});

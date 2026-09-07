@@ -1,4 +1,5 @@
 import { getPart } from './palette.js';
+import { normalizePart, partOf } from './custom.js';
 
 // Ids are random so that two tabs, two peers, or a script minting ids in the
 // same millisecond never collide: 12 base36 characters (~62 bits) after the
@@ -157,15 +158,19 @@ export const NODE_STATUSES = ['planned', 'prototype', 'tested', 'production', 'd
 
 export const NODE_FLAGS = ['bug', 'thermal', 'power', 'lead', 'safety', 'eol'];
 
-export function addNode(store, kind, x, y) {
-  const part = getPart(kind);
+export function addNode(store, kind, x, y, part = null) {
+  const def = kind === 'custom' && part ? normalizePart(part).part : null;
+  // getPart maps an unknown kind (including a bare 'custom') to the generic box.
+  const spec = def ? partOf({ kind: 'custom', part: def }) : getPart(kind);
   const id = uid('n');
   store.apply((doc) => {
-    doc.nodes.push({
-      id, kind: part.kind, x, y,
-      label: part.defaultLabel || part.name, sublabel: '', color: null,
+    const node = {
+      id, kind: spec.kind, x, y,
+      label: spec.defaultLabel || spec.name, sublabel: '', color: null,
       addr: '', rail: '', notes: '', status: null, flags: [],
-    });
+    };
+    if (def) node.part = def;
+    doc.nodes.push(node);
   });
   return id;
 }
