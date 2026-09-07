@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LIMITS, SIDES, PATH_RE, initials, portsWithOffsets, normalizePart, partOf, mergePortIds, mergeFieldIds } from '../src/custom.js';
+import { LIMITS, SIDES, PATH_RE, initials, portsWithOffsets, normalizePart, partOf, mergePortIds, mergeFieldIds, draftProblems, optionList, definitionFrom, siblings, applyDefinition } from '../src/custom.js';
 import { PARTS } from '../src/palette.js';
+import { nodePart } from '../src/rdk/profiles.js';
 
 const DEF = {
   name: 'Motor driver x4', category: 'actuators', accent: null, icon: { kind: 'motor' },
@@ -247,4 +248,78 @@ test('mergeFieldIds keeps uncontested given ids when old fields exist', () => {
   ];
   const out = mergeFieldIds(old, fresh);
   assert.deepEqual(out.map((f) => f.id), ['f1', 'zzz']);
+});
+
+test('optionList splits, trims, and de-duplicates', () => {
+  assert.deepEqual(optionList('a, b ,,b, c'), ['a', 'b', 'c']);
+  assert.deepEqual(optionList(['x', ' x ', '']), ['x']);
+  assert.deepEqual(optionList(''), []);
+  assert.deepEqual(optionList(undefined), []);
+});
+
+test('draftProblems names what blocks Save and is empty for a good draft', () => {
+  const good = { name: 'Driver', category: 'misc', icon: { text: 'DR' }, ports: [{ name: 'VCC', side: 'top', bus: 'power' }, { name: 'VCC', side: 'left', bus: 'power' }], fields: [{ label: 'Drive', options: 'a, b' }, { label: 'Note', options: '' }] };
+  assert.deepEqual(draftProblems(good), []);
+  assert.deepEqual(draftProblems({ ...good, name: ' ' }), ['Name is required.']);
+  assert.deepEqual(draftProblems({ ...good, name: 'x'.repeat(61) }), [`Name is too long (${LIMITS.name} max).`]);
+  assert.deepEqual(draftProblems({ ...good, ports: [{ name: '', side: 'top', bus: 'power' }] }), ['Port 1 needs a name.']);
+  assert.deepEqual(draftProblems({ ...good, ports: [{ name: 'io', side: 'top', bus: 'gpio' }, { name: 'IO', side: 'top', bus: 'gpio' }] }), ['Two ports named "IO" on the top.']);
+  assert.deepEqual(draftProblems({ ...good, ports: [{ name: 'ABCDEFGHIJKLM', side: 'top', bus: 'gpio' }] }), [`Port "ABCDEFGHIJKLM" name is too long (${LIMITS.portName} max).`]);
+  assert.deepEqual(draftProblems({ ...good, icon: { path: 'x' } }), ['Icon path must be SVG path data starting with M.']);
+  assert.deepEqual(draftProblems({ ...good, icon: { text: '' } }), [`Initials are 1 to ${LIMITS.text} characters.`]);
+  assert.deepEqual(draftProblems({ ...good, fields: [{ label: '', options: '' }] }), ['Field 1 needs a label.']);
+  assert.deepEqual(draftProblems({ ...good, fields: [{ label: 'Drive', options: 'only' }] }), ['Field "Drive" needs two or more choices.']);
+  assert.deepEqual(draftProblems({ ...good, ports: Array.from({ length: LIMITS.ports + 1 }, (_, i) => ({ name: `P${i}`, side: 'left', bus: 'gpio' })) }), [`Too many ports (${LIMITS.ports} max).`]);
+  assert.equal(draftProblems({ name: '', ports: [{ name: '', side: 'top' }], fields: [{ label: '' }] }).length, 3, 'every problem is listed');
+});
+
+test('definitionFrom a built-in part keeps port ids, marks supply pins required, and points the icon at the kind', () => {
+  const d = definitionFrom(nodePart({ kind: 'mcu' }));
+  assert.equal(d.name, 'MCU');
+  assert.equal(d.category, 'compute');
+  assert.deepEqual(d.icon, { kind: 'mcu' });
+  assert.deepEqual(d.ports.map((p) => p.id), PARTS.mcu.ports.map((p) => p.id));
+  assert.deepEqual(d.ports.filter((p) => p.required).map((p) => p.id), ['vcc', 'gnd']);
+  assert.deepEqual(d.fields, []);
+  assert.deepEqual(d.ports.filter((p) => p.id.startsWith('gpio')).map((p) => p.name), ['GPIO', 'GPIO 2']);
+  const t = definitionFrom(nodePart({ kind: 'threatactor' }));
+  assert.equal(t.fields.find((f) => f.id === 'severity').options.length, 5, 'schema fields become plain choice fields');
+  assert.equal(t.icon.kind, 'threatactor');
+  const bat = definitionFrom(nodePart({ kind: 'battery' }));
+  assert.deepEqual(bat.ports.filter((p) => p.required), [], 'a supply output is not a required input');
+  const { part, warnings } = normalizePart(d);
+  assert.deepEqual(warnings, [], 'the definition is valid as is');
+  assert.equal(part.ports.length, d.ports.length);
+});
+
+test('siblings are the other custom nodes from the same template', () => {
+  const mk = (id, lib) => ({ id, kind: 'custom', part: { ...(lib ? { lib } : {}), name: 'X', category: 'misc', accent: null, icon: { text: 'X' }, ports: [], fields: [] } });
+  const doc = { nodes: [mk('a', 'lp1'), mk('b', 'lp1'), mk('c', 'lp2'), mk('d', null), { id: 'e', kind: 'mcu' }], wires: [], zones: [], notes: [] };
+  assert.deepEqual(siblings(doc, doc.nodes[0]).map((n) => n.id), ['b']);
+  assert.deepEqual(siblings(doc, doc.nodes[3]), [], 'a one-off has none');
+  assert.deepEqual(siblings(doc, doc.nodes[4]), []);
+});
+
+test('applyDefinition converts the node, drops wires on missing ports, prunes field values, and counts', () => {
+  const doc = {
+    nodes: [
+      { id: 'm', kind: 'mcu', x: 0, y: 0, label: 'MCU', sublabel: 'ESP32', color: null, addr: '', rail: '3.3V', notes: '', status: 'tested', flags: ['bug'], fields: { zz: '1' } },
+      { id: 't', kind: 'temp', x: 300, y: 0, label: 'T', sublabel: '', color: null, addr: '', rail: '', notes: '', status: null, flags: [] },
+    ],
+    wires: [
+      { id: 'w1', bus: 'i2c', from: { node: 'm', port: 'i2c' }, to: { node: 't', port: 'i2c' }, label: '', arrow: null, style: null, flow: null },
+      { id: 'w2', bus: 'gnd', from: { node: 't', port: 'gnd' }, to: { node: 'm', port: 'gnd' }, label: '', arrow: null, style: null, flow: null },
+    ],
+    zones: [], notes: [],
+  };
+  const def = normalizePart({ ...definitionFrom(nodePart(doc.nodes[0])), ports: [{ id: 'i2c', name: 'I2C', side: 'right', bus: 'i2c' }, { id: 'p1', name: 'EN', side: 'left', bus: 'gpio' }], fields: [{ id: 'f1', label: 'Cores' }] }).part;
+  const res = applyDefinition(doc, 'm', def);
+  assert.deepEqual(res, { dropped: 1 });
+  assert.equal(doc.nodes[0].kind, 'custom');
+  assert.equal(doc.nodes[0].part, def);
+  assert.deepEqual(doc.wires.map((w) => w.id), ['w1']);
+  assert.equal('fields' in doc.nodes[0], false, 'a value for a field that no longer exists is gone');
+  assert.equal(doc.nodes[0].sublabel, 'ESP32', 'instance values stay');
+  assert.deepEqual(doc.nodes[0].flags, ['bug']);
+  assert.deepEqual(applyDefinition(doc, 'nope', def), { dropped: 0 });
 });

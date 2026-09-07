@@ -315,3 +315,125 @@ export function mergeFieldIds(oldFields, newFields) {
     return { ...f, id: freshId };
   });
 }
+
+// ---- Helpers for the part editor and the properties panel ----
+
+// Choices as the editor types them ("a, b, c") or as a list.
+export function optionList(v) {
+  const arr = Array.isArray(v) ? v : String(v ?? '').split(',');
+  return [...new Set(arr.map((o) => str(o)).filter(Boolean))];
+}
+
+// What the editor must fix before Save is enabled. Unlike normalizePart,
+// which repairs, this reports. The raw draft is the editor's shape:
+// `fields[].options` may be a comma-separated string.
+export function draftProblems(raw) {
+  const problems = [];
+  const name = str(raw?.name);
+  if (!name) problems.push('Name is required.');
+  else if (name.length > LIMITS.name) problems.push(`Name is too long (${LIMITS.name} max).`);
+  const ports = Array.isArray(raw?.ports) ? raw.ports : [];
+  if (ports.length > LIMITS.ports) problems.push(`Too many ports (${LIMITS.ports} max).`);
+  const seen = new Set();
+  ports.forEach((p, i) => {
+    const pname = str(p?.name);
+    if (!pname) { problems.push(`Port ${i + 1} needs a name.`); return; }
+    if (pname.length > LIMITS.portName) problems.push(`Port "${pname}" name is too long (${LIMITS.portName} max).`);
+    const key = `${p.side}|${pname.toLowerCase()}`;
+    if (seen.has(key)) problems.push(`Two ports named "${pname}" on the ${p.side}.`);
+    seen.add(key);
+  });
+  const icon = raw?.icon || {};
+  if (icon.path !== undefined) {
+    const path = str(icon.path);
+    if (!(path && path.length <= LIMITS.path && /^[Mm]/.test(path) && PATH_RE.test(path))) problems.push('Icon path must be SVG path data starting with M.');
+  }
+  if (icon.text !== undefined) {
+    const text = str(icon.text);
+    if (!(text.length >= 1 && text.length <= LIMITS.text)) problems.push(`Initials are 1 to ${LIMITS.text} characters.`);
+  }
+  const fields = Array.isArray(raw?.fields) ? raw.fields : [];
+  if (fields.length > LIMITS.fields) problems.push(`Too many fields (${LIMITS.fields} max).`);
+  fields.forEach((f, i) => {
+    const label = str(f?.label);
+    if (!label) { problems.push(`Field ${i + 1} needs a label.`); return; }
+    const typed = f.options !== undefined && f.options !== null && String(f.options).trim() !== '';
+    if (typed && optionList(f.options).length < 2) problems.push(`Field "${label}" needs two or more choices.`);
+  });
+  return problems;
+}
+
+// A definition to start from when customizing a built-in part: its name,
+// category, accent, icon (by kind), ports with their ids kept so wires
+// survive, supply pins marked required the way the checks treat them, and
+// its schema fields as plain fields. Takes a resolved part (nodePart(node)),
+// so an RDK profile's ports come through. Renames later ports with duplicate
+// names on the same side by appending " 2", " 3", etc., keeping ids unchanged.
+export function definitionFrom(part) {
+  const supply = (p) => (p.bus === 'power' || p.bus === 'gnd') && (p.id === 'vcc' || p.id === 'gnd' || p.id.startsWith('vin')) && (p.side === 'left' || p.side === 'top');
+  const filtered = part.ports.filter((p) => !p.unsupported);
+
+  // Track name counts by side to rename duplicates
+  const nameCounts = new Map(); // key: "side|lowerName", value: { name, count }
+  const ports = filtered.map((p) => {
+    const baseNameSliced = p.name.slice(0, LIMITS.portName);
+    const key = `${p.side}|${p.name.toLowerCase()}`;
+    const entry = nameCounts.get(key);
+    let finalName;
+    if (!entry) {
+      nameCounts.set(key, { name: baseNameSliced, count: 1 });
+      finalName = baseNameSliced;
+    } else {
+      entry.count += 1;
+      // Append " 2", " 3", etc., then truncate to LIMITS.portName
+      const suffix = ` ${entry.count}`;
+      finalName = (entry.name + suffix).slice(0, LIMITS.portName);
+    }
+    return {
+      id: p.id, name: finalName, side: p.side, bus: p.bus, required: supply(p),
+    };
+  });
+
+  return {
+    name: part.name,
+    category: part.category,
+    accent: part.accent || null,
+    icon: { kind: part.kind },
+    ports,
+    fields: (part.fields || []).map((f) => ({
+      id: f.id,
+      label: f.label.slice(0, LIMITS.fieldLabel),
+      ...(f.options ? { options: [...f.options] } : {}),
+      ...(f.placeholder ? { placeholder: f.placeholder } : {}),
+    })),
+  };
+}
+
+// Every other custom node stamped from the same template as `node`.
+export function siblings(doc, node) {
+  const lib = node?.part?.lib;
+  if (!lib || node.kind !== 'custom') return [];
+  return doc.nodes.filter((n) => n.id !== node.id && n.kind === 'custom' && n.part?.lib === lib);
+}
+
+// Gives a node a normalized definition: it becomes a custom node, wires on
+// ports the definition no longer has are dropped, values of fields that no
+// longer exist are dropped, everything else on the node stays. Returns how
+// many wires went. Callers clone the definition per node so two nodes never
+// share one object.
+export function applyDefinition(doc, nodeId, def) {
+  const node = doc.nodes.find((n) => n.id === nodeId);
+  if (!node) return { dropped: 0 };
+  node.kind = 'custom';
+  node.part = def;
+  const ids = new Set(def.ports.map((p) => p.id));
+  const before = doc.wires.length;
+  doc.wires = doc.wires.filter((w) => (w.from.node !== nodeId || ids.has(w.from.port))
+    && (w.to.node !== nodeId || ids.has(w.to.port)));
+  if (node.fields) {
+    const known = new Set(def.fields.map((f) => f.id));
+    for (const k of Object.keys(node.fields)) if (!known.has(k)) delete node.fields[k];
+    if (!Object.keys(node.fields).length) delete node.fields;
+  }
+  return { dropped: before - doc.wires.length };
+}
