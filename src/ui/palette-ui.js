@@ -72,8 +72,10 @@ export function initPalette({ svg, store, tools, library, editor }) {
       place('custom', fromTemplate(t), c.x, c.y);
     });
     el.addEventListener('keydown', (e) => {
+      if (e.target !== el) return;
       if (e.key !== 'Enter' && e.key !== ' ') return;
       e.preventDefault();
+      e.stopPropagation();
       const c = centre();
       place('custom', fromTemplate(t), c.x, c.y);
     });

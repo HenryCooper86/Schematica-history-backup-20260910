@@ -975,6 +975,15 @@ try {
   await sleep(1200);
   const afterReload = await js(`(() => ({ mine: [...document.querySelectorAll('#my-parts .pi-name')].map((e) => e.textContent), nodes: document.querySelectorAll('#canvas g.node').length, ports: document.querySelectorAll('#canvas .portg[data-port="p3"]').length, onBoardHidden: document.getElementById('board-parts').hidden }))()`);
   check('after a reload My parts still lists the template and the board keeps its custom part', JSON.stringify(afterReload.mine) === '["Motor driver x4"]' && afterReload.nodes === 2 && afterReload.ports === 1 && afterReload.onBoardHidden === true, JSON.stringify(afterReload));
+  const nodesBeforeKey = await js(`document.querySelectorAll('#canvas g.node').length`);
+  await js(`document.querySelector('#my-parts .custom-item [data-edit]').focus(); true`);
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r' });
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+  await sleep(100);
+  const keyEdit = await js(`(() => ({ open: document.getElementById('part-dialog').open, title: document.getElementById('pe-title').textContent, nodes: document.querySelectorAll('#canvas g.node').length }))()`);
+  check('Enter on a tile\'s edit button opens the editor for that template and places nothing', keyEdit.open === true && /^Edit /.test(keyEdit.title) && keyEdit.nodes === nodesBeforeKey, JSON.stringify(keyEdit));
+  await key('Escape', 'Escape', 27);
+  await sleep(100);
   await js(`document.querySelector('#my-parts .custom-item [data-del]').click(); true`);
   await sleep(100);
   const orphan = await js(`(() => ({ mine: document.querySelectorAll('#my-parts .palette-item').length, onBoard: !document.getElementById('board-parts').hidden, adopt: !!document.querySelector('#board-parts [data-adopt]'), toast: document.getElementById('toast').textContent }))()`);

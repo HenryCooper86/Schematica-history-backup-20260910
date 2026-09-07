@@ -1341,8 +1341,10 @@ html {
 .my-parts-tools button:hover { color: var(--text); border-color: var(--accent); }
 #palette h3.sub { margin-top: 10px; cursor: default; }
 .custom-item { position: relative; }
-.custom-item .pi-tools { position: absolute; top: 4px; right: 4px; display: none; gap: 2px; }
-.custom-item:hover .pi-tools, .custom-item:focus-within .pi-tools { display: flex; }
+.custom-item .pi-tools {
+  position: absolute; top: 4px; right: 4px; display: flex; gap: 2px; opacity: 0; pointer-events: none;
+}
+.custom-item:hover .pi-tools, .custom-item:focus-within .pi-tools { opacity: 1; pointer-events: auto; }
 .custom-item .pi-tools button {
   width: 20px; height: 20px; border-radius: 6px; background: var(--bg1); border: 1px solid var(--line2);
   color: var(--muted); font-size: 11px; cursor: pointer; padding: 0; line-height: 1; font-family: inherit;
