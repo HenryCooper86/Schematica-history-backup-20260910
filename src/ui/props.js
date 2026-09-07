@@ -27,7 +27,7 @@ export const ACCENT_SWATCHES = [
 ];
 
 function propField(label, inner) {
-  return `<label>${label}</label>${inner}`;
+  return `<label>${escAttr(label)}</label>${inner}`;
 }
 
 // Zone and swimlane color rows use the same swatch picker as net_draw

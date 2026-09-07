@@ -875,6 +875,29 @@ try {
   await js(`(() => { document.getElementById('ai-base').value += '/'; document.getElementById('ai-save').click(); return true; })()`);
   const savedMigration = await js(`({ settings: JSON.parse(localStorage.getItem('schematica.ai.settings')), separate: localStorage.getItem('schematica.ai.key.openai'), legacy: localStorage.getItem('schematica.ai.key.ollamacloud') })`);
   check('saving a migrated connection preserves the separate OpenAI credential and invalidates the old probe', savedMigration.settings.provider === 'openai' && savedMigration.settings.tools === null && savedMigration.separate === 'separate-test-key' && savedMigration.legacy === 'legacy-test-key', JSON.stringify(savedMigration));
+
+  // A custom part's field label can come from a file, a share link, or the
+  // model; it must render as text in the properties panel, never as markup.
+  await loadBoard({
+    schema: 2, title: 'Esc',
+    nodes: [{
+      id: 'c1', kind: 'custom', x: 100, y: 100, label: 'C', sublabel: '', color: null,
+      addr: '', rail: '', notes: '', status: null, flags: [],
+      part: {
+        name: 'Esc part', category: 'misc', accent: null, icon: { text: 'E' }, ports: [],
+        fields: [{ id: 'f1', label: '<b>x</b>' }],
+      },
+    }],
+    wires: [], zones: [], notes: [], journey: [],
+  });
+  const escCard = await center('#canvas g.node[data-id="c1"] .card');
+  await click(escCard.x, escCard.y);
+  await sleep(150);
+  const escaped = await js(`(() => {
+    const label = [...document.querySelectorAll('#props label')].find((l) => l.textContent === '<b>x</b>');
+    return { found: !!label, noBold: document.querySelector('#props label b') === null };
+  })()`);
+  check('a custom field label renders as escaped text in the properties panel, never as markup', escaped.found && escaped.noBold, JSON.stringify(escaped));
   }
 } catch (err) {
   failed += 1;
