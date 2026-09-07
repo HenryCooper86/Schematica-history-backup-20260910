@@ -54,6 +54,7 @@ export function createLibrary(storage) {
   function save(def, id = null) {
     const { part, warnings } = normalizePart(def);
     if (!part) throw new Error(`The part cannot be saved: ${warnings.join(' ')}`);
+    if (id && !ID_RE.test(id)) throw new Error('Invalid template id.');
     delete part.lib;
     const parts = load();
     const at = id ? parts.findIndex((t) => t.id === id) : -1;

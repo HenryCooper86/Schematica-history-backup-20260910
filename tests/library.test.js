@@ -54,6 +54,12 @@ test('save refuses a nameless definition and a full library', () => {
   assert.throws(() => lib.save(DEF), /full/);
   assert.equal(lib.list().length, LIMITS.library);
   assert.doesNotThrow(() => lib.save({ ...DEF, name: 'replace' }, lib.list()[0].id), 'replacing never needs room');
+  const lib2 = createLibrary(mapStorage());
+  assert.throws(() => lib2.save(DEF, 'bad id with space'), /Invalid template id/);
+  assert.throws(() => lib2.save(DEF, 'x'.repeat(41)), /Invalid template id/);
+  assert.equal(lib2.list().length, 0, 'list unchanged after invalid id attempts');
+  assert.equal(lib2.save(DEF, 'ok-id_1'), 'ok-id_1', 'valid id still creates as given');
+  assert.equal(lib2.list().length, 1, 'valid id entry was created');
 });
 
 test('corrupt or foreign storage reads as empty; blocked storage falls back to memory', () => {
