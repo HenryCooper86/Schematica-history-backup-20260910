@@ -436,3 +436,127 @@ test('over-long text is cut to MAX_TEXT with a warning', () => {
   assert.equal(doc.notes[0].text.length, MAX_TEXT);
   assert.equal(res.warnings.filter((w) => /cut to/.test(w)).length, 2);
 });
+
+const DEF = {
+  name: 'Motor driver x4', category: 'actuators',
+  ports: [
+    { name: 'VCC', side: 'top', bus: 'power', required: true },
+    { name: 'GND', side: 'top', bus: 'gnd', required: true },
+    { name: 'CAN', side: 'left', bus: 'can' },
+    { name: 'M1', side: 'right', bus: 'pwm' },
+  ],
+  fields: [{ label: 'Channels' }],
+};
+
+test('add_part with kind custom takes an inline definition and wires by bus', () => {
+  const doc = newDoc('T');
+  const res = applyEdits(doc, [
+    { op: 'add_part', ref: 'md', kind: 'custom', custom: DEF, sublabel: 'MD-4', fields: { f1: '4' } },
+    { op: 'add_part', ref: 'mcu', kind: 'mcu' },
+    { op: 'connect', from: { node: 'md' }, to: { node: 'mcu' }, bus: 'can' },
+  ]);
+  assert.equal(res.ok, true, JSON.stringify(res));
+  const n = doc.nodes[0];
+  assert.equal(n.kind, 'custom');
+  assert.equal(n.label, 'Motor driver x4');
+  assert.equal(n.sublabel, 'MD-4');
+  assert.deepEqual(n.part.ports.map((p) => p.id), ['p1', 'p2', 'p3', 'p4']);
+  assert.deepEqual(n.fields, { f1: '4' });
+  assert.equal(doc.wires[0].from.port, 'p3');
+  assert.equal(doc.wires[0].bus, 'can');
+  assert.match(res.changes[0], /^added node n\w+ custom "Motor driver x4" \(ref md\)$/);
+});
+
+test('add_part with kind custom rejects bad or missing definitions and needs exactly one source', () => {
+  const doc = newDoc('T');
+  const bad = [
+    [{ op: 'add_part', ref: 'a', kind: 'custom' }, /exactly one of custom/],
+    [{ op: 'add_part', ref: 'a', kind: 'custom', custom: DEF, template: 'lp1' }, /exactly one of custom/],
+    [{ op: 'add_part', ref: 'a', kind: 'custom', custom: { name: '' } }, /no name/],
+    [{ op: 'add_part', ref: 'a', kind: 'custom', template: 'lp1' }, /no library/],
+    [{ op: 'add_part', ref: 'a', kind: 'custom', custom: DEF, fields: { zz: '1' } }, /unknown field "zz"/],
+  ];
+  for (const [op, re] of bad) {
+    const res = applyEdits(doc, [op]);
+    assert.equal(res.ok, false, JSON.stringify(op));
+    assert.match(res.errors[0].message, re);
+  }
+  assert.equal(doc.nodes.length, 0);
+  const warned = applyEdits(doc, [{ op: 'add_part', ref: 'a', kind: 'custom', custom: { ...DEF, ports: [{ name: 'X', side: 'left', bus: 'warp' }] } }]);
+  assert.equal(warned.ok, true, JSON.stringify(warned));
+  assert.ok(warned.warnings.some((w) => /unknown bus "warp"/.test(w)), 'normalizer warnings reach the tool result');
+});
+
+test('add_part from a library template stamps the template id and drops the template bookkeeping', () => {
+  const doc = newDoc('T');
+  const library = { get: (id) => (id === 'lp1' ? { id: 'lp1', updated: '2026-09-07', ...DEF } : null), list: () => [] };
+  const res = applyEdits(doc, [{ op: 'add_part', ref: 'a', kind: 'custom', template: 'lp1' }], { library });
+  assert.equal(res.ok, true, JSON.stringify(res));
+  assert.equal(doc.nodes[0].part.lib, 'lp1');
+  assert.equal(doc.nodes[0].part.name, 'Motor driver x4');
+  assert.equal('updated' in doc.nodes[0].part, false);
+  assert.equal('id' in doc.nodes[0].part, false);
+  const miss = applyEdits(doc, [{ op: 'add_part', ref: 'b', kind: 'custom', template: 'nope' }], { library });
+  assert.match(miss.errors[0].message, /no library template "nope"/);
+});
+
+test('update_part with custom replaces the definition, matches ports by name, and rewires or drops the rest', () => {
+  const doc = newDoc('T');
+  const setup = applyEdits(doc, [
+    { op: 'add_part', ref: 'md', kind: 'custom', custom: DEF, fields: { f1: '4' } },
+    { op: 'add_part', ref: 'mcu', kind: 'mcu' },
+    { op: 'add_part', ref: 'bat', kind: 'battery' },
+    { op: 'connect', from: { node: 'md' }, to: { node: 'mcu' }, bus: 'can' },
+    { op: 'connect', from: { node: 'bat' }, to: { node: 'md' }, bus: 'power' },
+    { op: 'connect', from: { node: 'md', port: 'p4' }, to: { node: 'mcu', port: 'pwm' }, bus: 'pwm' },
+  ]);
+  assert.equal(setup.ok, true, JSON.stringify(setup));
+  const md = doc.nodes[0];
+  const res = applyEdits(doc, [{
+    op: 'update_part', id: md.id,
+    custom: { ...DEF, ports: [
+      { name: 'can', side: 'bottom', bus: 'can' },
+      { name: 'VIN', side: 'top', bus: 'power', required: true },
+      { name: 'EN', side: 'left', bus: 'gpio' },
+    ], fields: [{ label: 'channels' }, { label: 'Drive', options: ['a', 'b'] }] },
+  }]);
+  assert.equal(res.ok, true, JSON.stringify(res));
+  const updated = doc.nodes.find((n) => n.id === md.id); // applyEdits commits a fresh clone; md is stale after res
+  assert.deepEqual(updated.part.ports.map((p) => [p.id, p.name]), [['p3', 'can'], ['p5', 'VIN'], ['p6', 'EN']], 'CAN keeps p3 by name; the rest get ids no old port had');
+  assert.deepEqual(updated.part.fields.map((f) => f.id), ['f1', 'f2'], 'Channels keeps f1 by label');
+  assert.deepEqual(updated.fields, { f1: '4' });
+  const can = doc.wires.find((w) => w.bus === 'can');
+  const pwr = doc.wires.find((w) => w.bus === 'power');
+  assert.equal(can.from.port, 'p3', 'kept');
+  assert.equal(pwr.to.port, 'p5', 'rewired to the new power port');
+  assert.equal(doc.wires.some((w) => w.bus === 'pwm'), false, 'the PWM wire had no port to go to');
+  assert.match(res.changes[0], /custom \(kept 1, rewired 1, dropped 1\)/);
+  assert.ok(res.warnings.some((w) => /removed wires/.test(w)));
+  assert.match(applyEdits(doc, [{ op: 'update_part', id: md.id, custom: { name: '' } }]).errors[0].message, /no name/);
+});
+
+test('update_part with custom on a built-in part fails; replace_part to custom fails; replace_part from custom works', () => {
+  const doc = newDoc('T');
+  const setup = applyEdits(doc, [
+    { op: 'add_part', ref: 'mcu', kind: 'mcu' },
+    { op: 'add_part', ref: 'md', kind: 'custom', custom: DEF },
+    { op: 'connect', from: { node: 'md' }, to: { node: 'mcu' }, bus: 'can' },
+  ]);
+  assert.equal(setup.ok, true, JSON.stringify(setup));
+  const [mcu, md] = doc.nodes;
+  assert.match(applyEdits(doc, [{ op: 'update_part', id: mcu.id, custom: DEF }]).errors[0].message, /not a custom part/);
+  assert.match(applyEdits(doc, [{ op: 'replace_part', id: mcu.id, kind: 'custom', custom: DEF }]).errors[0].message, /use add_part/);
+  const res = applyEdits(doc, [{ op: 'replace_part', id: md.id, kind: 'cantrx' }]);
+  assert.equal(res.ok, true, JSON.stringify(res));
+  const updatedMd = doc.nodes.find((n) => n.id === md.id); // applyEdits commits a fresh clone; md is stale after res
+  assert.equal(updatedMd.kind, 'cantrx');
+  assert.equal('part' in updatedMd, false);
+  assert.equal(doc.wires.length, 1, 'the CAN wire found a CAN port on the transceiver');
+});
+
+test('the schema documents custom and template', () => {
+  const props = EDIT_SCHEMA.properties.ops.items.properties;
+  assert.equal(props.custom.type, 'object');
+  assert.equal(props.template.type, 'string');
+  assert.match(props.kind.description, /custom/);
+});

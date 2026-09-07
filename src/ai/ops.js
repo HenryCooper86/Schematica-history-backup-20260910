@@ -4,6 +4,7 @@ import { nodePart, profileFor } from '../rdk/profiles.js';
 // operation succeeds. No operation carries a coordinate; src/ai/layout.js
 // places whatever a batch creates.
 import { PARTS, getPart, DISPOSITIONS } from '../palette.js';
+import { normalizePart, partOf, mergePortIds, mergeFieldIds } from '../custom.js';
 import { BUSES } from '../buses.js';
 import { uid, NODE_STATUSES, NODE_FLAGS } from '../state.js';
 import { MAX_TEXT } from '../serialize.js';
@@ -39,7 +40,7 @@ export const EDIT_SCHEMA = {
           ref: { type: 'string', description: 'Your label for a new item (add_part, connect, add_zone, add_note); usable as an id later in this batch' },
           id: { type: 'string', description: 'Existing item id (update_*, replace_part)' },
           ids: { type: 'array', items: { type: 'string' }, description: 'remove: ids or refs of nodes, wires, zones, notes' },
-          kind: { type: 'string', description: 'A palette kind from the catalogue (add_part, replace_part)' },
+          kind: { type: 'string', description: 'A palette kind from the catalogue, or custom with a custom definition or template (add_part); a catalogue kind (replace_part)' },
           label: { type: 'string' },
           sublabel: { type: 'string', description: 'Part number' },
           addr: { type: 'string', description: 'Bus address such as 0x76' },
@@ -48,6 +49,11 @@ export const EDIT_SCHEMA = {
           status: { type: ['string', 'null'], enum: [...NODE_STATUSES, null] },
           flags: { type: 'array', items: { type: 'string', enum: [...NODE_FLAGS] } },
           fields: { type: 'object', additionalProperties: { type: 'string' }, description: 'Schema fields; rdksoftware uses package, optional runtime, target (existing board id or earlier ref)' },
+          custom: {
+            type: 'object',
+            description: 'A custom part definition (add_part with kind custom; update_part on a custom node replaces its definition, ports matched by name): { name, category, accent?, icon?: { text } | { kind }, ports: [{ name, side: left|right|top|bottom, bus, required? }], fields?: [{ label, options? }] }. Use only when no catalogue kind fits.',
+          },
+          template: { type: 'string', description: 'add_part with kind custom: a library template id from search_parts, instead of custom' },
           disposition: { type: ['string', 'null'], enum: [...Object.keys(DISPOSITIONS), null] },
           near: { type: 'string', description: 'Layout anchor: an existing node id or a ref' },
           in: { type: 'string', description: 'Zone id or ref to place the part in' },
@@ -69,9 +75,10 @@ export const EDIT_SCHEMA = {
   required: ['ops'],
 };
 
-function makeCtx(doc) {
+function makeCtx(doc, library) {
   return {
     work: structuredClone(doc),
+    library: library || null,
     refs: new Map(),
     failedRefs: new Set(),
     errors: [],
@@ -260,8 +267,25 @@ export const HANDLERS = {};
 
 HANDLERS.add_part = (ctx, op) => {
   claimRef(ctx, op.ref, 'add_part');
-  const part = Object.hasOwn(PARTS, op.kind) ? PARTS[op.kind] : null;
-  if (!part) fail(`unknown kind "${op.kind}"; use search_parts to find kinds`);
+  let part;
+  let def = null;
+  if (op.kind === 'custom') {
+    if ((op.custom === undefined) === (op.template === undefined)) {
+      fail('a custom part needs exactly one of custom (an inline definition) or template (a library id from search_parts)');
+    }
+    if (op.template !== undefined) {
+      if (!ctx.library) fail('no library is available here; give an inline custom definition');
+      const t = ctx.library.get(String(op.template));
+      if (!t) fail(`no library template "${op.template}"; search_parts lists templates`);
+      def = customDefinition(ctx, { ...t, lib: t.id }, 'template');
+    } else {
+      def = customDefinition(ctx, op.custom, 'custom');
+    }
+    part = partOf({ kind: 'custom', part: def });
+  } else {
+    part = Object.hasOwn(PARTS, op.kind) ? PARTS[op.kind] : null;
+    if (!part) fail(`unknown kind "${op.kind}"; use search_parts to find kinds, or kind custom with a definition`);
+  }
   const near = op.near !== undefined ? findNode(ctx, op.near).id : null;
   const zone = op.in !== undefined ? plainZone(ctx, op.in).id : null;
   const node = {
@@ -269,6 +293,7 @@ HANDLERS.add_part = (ctx, op) => {
     label: part.defaultLabel || part.name, sublabel: '', color: null,
     addr: '', rail: '', notes: '', status: null, flags: [],
   };
+  if (def) node.part = def;
   assignPatch(node, nodePatch(ctx, part, op, node));
   ctx.work.nodes.push(node);
   ctx.refs.set(op.ref, node.id);
@@ -306,12 +331,32 @@ HANDLERS.update_note = (ctx, op) => {
 HANDLERS.update_part = (ctx, op) => {
   const node = findNode(ctx, op.id);
   if (op.kind !== undefined) fail('use replace_part to change the kind');
-  const patch = nodePatch(ctx, getPart(node.kind), op, node);
+  const changed = [];
+  if (op.custom !== undefined) {
+    if (node.kind !== 'custom' || !node.part) {
+      fail(`${node.id} is a ${node.kind}, not a custom part; add a custom part with add_part, or use the editor's Customize`);
+    }
+    const fresh = customDefinition(ctx, { ...op.custom, lib: node.part.lib }, 'custom');
+    const oldPart = partOf(node);
+    node.part = {
+      ...fresh,
+      ports: mergePortIds(node.part.ports, fresh.ports).ports,
+      fields: mergeFieldIds(node.part.fields, fresh.fields),
+    };
+    const counts = rewireNode(ctx, node, oldPart, partOf(node));
+    if (node.fields) {
+      const known = new Set(node.part.fields.map((f) => f.id));
+      for (const k of Object.keys(node.fields)) if (!known.has(k)) delete node.fields[k];
+      if (!Object.keys(node.fields).length) delete node.fields;
+    }
+    changed.push(`custom (kept ${counts.kept}, rewired ${counts.rewired}, dropped ${counts.dropped})`);
+  }
+  const patch = nodePatch(ctx, partOf(node), op, node);
   const keys = Object.keys(patch);
-  if (!keys.length) fail('update_part changes nothing');
+  if (!keys.length && !changed.length) fail('update_part changes nothing');
   assignPatch(node, patch);
   ctx.touched.add(node.id);
-  ctx.changes.push(`updated node ${node.id} (${keys.join(', ')})`);
+  ctx.changes.push(`updated node ${node.id} (${[...changed, ...keys].join(', ')})`);
 };
 
 HANDLERS.connect = (ctx, op) => {
@@ -356,12 +401,49 @@ HANDLERS.update_wire = (ctx, op) => {
   ctx.changes.push(`updated wire ${w.id} (${changed.join(', ')})`);
 };
 
+// Move the wires on `node` from `oldPart`'s ports onto `newPart`'s: a wire
+// whose port id survives with the same bus stays, otherwise it goes to
+// another port of its bus, or is dropped with a warning. The node must
+// already resolve to `newPart`. Returns the counts for the change line.
+function rewireNode(ctx, node, oldPart, newPart) {
+  let kept = 0;
+  let rewired = 0;
+  const dropped = [];
+  for (const w of ctx.work.wires) {
+    for (const end of ['from', 'to']) {
+      if (w[end].node !== node.id) continue;
+      const oldPort = oldPart.ports.find((p) => p.id === w[end].port);
+      const wantBus = oldPort ? oldPort.bus : w.bus;
+      if (newPart.ports.some((p) => p.id === w[end].port && p.bus === wantBus)) { kept += 1; continue; }
+      let pid = null;
+      try { pid = pickPort(ctx.work, node, wantBus); } catch (err) { if (!(err instanceof OpError)) throw err; }
+      if (pid) { w[end].port = pid; rewired += 1; } else dropped.push(w.id);
+    }
+  }
+  if (dropped.length) {
+    ctx.work.wires = ctx.work.wires.filter((w) => !dropped.includes(w.id));
+    ctx.warnings.push(`removed wires ${dropped.join(', ')}: ${newPart.name} has no port for their bus`);
+    for (const id of dropped) ctx.touched.add(id);
+  }
+  return { kept, rewired, dropped: dropped.length };
+}
+
+// A definition from the model or a library template, validated; warnings
+// go to the result, an unusable definition fails the op.
+function customDefinition(ctx, raw, what) {
+  const { part, warnings } = normalizePart(raw);
+  if (!part) fail(`${what}: ${warnings.join(' ')}`);
+  ctx.warnings.push(...warnings);
+  return part;
+}
+
 HANDLERS.replace_part = (ctx, op) => {
   const node = findNode(ctx, op.id);
+  if (op.kind === 'custom') fail('replace_part cannot make a custom part; use add_part with kind custom, or the editor\'s Customize');
   const part = Object.hasOwn(PARTS, op.kind) ? PARTS[op.kind] : null;
   if (!part) fail(`unknown kind "${op.kind}"; use search_parts to find kinds`);
   if (part.kind === node.kind) fail(`${node.id} is already a ${part.kind}`);
-  const oldPart = getPart(node.kind);
+  const oldPart = partOf(node);
   if (node.fields) {
     const schema = new Map((part.fields || []).map((f) => [f.id, f]));
     const kept = {};
@@ -376,27 +458,10 @@ HANDLERS.replace_part = (ctx, op) => {
     else delete node.fields;
   }
   node.kind = part.kind;
-  let kept = 0;
-  let rewired = 0;
-  const dropped = [];
-  for (const w of ctx.work.wires) {
-    for (const end of ['from', 'to']) {
-      if (w[end].node !== node.id) continue;
-      const oldPort = oldPart.ports.find((p) => p.id === w[end].port);
-      const wantBus = oldPort ? oldPort.bus : w.bus;
-      if (part.ports.some((p) => p.id === w[end].port && p.bus === wantBus)) { kept += 1; continue; }
-      let pid = null;
-      try { pid = pickPort(ctx.work, node, wantBus); } catch (err) { if (!(err instanceof OpError)) throw err; }
-      if (pid) { w[end].port = pid; rewired += 1; } else dropped.push(w.id);
-    }
-  }
-  if (dropped.length) {
-    ctx.work.wires = ctx.work.wires.filter((w) => !dropped.includes(w.id));
-    ctx.warnings.push(`removed wires ${dropped.join(', ')}: ${part.name} has no port for their bus`);
-    for (const id of dropped) ctx.touched.add(id);
-  }
+  delete node.part;
+  const counts = rewireNode(ctx, node, oldPart, part);
   ctx.touched.add(node.id);
-  ctx.changes.push(`replaced ${node.id} with ${part.kind} (kept ${kept}, rewired ${rewired}, dropped ${dropped.length})`);
+  ctx.changes.push(`replaced ${node.id} with ${part.kind} (kept ${counts.kept}, rewired ${counts.rewired}, dropped ${counts.dropped})`);
 };
 
 HANDLERS.remove = (ctx, op) => {
@@ -472,12 +537,12 @@ HANDLERS.update_zone = (ctx, op) => {
 // Applies a batch: every op runs against a working copy, errors are
 // collected with their index, and the document is replaced only when the
 // whole batch succeeded.
-export function applyEdits(doc, ops) {
+export function applyEdits(doc, ops, { library = null } = {}) {
   if (!Array.isArray(ops)) return { ok: false, errors: [{ index: -1, message: 'ops must be an array' }] };
   if (ops.length > MAX_OPS) {
     return { ok: false, errors: [{ index: -1, message: `at most ${MAX_OPS} operations per batch; split the work` }] };
   }
-  const ctx = makeCtx(doc);
+  const ctx = makeCtx(doc, library);
   ops.forEach((op, index) => {
     try {
       const handler = op && Object.hasOwn(HANDLERS, op.op) ? HANDLERS[op.op] : null;
