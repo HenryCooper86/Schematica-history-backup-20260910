@@ -22,6 +22,12 @@ export function initPartEditor({ store, library, svg, tools }) {
   let ctx = null;   // { nodeId, templateId, mode, others }
   let nextPort = 0;
   let nextField = 0;
+  // The last value typed or picked on each icon tab this dialog has been
+  // open for, so leaving a tab and coming back restores it instead of
+  // resetting to the generic default (reset from the definition in open()).
+  let lastKind = null;
+  let lastText = null;
+  let lastPath = null;
 
   $('pe-category').innerHTML = CATEGORIES.map((c) => `<option value="${c.id}">${escAttr(c.name)}</option>`).join('');
   $('pe-icon-kind').innerHTML = Object.values(PARTS).map((p) => (
@@ -30,6 +36,9 @@ export function initPartEditor({ store, library, svg, tools }) {
   $('pe-swatches').innerHTML = ACCENT_SWATCHES.map((c) => (
     `<button type="button" class="swatch" data-swatch="${c}" style="background:${c}" title="${c}"></button>`
   )).join('') + '<button type="button" class="swatch swatch-auto" data-swatch="" title="Category color">Auto</button>';
+  // Limits come from LIMITS, not restated in the markup.
+  $('pe-name').maxLength = LIMITS.name;
+  $('pe-icon-text').maxLength = LIMITS.text;
 
   // ---- draft <-> definition ----
   // Rows keep their ids (a customized built-in keeps vcc, i2c, …); new rows
@@ -59,12 +68,18 @@ export function initPartEditor({ store, library, svg, tools }) {
     return { id, n };
   }
   function rawDraft() {
+    // An empty Initials box means "use the initials of the name" — a blank
+    // name is already reported as "Name is required.", so leave it alone.
+    let icon = draft.icon;
+    if (icon.text !== undefined && !icon.text.trim() && draft.name.trim()) {
+      icon = { text: initials(draft.name) };
+    }
     return {
       ...(draft.lib ? { lib: draft.lib } : {}),
       name: draft.name,
       category: draft.category,
       accent: draft.accent,
-      icon: draft.icon,
+      icon,
       ports: draft.ports.map((p) => ({ ...p })),
       fields: draft.fields.map((f) => {
         const out = { id: f.id, label: f.label };
@@ -101,6 +116,7 @@ export function initPartEditor({ store, library, svg, tools }) {
     $('pe-icon-text').hidden = tab !== 'text';
     $('pe-icon-path').hidden = tab !== 'path';
     $('pe-icon-kind').querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.kind === draft.icon.kind));
+    $('pe-icon-text').placeholder = initials(draft.name);
     if (tab === 'text') $('pe-icon-text').value = draft.icon.text ?? '';
     if (tab === 'path') $('pe-icon-path').value = draft.icon.path ?? '';
   }
@@ -133,7 +149,11 @@ export function initPartEditor({ store, library, svg, tools }) {
   }
 
   // ---- form events ----
-  $('pe-name').addEventListener('input', () => { draft.name = $('pe-name').value; refresh(); });
+  $('pe-name').addEventListener('input', () => {
+    draft.name = $('pe-name').value;
+    $('pe-icon-text').placeholder = initials(draft.name);
+    refresh();
+  });
   $('pe-category').addEventListener('change', () => { draft.category = $('pe-category').value; refresh(); });
   $('pe-swatches').addEventListener('click', (e) => {
     const b = e.target.closest('[data-swatch]');
@@ -146,9 +166,12 @@ export function initPartEditor({ store, library, svg, tools }) {
     const b = e.target.closest('[data-tab]');
     if (!b) return;
     const tab = b.dataset.tab;
-    if (tab === 'kind') draft.icon = { kind: draft.icon.kind || 'generic' };
-    if (tab === 'text') draft.icon = { text: draft.icon.text ?? initials(draft.name) };
-    if (tab === 'path') draft.icon = { path: draft.icon.path ?? 'M4 4h8v8H4z' };
+    // Restore each tab's own last value; only an empty cache falls back to
+    // a default, so a built-in icon (or typed text/path) survives a round
+    // trip through the other tabs.
+    if (tab === 'kind') draft.icon = { kind: lastKind || 'generic' };
+    if (tab === 'text') draft.icon = { text: lastText || initials(draft.name) };
+    if (tab === 'path') draft.icon = { path: lastPath || 'M4 4h8v8H4z' };
     renderIcon();
     refresh();
   });
@@ -156,11 +179,20 @@ export function initPartEditor({ store, library, svg, tools }) {
     const b = e.target.closest('[data-kind]');
     if (!b) return;
     draft.icon = { kind: b.dataset.kind };
+    lastKind = b.dataset.kind;
     renderIcon();
     refresh();
   });
-  $('pe-icon-text').addEventListener('input', () => { draft.icon = { text: $('pe-icon-text').value }; refresh(); });
-  $('pe-icon-path').addEventListener('input', () => { draft.icon = { path: $('pe-icon-path').value }; refresh(); });
+  $('pe-icon-text').addEventListener('input', () => {
+    draft.icon = { text: $('pe-icon-text').value };
+    lastText = draft.icon.text;
+    refresh();
+  });
+  $('pe-icon-path').addEventListener('input', () => {
+    draft.icon = { path: $('pe-icon-path').value };
+    lastPath = draft.icon.path;
+    refresh();
+  });
 
   const rowIndex = (e) => Number(e.target.closest('tr')?.dataset.i);
   $('pe-ports').addEventListener('input', (e) => {
@@ -175,9 +207,12 @@ export function initPartEditor({ store, library, svg, tools }) {
     if (e.target.matches('[data-pside]')) p.side = e.target.value;
     if (e.target.matches('[data-pbus]')) {
       p.bus = e.target.value;
-      // A supply pin is required unless the user unticks it afterwards.
-      p.required = p.bus === 'power' || p.bus === 'gnd';
-      e.target.closest('tr').querySelector('[data-preq]').checked = p.required;
+      // Switching onto a supply bus marks the pin required; switching off
+      // one never unticks it — that is the user's call to make.
+      if (p.bus === 'power' || p.bus === 'gnd') {
+        p.required = true;
+        e.target.closest('tr').querySelector('[data-preq]').checked = true;
+      }
     }
     if (e.target.matches('[data-preq]')) p.required = e.target.checked;
     refresh();
@@ -232,6 +267,9 @@ export function initPartEditor({ store, library, svg, tools }) {
   function open({ def, nodeId = null, templateId = null, mode = 'new' }) {
     draft = toDraft(def);
     if (templateId) draft.lib = templateId;
+    lastKind = draft.icon.kind ?? null;
+    lastText = draft.icon.text ?? null;
+    lastPath = draft.icon.path ?? null;
     const node = nodeId ? findItem(store.doc, nodeId)?.item : null;
     const others = node
       ? siblings(store.doc, node)

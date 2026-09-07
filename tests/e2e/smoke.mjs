@@ -909,6 +909,13 @@ try {
   await sleep(100);
   const customizeOpen = await js(`(() => ({ open: document.getElementById('part-dialog').open, title: document.getElementById('pe-title').textContent, ports: document.querySelectorAll('#pe-ports tr').length, req: [...document.querySelectorAll('#pe-ports [data-preq]')].filter((c) => c.checked).length, lib: document.getElementById('pe-save-lib').checked, preview: document.querySelectorAll('#pe-preview .portg').length }))()`);
   check('Customize opens the editor prefilled from the MCU: eleven ports, supply pins required, library unticked, preview drawn', customizeOpen.open && customizeOpen.title === 'Customize MCU' && customizeOpen.ports === 11 && customizeOpen.req === 2 && customizeOpen.lib === false && customizeOpen.preview === 11, JSON.stringify(customizeOpen));
+  const iconRoundTrip = await js(`(() => {
+    document.querySelector('#pe-icon-tabs [data-tab="text"]').click();
+    document.querySelector('#pe-icon-tabs [data-tab="kind"]').click();
+    const active = document.querySelector('#pe-icon-kind button.active');
+    return { kind: active ? active.dataset.kind : null };
+  })()`);
+  check('leaving and returning to the Built-in tab keeps the MCU icon', iconRoundTrip.kind === 'mcu', JSON.stringify(iconRoundTrip));
   await js(`(() => {
     const fire = (el) => { el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); };
     document.getElementById('pe-port-add').click();
