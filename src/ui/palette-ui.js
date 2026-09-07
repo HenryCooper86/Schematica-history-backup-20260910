@@ -102,18 +102,24 @@ export function initPalette({ svg, store, tools, library, editor }) {
     el.innerHTML = badgeHTML(partOf(n)) + `<span class="pi-name">${escAttr(n.part.name)}</span>`
       + '<button type="button" class="pi-adopt" data-adopt>Add to library</button>';
     el.querySelector('[data-adopt]').addEventListener('click', () => {
+      // Resolve the node fresh at click time: the tile was built from a
+      // render that may be stale (a share link swapped the board, or an
+      // undo/Edit part minted a new definition, without a re-render in
+      // between), so a closed-over `n` could save the wrong definition.
+      const fresh = store.doc.nodes.find((m) => m.id === n.id);
+      if (!fresh || !fresh.part) return;
       let id;
-      try { id = library.save(n.part, n.part.lib || null); } catch (err) { toast(err.message); return; }
-      if (!n.part.lib) {
+      try { id = library.save(fresh.part, fresh.part.lib || null); } catch (err) { toast(err.message); return; }
+      if (!fresh.part.lib) {
         // Every one-off of this name now belongs to the new template.
-        const name = n.part.name;
+        const name = fresh.part.name;
         store.apply((doc) => {
           for (const m of doc.nodes) {
             if (m.kind === 'custom' && m.part && !m.part.lib && m.part.name === name) m.part = { lib: id, ...m.part };
           }
         });
       }
-      toast(`${n.part.name} added to My parts.`);
+      toast(`${fresh.part.name} added to My parts.`);
     });
     return el;
   }
@@ -126,11 +132,20 @@ export function initPalette({ svg, store, tools, library, editor }) {
     applySearch();
   }
   library.subscribe(renderMine);
-  let boardKey = null;
+  // Re-render when the set of custom nodes' `part` objects changes identity,
+  // not when a derived key (lib id + name) matches: two different boards can
+  // share the same orphan lib id and name (a share link swapping in a node
+  // with the same missing template but a different port count, or an undo
+  // that restores an older definition), and a key match would then skip the
+  // re-render and leave a stale tile whose Add to library saves the wrong
+  // definition. Undo, load, and Edit part all mint fresh `part` objects;
+  // dragging a node does not, so a plain drag causes no extra render.
+  let prevParts = [];
   store.subscribe(() => {
-    const key = store.doc.nodes.filter((n) => n.kind === 'custom' && n.part).map((n) => `${n.part.lib || ''}:${n.part.name}`).sort().join('|');
-    if (key === boardKey) return;
-    boardKey = key;
+    const parts = store.doc.nodes.filter((n) => n.kind === 'custom' && n.part).map((n) => n.part);
+    const changed = parts.length !== prevParts.length || parts.some((p, i) => p !== prevParts[i]);
+    if (!changed) return;
+    prevParts = parts;
     renderMine();
   });
 
