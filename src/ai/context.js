@@ -1,7 +1,8 @@
 // What the model reads: the board as one line per item, ids first, and the
 // palette catalogue (Task 11). Both are plain text a person can read too.
 import { rdkProfile, referenceText } from '../rdk/guide.js';
-import { PARTS, CATEGORIES, getPart } from '../palette.js';
+import { PARTS, CATEGORIES } from '../palette.js';
+import { partOf } from '../custom.js';
 import { BUSES, BUS_ORDER } from '../buses.js';
 import { PRESETS } from '../presets.js';
 import { zoneMembers } from '../geometry.js';
@@ -15,10 +16,14 @@ export function quote(s) {
 const value = (s) => (/^[\w.:/#@+-]+$/.test(String(s)) ? String(s) : quote(s));
 
 export function nodeLine(doc, node) {
-  const part = getPart(node.kind);
+  const part = partOf(node);
   let s = `node ${node.id} ${node.kind} ${quote(node.label)}`;
   const profile = rdkProfile(node);
   if (profile) s += ` rdk-profile=${profile.id} effective-RDK-ports=${profile.ports ? profile.ports.map(p => `${p.id}(${p.bus})`).join(',') : 'unverified (generic drawing ports are not validated connectors)'}`;
+  if (part.custom) {
+    s += ` custom-ports=${part.ports.map((p) => `${p.id}:${p.name}(${p.bus})`).join(',') || '-'}`;
+    if (node.part?.lib) s += ` template=${node.part.lib}`;
+  }
   if (node.sublabel) s += ` pn=${value(node.sublabel)}`;
   if (node.addr) s += ` addr=${value(node.addr)}`;
   if (node.rail) s += ` rail=${value(node.rail)}`;
@@ -80,6 +85,13 @@ export function partLine(part) {
   if (part.shape) s += '  [flowchart shape]';
   if (part.threat) s += '  [threat]';
   return s;
+}
+
+// A library template in search results, marked so the model knows to use
+// add_part with kind custom and template.
+export function templateLine(t) {
+  const ports = (t.ports || []).map((p) => `${p.id}:${p.name}(${p.bus})`).join(', ');
+  return `template ${t.id}  ${t.name}  ports: ${ports || '-'}  [library]`;
 }
 
 // The stable block of the system prompt: every kind, every bus, and the

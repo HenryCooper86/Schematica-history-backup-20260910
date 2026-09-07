@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { boardText, quote, catalogueText, partLine } from '../src/ai/context.js';
+import { boardText, quote, catalogueText, partLine, nodeLine, templateLine } from '../src/ai/context.js';
 import { EXAMPLES } from '../src/examples.js';
 import { checkDoc } from '../src/drc.js';
 import { PARTS } from '../src/palette.js';
@@ -90,4 +90,20 @@ test('the system prompt is the rules plus the catalogue, and the per-request blo
 test('the rules tell the model how to search and how to name ports on connect', () => {
   assert.match(ROLE_RULES, /by function or bus/);
   assert.match(ROLE_RULES, /both ends or neither/);
+});
+
+test('custom nodes list their ports and template so the model can connect by bus', () => {
+  const part = {
+    lib: 'lp1', name: 'Motor driver x4', category: 'actuators', accent: null, icon: { text: 'MD' },
+    ports: [{ id: 'p1', name: 'VCC', side: 'top', bus: 'power', required: true }, { id: 'p2', name: 'CAN', side: 'left', bus: 'can', required: false }],
+    fields: [{ id: 'f1', label: 'Channels' }],
+  };
+  const node = { id: 'c1', kind: 'custom', x: 0, y: 0, label: 'Left driver', sublabel: 'MD-4', color: null, addr: '', rail: '12V', notes: '', status: null, flags: [], part, fields: { f1: '4' } };
+  assert.equal(
+    nodeLine({ nodes: [node], wires: [], zones: [], notes: [] }, node),
+    'node c1 custom "Left driver" custom-ports=p1:VCC(power),p2:CAN(can) template=lp1 pn=MD-4 rail=12V f1=4',
+  );
+  const bare = { ...node, part: { ...part, lib: undefined, ports: [] } };
+  assert.match(nodeLine({ nodes: [bare], wires: [], zones: [], notes: [] }, bare), /custom-ports=- pn=/);
+  assert.equal(templateLine({ id: 'lp1', ...part }), 'template lp1  Motor driver x4  ports: p1:VCC(power), p2:CAN(can)  [library]');
 });
