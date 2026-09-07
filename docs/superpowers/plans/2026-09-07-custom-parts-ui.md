@@ -1507,3 +1507,23 @@ git commit -m "feat(custom): assistant places library templates; document custom
 - Spec coverage: library storage, cap, memory fallback, export and import merge (T1); draft validation, Customize source definition, apply with wire and field pruning, siblings (T2); editor layout, three entry points, preview through the real renderer, inline validation, Save to library and apply-to-all rules, one undo step, click-outside and Escape (T3); My parts group with + New, Export, Import, tile edit and delete with Undo, On this board with Add to library, template drag and drop, search over templates, heading collapse (T4); assistant library pass-through, README (T5). The two browser scenarios the spec names are T4 (new part, wire, check, reload) and T3 (customize keeps wires). Inert-while-busy needs nothing new: the palette and properties panel are already made inert by the assistant, and a modal dialog cannot be open when a request starts.
 - Names used across tasks: `createLibrary`, `LIBRARY_KEY`, `EXPORT_MARK` (T1); `draftProblems`, `optionList`, `definitionFrom`, `siblings`, `applyDefinition` (T2, used in T3); `badgeHTML`, `badgeColor` (T3, used in T4); `initPartEditor(...).open({ def, nodeId, templateId, mode })` (T3, used in T3 props and T4 palette); `createPropsPanel({ store, editor })` (T3); `initPalette({ svg, store, tools, library, editor })` (T4); `initAssistant({ …, library })` (T5). Element ids: `part-dialog`, `pe-*`, `parts-file-input` (T3); `my-parts-group`, `parts-new`, `parts-export`, `parts-import`, `my-parts`, `board-parts-head`, `board-parts`, `props-edit-part`, `props-customize` (T3–T4).
 - Deviation recorded: a **new** part is also placed at the centre of the view on Save (the spec only says it is saved to My parts); it gives immediate feedback and matches what clicking a palette tile does.
+
+## Carried over from the engine branch (2026-09-08)
+
+Facts the engine plan's execution settled that this plan's tasks rely on:
+
+- **Explicit ids win.** `normalizePart` reserves every valid explicit port/field id first (first occurrence wins) and generates `p<n>`/`f<n>` around them. The editor may therefore keep ids on rows and mint new ones without fear of a collision reshuffling saved wires.
+- **Definitions are immutable.** `partOf` memoizes on the `part` object; never mutate `node.part` in place — replace it (`applyDefinition` does; `updateItem(store, id, { part })` would too).
+- **Whitespace is collapsed** by the validator (names, port names, labels, options, placeholder), so the editor need not guard against newlines.
+- **Every field label reaching the properties panel is escaped** by `propField`; the editor's own markup must escape labels, options, and names the same way (`escAttr`), and the badge helper must escape the icon path.
+
+Deferred minors the final review left for this plan (fix when touching the code, or as a small task at the end):
+
+- `mergePortIds`/`mergeFieldIds` are near-twins; extract a shared `mergeIds(old, fresh, { key, prefer, prefix })` when the editor's apply-to-all lands (its `assigned` set is redundant with the old-id set).
+- `add_part` with a catalogue kind silently ignores `custom`/`template`; fail with a pointer instead.
+- `rewireNode`'s drop warning says "has no port for their bus" even when the cause is a bus change on a name-matched port or point-to-point contention.
+- `update_part` with `custom` does not re-check surviving field values against a field's new `options` (the loader does not either; the props panel prepends a stale value to the select).
+- `normalizeIcon` falls through to `text` when both `kind` (invalid) and `text` are given, without a warning.
+- `ID_RE` admits `__proto__`/`constructor` as ids; harmless today, a one-line reserved-name check.
+- Tests to add: a space-containing port name is quoted in board text; a name-matched port whose bus changed; two point-to-point wires contending for one port; a `part` payload on a non-custom kind is ignored; a custom part's non-required port with id `vcc` stays silent.
+- Cosmetic: `nodeSize` filters the port list four times; the BOM key repeats the sublabel suffix; `filterParts` could call the module-level `words()`.
