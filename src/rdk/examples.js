@@ -1,7 +1,7 @@
 // Source-aware architectural starters. No hardware or runtime validation is implied.
 export const RDK_EXAMPLES = [
   { id: "rdk-rover", name: "RDK X5 Rover (D-Robotics)", group: "Vehicle",
-    doc: { schema: 1, title: "RDK X5 Rover",
+    doc: { schema: 2, title: "RDK X5 Rover",
       nodes: [
         {"id":"n1","kind":"battery","x":40,"y":300,"label":"Battery","sublabel":"4S Li-ion","color":null,"addr":"","rail":"","notes":"","status":null,"flags":[]},
         {"id":"n2","kind":"regulator","x":40,"y":140,"label":"Regulator","sublabel":"5V 5A buck","color":null,"addr":"","rail":"","notes":"","status":null,"flags":[]},
@@ -53,7 +53,7 @@ export const RDK_EXAMPLES = [
     },
   },
   { id: "rdk-perception", name: "RDK X5 Stereo Perception", group: "Embedded",
-    doc: { schema: 1, title: "RDK X5 Stereo Perception",
+    doc: { schema: 2, title: "RDK X5 Stereo Perception",
       nodes: [
         {"id":"n1","kind":"battery","x":40,"y":300,"label":"Battery","sublabel":"4S Li-ion","color":null,"addr":"","rail":"","notes":"","status":null,"flags":[]},
         {"id":"n2","kind":"regulator","x":40,"y":140,"label":"Regulator","sublabel":"5V 5A buck","color":null,"addr":"","rail":"","notes":"","status":null,"flags":[]},

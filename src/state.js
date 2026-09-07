@@ -16,7 +16,7 @@ export function uid(prefix = 'id') {
 // The document format version this app writes. Bump it when a saved field
 // changes meaning or shape, and add the matching step to MIGRATIONS in
 // src/serialize.js so older files are upgraded on load.
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export function newDoc(title = 'Untitled Board') {
   return { schema: SCHEMA_VERSION, title, nodes: [], wires: [], zones: [], notes: [], journey: [] };

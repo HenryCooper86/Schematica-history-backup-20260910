@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   uid, newDoc, Store, addNode, addWire, addZone, addNote,
-  findItem, updateItem, deleteItems, duplicateItems,
+  findItem, updateItem, deleteItems, duplicateItems, SCHEMA_VERSION,
 } from '../src/state.js';
 
 test('uid is unique and prefixed', () => {
@@ -38,7 +38,7 @@ test('isDragging is true only between beginDrag and endDrag or cancelDrag', () =
 
 test('newDoc shape', () => {
   const doc = newDoc('X');
-  assert.deepEqual(doc, { schema: 1, title: 'X', nodes: [], wires: [], zones: [], notes: [], journey: [] });
+  assert.deepEqual(doc, { schema: SCHEMA_VERSION, title: 'X', nodes: [], wires: [], zones: [], notes: [], journey: [] });
 });
 
 test('addNode uses part defaults', () => {

@@ -4,6 +4,7 @@ import { serialize, deserialize, migrateRaw, MAX_TEXT, MAX_COORD } from '../src/
 import { SCHEMA_VERSION } from '../src/state.js';
 import { PORT_ALIASES } from '../src/palette.js';
 import { Store, addNode, addWire, addZone, addNote } from '../src/state.js';
+import { LIMITS } from '../src/custom.js';
 
 function sampleDoc() {
   const store = new Store();
@@ -414,4 +415,79 @@ test('over-long text and out-of-range positions are clamped with a warning', () 
   }));
   assert.equal(ok.nodes[0].x, -5000.5);
   assert.deepEqual(none, []);
+});
+
+const CUSTOM = {
+  lib: 'lp1', name: 'Motor driver x4', category: 'actuators', accent: null, icon: { text: 'MD' },
+  ports: [
+    { id: 'p1', name: 'VCC', side: 'top', bus: 'power', required: true },
+    { id: 'p2', name: 'CAN', side: 'left', bus: 'can', required: false },
+  ],
+  fields: [{ id: 'f1', label: 'Channels' }],
+};
+
+test('the app writes schema 2 and a schema 1 file upgrades with no change', () => {
+  assert.equal(SCHEMA_VERSION, 2);
+  const { doc, warnings } = deserialize('{"schema": 1, "title": "Old", "nodes": [{"id": "a", "kind": "mcu", "x": 0, "y": 0}]}');
+  assert.deepEqual(warnings, []);
+  assert.equal(doc.schema, 2);
+  assert.equal(doc.nodes[0].kind, 'mcu');
+  // What an older build sees: a schema 2 file left alone by migrateRaw.
+  assert.deepEqual(migrateRaw({ schema: 2, title: 'New' }, {}, 1), { schema: 2, title: 'New' });
+});
+
+test('a custom node round-trips with its definition, fields, and wires', () => {
+  const doc = {
+    schema: 2, title: 'C', zones: [], notes: [], journey: [],
+    nodes: [
+      { id: 'c', kind: 'custom', x: 0, y: 0, label: 'MD', sublabel: 'MD-4', color: null, addr: '', rail: '12V', notes: '', status: null, flags: [], part: CUSTOM, fields: { f1: '4' } },
+      { id: 'm', kind: 'mcu', x: 300, y: 0, label: 'MCU', sublabel: '', color: null, addr: '', rail: '', notes: '', status: null, flags: [] },
+    ],
+    wires: [{ id: 'w', bus: 'can', from: { node: 'c', port: 'p2' }, to: { node: 'm', port: 'can' }, label: '', arrow: null, style: null, flow: null }],
+  };
+  const { doc: back, warnings } = deserialize(serialize(doc));
+  assert.deepEqual(warnings, []);
+  assert.deepEqual(back, doc);
+});
+
+test('a custom node with an unusable definition becomes a custom box and keeps its wires on the side ports', () => {
+  const { doc, warnings } = deserialize(JSON.stringify({
+    schema: 2,
+    nodes: [
+      { id: 'c', kind: 'custom', x: 0, y: 0, part: { name: '' } },
+      { id: 'm', kind: 'mcu', x: 300, y: 0 },
+    ],
+    wires: [{ id: 'w', bus: 'can', from: { node: 'c', port: 'p2' }, to: { node: 'm', port: 'can' } }],
+  }));
+  assert.equal(doc.nodes[0].kind, 'generic');
+  assert.equal('part' in doc.nodes[0], false);
+  assert.equal(doc.wires.length, 1);
+  assert.equal(doc.wires[0].from.port, 'right');
+  assert.ok(warnings.some((w) => /had no usable definition/.test(w)), warnings.join('\n'));
+});
+
+test('a dropped custom port drops its wire; unknown field values drop; the definition is cleaned', () => {
+  const { doc, warnings } = deserialize(JSON.stringify({
+    schema: 2,
+    nodes: [
+      { id: 'c', kind: 'custom', x: 0, y: 0, part: { ...CUSTOM, ports: [...CUSTOM.ports, { name: 'X', side: 'nowhere', bus: 'i2c' }] }, fields: { f1: '4', zz: 'gone' } },
+      { id: 'm', kind: 'mcu', x: 300, y: 0 },
+    ],
+    wires: [
+      { id: 'w1', bus: 'can', from: { node: 'c', port: 'p2' }, to: { node: 'm', port: 'can' } },
+      { id: 'w2', bus: 'i2c', from: { node: 'c', port: 'p3' }, to: { node: 'm', port: 'i2c' } },
+    ],
+  }));
+  assert.deepEqual(doc.nodes[0].part.ports.map((p) => p.id), ['p1', 'p2']);
+  assert.deepEqual(doc.nodes[0].fields, { f1: '4' });
+  assert.deepEqual(doc.wires.map((w) => w.id), ['w1']);
+  assert.ok(warnings.some((w) => /no name or side/.test(w)));
+  assert.ok(warnings.some((w) => /unknown field "zz"/.test(w)));
+  assert.ok(warnings.some((w) => /missing endpoint/.test(w)));
+});
+
+test('a custom node keeps its own label and gets the definition name when it has none', () => {
+  const { doc } = deserialize(JSON.stringify({ schema: 2, nodes: [{ id: 'c', kind: 'custom', x: 0, y: 0, part: CUSTOM }] }));
+  assert.equal(doc.nodes[0].label, 'Motor driver x4');
+  assert.equal(doc.nodes[0].part.name.length <= LIMITS.name, true);
 });

@@ -3,6 +3,7 @@ import { BUSES, DEFAULT_BUS } from './buses.js';
 import { PARTS, DISPOSITIONS, PORT_ALIASES } from './palette.js';
 import { newDoc, NODE_STATUSES, NODE_FLAGS, SCHEMA_VERSION } from './state.js';
 import { nodeSize } from './geometry.js';
+import { normalizePart, partOf } from './custom.js';
 
 export function serialize(doc) {
   return JSON.stringify(doc, null, 2);
@@ -12,7 +13,12 @@ export function serialize(doc) {
 // returns its schema-(n+1) shape. The runner stamps the new version, so a
 // step only rewrites the fields that changed. Tolerant field-level upgrades
 // that never bumped the version (card sizes, journey views) stay inline below.
-export const MIGRATIONS = {};
+export const MIGRATIONS = {
+  // 1 -> 2: custom parts. Nothing in an older file changes shape; the bump
+  // exists so an older build warns that the file is newer before it turns
+  // custom nodes into generic boxes.
+  1: (raw) => raw,
+};
 
 // Caps on what a file may carry: a text field longer than this is cut, a
 // position or size beyond this is pulled back into range. Real boards sit
@@ -87,15 +93,25 @@ export function deserialize(text) {
     }
     seen.add(n.id);
     let kind = typeof n.kind === 'string' ? n.kind : 'generic';
+    let def = null; // a custom node's validated definition
     if (typeof n.kind !== 'string') {
       // A missing kind quietly becomes a custom box; its wires may remap too.
       coerced.add(n.id);
+    } else if (kind === 'custom') {
+      const res = normalizePart(n.part);
+      for (const w of res.warnings) warnings.push(`Node "${n.id}": ${w}`);
+      if (res.part) def = res.part;
+      else {
+        warnings.push(`Custom part "${n.id}" had no usable definition and became a custom box.`);
+        kind = 'generic';
+        coerced.add(n.id);
+      }
     } else if (!PARTS[kind]) {
       warnings.push(`Unknown part "${kind}" became a custom box.`);
       kind = 'generic';
       coerced.add(n.id);
     }
-    const part = PARTS[kind];
+    const part = def ? partOf({ kind: 'custom', part: def }) : PARTS[kind];
     let color = typeof n.color === 'string' ? n.color : null;
     if (color !== null && !HEX_COLOR.test(color)) {
       warnings.push(`Ignored invalid color on node "${n.id}".`);
@@ -121,6 +137,7 @@ export function deserialize(text) {
       status,
       flags,
     };
+    if (def) node.part = def;
     // Schema fields (threat parts) travel as a string map; only ids the part
     // knows survive, blanks are dropped, and the key is absent when empty.
     if (n.fields && typeof n.fields === 'object' && !Array.isArray(n.fields)) {
