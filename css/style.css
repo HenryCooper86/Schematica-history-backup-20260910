@@ -1044,7 +1044,8 @@ g.node:hover .ports,
 #rec-dialog,
 #export-dialog,
 #bom-dialog,
-#drc-dialog {
+#drc-dialog,
+#part-dialog {
   position: fixed;
   inset: 0;
   z-index: 50;
@@ -1064,11 +1065,13 @@ g.node:hover .ports,
 #rec-dialog[open],
 #export-dialog[open],
 #bom-dialog[open],
-#drc-dialog[open] { display: flex; }
+#drc-dialog[open],
+#part-dialog[open] { display: flex; }
 #rec-dialog::backdrop,
 #export-dialog::backdrop,
 #bom-dialog::backdrop,
-#drc-dialog::backdrop { background: transparent; }
+#drc-dialog::backdrop,
+#part-dialog::backdrop { background: transparent; }
 .rec-card {
   width: 380px;
   background: var(--bg1);
@@ -1131,7 +1134,8 @@ g.node:hover .ports,
 
 #export-dialog .rec-buttons button,
 #bom-dialog .rec-buttons button,
-#drc-dialog .rec-buttons button {
+#drc-dialog .rec-buttons button,
+#part-dialog .rec-buttons button {
   background: var(--bg2);
   border: 1px solid var(--line);
   color: var(--text);
@@ -1143,7 +1147,8 @@ g.node:hover .ports,
 }
 #export-dialog .rec-buttons button:hover,
 #bom-dialog .rec-buttons button:hover,
-#drc-dialog .rec-buttons button:hover { border-color: var(--accent); }
+#drc-dialog .rec-buttons button:hover,
+#part-dialog .rec-buttons button:hover { border-color: var(--accent); }
 #export-cancel, #bom-close { color: var(--muted); }
 
 .bom-card { width: 680px; max-width: 92vw; }
@@ -1269,3 +1274,59 @@ html {
 .ai-document-preview::backdrop { background: rgba(4, 6, 12, 0.6); }
 .ai-document-preview h3, .ai-document-preview p { overflow-wrap: anywhere; }
 .ai-document-preview pre { max-height: 55vh; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; -webkit-user-select: text; font: 12px/1.5 var(--mono); }
+
+/* ---- Part editor ---- */
+.part-card { width: 780px; max-width: 94vw; max-height: 92vh; overflow: auto; }
+.pe-grid { display: grid; grid-template-columns: 1fr 236px; gap: 18px; }
+.pe-row { display: flex; gap: 10px; }
+.pe-field { flex: 1; flex-direction: column; align-items: stretch; gap: 4px; padding: 0; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--faint); }
+.part-card input[type="text"], .part-card select, .part-card textarea {
+  width: 100%; background: var(--bg0); border: 1px solid var(--line); color: var(--text);
+  border-radius: 8px; padding: 6px 8px; font-size: 12.5px; font-family: inherit; text-transform: none; letter-spacing: 0;
+}
+.part-card input:focus, .part-card select:focus, .part-card textarea:focus { outline: none; border-color: var(--accent); }
+.part-card textarea { resize: vertical; font-family: var(--mono); font-size: 11.5px; }
+.pe-tabs { display: flex; gap: 6px; margin-bottom: 8px; }
+.pe-tabs button {
+  background: var(--bg2); border: 1px solid var(--line); color: var(--muted); border-radius: 999px;
+  padding: 4px 10px; font-size: 11.5px; cursor: pointer; font-family: inherit;
+}
+.pe-tabs button.active { color: #7dd3fc; border-color: var(--accent); background: var(--accent-dim); }
+.pe-icons {
+  display: grid; grid-template-columns: repeat(auto-fill, 36px); gap: 4px; max-height: 118px; overflow: auto;
+  padding: 4px; border: 1px solid var(--line); border-radius: 8px;
+}
+.pe-icons button { background: none; border: 1px solid transparent; border-radius: 9px; padding: 0; cursor: pointer; }
+.pe-icons button.active, .pe-icons button:hover { border-color: var(--accent); }
+.pe-icons .badge, .custom-item .badge {
+  display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 9px;
+  background: color-mix(in srgb, var(--c) 13%, transparent);
+}
+.pe-icons .badge svg { width: 18px; height: 18px; }
+.badge b { font-size: 11px; font-weight: 700; letter-spacing: 0.5px; font-style: normal; }
+.pe-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.pe-table td { padding: 3px; vertical-align: middle; }
+.pe-table td:first-child { width: 30%; }
+.pe-table .dialog-check { font-size: 11.5px; white-space: nowrap; }
+.pe-move { white-space: nowrap; text-align: right; }
+.pe-move button {
+  background: var(--bg2); border: 1px solid var(--line); color: var(--muted); border-radius: 6px;
+  width: 24px; height: 24px; cursor: pointer; font-family: inherit; margin-left: 2px;
+}
+.pe-move button:hover:not(:disabled) { color: var(--text); border-color: var(--line2); }
+.pe-move button:disabled { opacity: 0.35; cursor: default; }
+.pe-add {
+  margin-top: 6px; background: none; border: 1px dashed var(--line2); color: var(--muted); border-radius: 8px;
+  padding: 5px 10px; font-size: 12px; cursor: pointer; font-family: inherit;
+}
+.pe-add:hover { color: var(--text); border-color: var(--accent); }
+#pe-preview { width: 100%; height: 190px; background: var(--bg0); border: 1px solid var(--line); border-radius: 10px; }
+#pe-preview .ports { opacity: 1; }
+.pe-problems { margin: 8px 0 0; padding-left: 16px; font-size: 11.5px; color: #fca5a5; line-height: 1.5; }
+.pe-footer { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; }
+#pe-save:disabled { opacity: 0.45; cursor: default; }
+#props button.secondary {
+  margin-top: 14px; width: 100%; background: var(--bg2); border: 1px solid var(--line2); color: var(--text);
+  border-radius: 8px; padding: 7px 11px; cursor: pointer; font-family: inherit; font-size: 13px;
+}
+#props button.secondary:hover { border-color: var(--accent); color: #7dd3fc; }

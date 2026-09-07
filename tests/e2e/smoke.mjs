@@ -898,6 +898,30 @@ try {
     return { found: !!label, noBold: document.querySelector('#props label b') === null };
   })()`);
   check('a custom field label renders as escaped text in the properties panel, never as markup', escaped.found && escaped.noBold, JSON.stringify(escaped));
+
+  // ---- Custom parts: Customize a built-in ----
+  await loadBoard(weather);
+  const mcuCard = await center('#canvas g.node[data-id="n5"] .card');
+  await click(mcuCard.x, mcuCard.y);
+  await sleep(100);
+  const wiresBefore = await js(`document.querySelectorAll('#canvas g.wire').length`);
+  await js(`document.getElementById('props-customize').click(); true`);
+  await sleep(100);
+  const customizeOpen = await js(`(() => ({ open: document.getElementById('part-dialog').open, title: document.getElementById('pe-title').textContent, ports: document.querySelectorAll('#pe-ports tr').length, req: [...document.querySelectorAll('#pe-ports [data-preq]')].filter((c) => c.checked).length, lib: document.getElementById('pe-save-lib').checked, preview: document.querySelectorAll('#pe-preview .portg').length }))()`);
+  check('Customize opens the editor prefilled from the MCU: eleven ports, supply pins required, library unticked, preview drawn', customizeOpen.open && customizeOpen.title === 'Customize MCU' && customizeOpen.ports === 11 && customizeOpen.req === 2 && customizeOpen.lib === false && customizeOpen.preview === 11, JSON.stringify(customizeOpen));
+  await js(`(() => {
+    const fire = (el) => { el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); };
+    document.getElementById('pe-port-add').click();
+    const name = document.querySelector('#pe-ports tr:last-child [data-pname]');
+    name.value = 'EN'; fire(name);
+    document.getElementById('pe-save').click();
+    return true;
+  })()`);
+  await sleep(150);
+  const customized = await js(`(() => ({ closed: !document.getElementById('part-dialog').open, en: !!document.querySelector('#canvas g.node[data-id="n5"] .portg[data-port="p1"]'), i2c: !!document.querySelector('#canvas g.node[data-id="n5"] .portg[data-port="i2c"]'), wires: document.querySelectorAll('#canvas g.wire').length, invalid: document.querySelectorAll('#canvas g.wire.invalid').length, header: (document.querySelector('#props h3')?.textContent || '').trim(), edit: !!document.getElementById('props-edit-part') }))()`);
+  check('saving makes the MCU a custom part with the new port, every wire intact, and an Edit part button', customized.closed && customized.en && customized.i2c && customized.wires === wiresBefore && customized.invalid === 0 && /^MCU/.test(customized.header) && customized.edit, JSON.stringify(customized));
+  const undoneCustomize = await js(`(() => { document.getElementById('undo').click(); return { en: !!document.querySelector('#canvas g.node[data-id="n5"] .portg[data-port="p1"]'), customize: !!document.getElementById('props-customize') }; })()`);
+  check('one undo restores the built-in MCU', undoneCustomize.en === false && undoneCustomize.customize === true, JSON.stringify(undoneCustomize));
   }
 } catch (err) {
   failed += 1;

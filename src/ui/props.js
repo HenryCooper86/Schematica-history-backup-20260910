@@ -3,7 +3,8 @@ import { updateItem, findItem, deleteItems, NODE_STATUSES, NODE_FLAGS } from '..
 import { BUSES, BUS_ORDER } from '../buses.js';
 import { presetsFor, presetPatch } from '../presets.js';
 import { DISPOSITIONS } from '../palette.js';
-import { partOf } from '../custom.js';
+import { partOf, definitionFrom } from '../custom.js';
+import { nodePart } from '../rdk/profiles.js';
 import { onPress, escAttr, toast } from './press.js';
 import { panelHeader, bindCollapsible } from './collapsible.js';
 
@@ -92,6 +93,9 @@ function nodeFields(item, doc) {
   html += `<label>Accent color</label><div class="swatches">${ACCENT_SWATCHES.map((c) => (
     `<button class="swatch${item.color === c ? ' active' : ''}" data-swatch="${c}" style="background:${c}" title="${c}"></button>`
   )).join('')}<button class="swatch swatch-auto${item.color === null ? ' active' : ''}" data-swatch="" title="Category color">Auto</button></div>`;
+  // Custom parts edit their definition; any other card can become one.
+  if (part.custom) html += '<button id="props-edit-part" class="secondary">Edit part&hellip;</button>';
+  else if (!part.shape) html += '<button id="props-customize" class="secondary">Customize&hellip;</button>';
   html += rdkDetails(item, doc);
   html += '<button id="props-delete-one" class="danger">Delete node</button>';
   return html;
@@ -136,7 +140,7 @@ function swimlaneFields(item) {
   return html;
 }
 
-export function createPropsPanel({ store }) {
+export function createPropsPanel({ store, editor }) {
   const props = document.getElementById('props');
 
   function bind(item) {
@@ -144,6 +148,16 @@ export function createPropsPanel({ store }) {
     if (guide) onPress(guide, () => {
       const text = rdkGuide(store.doc);
       if (text) download('rdk-setup-guide.md', text, 'text/markdown;charset=utf-8');
+    });
+    const editPart = props.querySelector('#props-edit-part');
+    if (editPart) onPress(editPart, () => {
+      const cur = findItem(store.doc, item.id)?.item;
+      if (cur?.part) editor.open({ def: cur.part, nodeId: cur.id, mode: 'edit' });
+    });
+    const customize = props.querySelector('#props-customize');
+    if (customize) onPress(customize, () => {
+      const cur = findItem(store.doc, item.id)?.item;
+      if (cur) editor.open({ def: definitionFrom(nodePart(cur)), nodeId: cur.id, mode: 'customize' });
     });
     props.querySelectorAll('[data-prop]').forEach((input) => {
       input.addEventListener('change', () => {

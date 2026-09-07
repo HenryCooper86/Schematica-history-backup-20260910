@@ -125,6 +125,50 @@
     </main>
   </div>
   <input type="file" id="file-input" accept=".json,application/json" hidden>
+  <input type="file" id="parts-file-input" accept=".json,application/json" hidden>
+  <dialog id="part-dialog">
+    <div class="rec-card part-card">
+      <h3 id="pe-title">New part</h3>
+      <div class="pe-grid">
+        <div class="pe-main">
+          <div class="pe-row">
+            <label class="pe-field">Name <input id="pe-name" type="text" maxlength="60" spellcheck="false" autocomplete="off"></label>
+            <label class="pe-field">Category <select id="pe-category"></select></label>
+          </div>
+          <h4>Accent</h4>
+          <div class="swatches" id="pe-swatches"></div>
+          <h4>Icon</h4>
+          <div class="pe-tabs" id="pe-icon-tabs">
+            <button type="button" data-tab="kind">Built-in</button>
+            <button type="button" data-tab="text">Initials</button>
+            <button type="button" data-tab="path">SVG path</button>
+          </div>
+          <div id="pe-icon-kind" class="pe-icons"></div>
+          <input id="pe-icon-text" type="text" maxlength="3" placeholder="e.g. MD" spellcheck="false" hidden>
+          <textarea id="pe-icon-path" rows="2" placeholder="A 16-unit path, e.g. M4 4h8v8H4z" spellcheck="false" hidden></textarea>
+          <h4>Ports</h4>
+          <table class="pe-table"><tbody id="pe-ports"></tbody></table>
+          <button type="button" id="pe-port-add" class="pe-add">+ Add port</button>
+          <h4>Fields</h4>
+          <table class="pe-table"><tbody id="pe-fields"></tbody></table>
+          <button type="button" id="pe-field-add" class="pe-add">+ Add field</button>
+        </div>
+        <div class="pe-side">
+          <h4>Preview</h4>
+          <svg id="pe-preview" viewBox="-30 -30 164 134" aria-label="Card preview"></svg>
+          <ul id="pe-problems" class="pe-problems"></ul>
+        </div>
+      </div>
+      <div class="pe-footer">
+        <label class="dialog-check"><input id="pe-save-lib" type="checkbox"> Save to library</label>
+        <label class="dialog-check" id="pe-apply-all-row" hidden><input id="pe-apply-all" type="checkbox" checked> <span id="pe-apply-all-label"></span></label>
+      </div>
+      <div class="rec-buttons">
+        <button type="button" id="pe-save">Save</button>
+        <button type="button" id="pe-cancel">Cancel</button>
+      </div>
+    </div>
+  </dialog>
   <dialog id="rec-dialog">
     <div class="rec-card">
       <h3>Record diagram</h3>

@@ -6,7 +6,9 @@ import { createTools } from './tools.js';
 import { serialize, deserialize } from './serialize.js';
 import { decodeShare } from './share.js';
 import { toast } from './ui/press.js';
+import { createLibrary } from './library.js';
 import { createPropsPanel } from './ui/props.js';
+import { initPartEditor } from './ui/part-editor.js';
 import { initPalette } from './ui/palette-ui.js';
 import { initLegend } from './ui/legend.js';
 import { initDialogs } from './ui/dialogs.js';
@@ -36,7 +38,13 @@ const tools = createTools({
   svg, store, requestRender: render, onToolChange: updateToolButtons,
   onSave: () => dialogs?.saveJSON(),
 });
-const propsPanel = createPropsPanel({ store });
+// The part library lives in localStorage; reading `window.localStorage`
+// throws when site data is blocked, so it takes null and lives in memory.
+let storage = null;
+try { storage = window.localStorage; } catch { storage = null; }
+const library = createLibrary(storage);
+const editor = initPartEditor({ store, library, svg, tools });
+const propsPanel = createPropsPanel({ store, editor });
 
 function uiState() {
   return {
