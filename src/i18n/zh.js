@@ -12,7 +12,7 @@ export default {
   'SVG': 'SVG',
   'PDF': 'PDF',
   'Compute': '计算',
-  '{part} added to My parts.': '{part} 已加入"我的部件"。',
+  '{part} added to My parts.': '{part} 已加入“我的部件”。',
   // ---- index.html: toolbar ----
   'Board title': '板图标题',
   'Tools': '工具',
@@ -530,7 +530,6 @@ export default {
   'Dropped a zone with a bad id or geometry.': '已丢弃一个 id 或几何无效的区域。',
   'Replaced invalid color on zone "{id}".': '已替换区域“{id}”的无效颜色。',
   'Dropped invalid lanes on swimlane "{id}".': '已丢弃泳道图“{id}”中的无效泳道。',
-  'Lane 1': '泳道 1',
   'Dropped a note with a bad id or position.': '已丢弃一个 id 或位置无效的便签。',
   'Dropped a journey step with a bad id or view.': '已丢弃一个 id 或视图无效的导览步骤。',
   'Step': '步骤',

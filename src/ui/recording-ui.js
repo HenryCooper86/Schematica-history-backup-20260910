@@ -85,7 +85,13 @@ export function initRecording({ svg, store }) {
   });
 
   onLanguageChange(() => {
-    if (recDialog.open) renderFormats();
+    if (recDialog.open) {
+      // Relabelling the list must not move the choice back to the first format.
+      const chosen = document.querySelector('input[name="rec-format"]:checked')?.value;
+      renderFormats();
+      const again = [...document.querySelectorAll('input[name="rec-format"]')].find((r) => r.value === chosen);
+      if (again) again.checked = true;
+    }
     onState(recorder.state());
   });
 

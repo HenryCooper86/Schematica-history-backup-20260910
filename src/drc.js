@@ -1,4 +1,5 @@
-// Design-rule checker: pure derivation from a document. Zero dependencies.
+// Design-rule checker: pure derivation from a document; the messages are
+// written in the interface language.
 // Findings: { level: 'error'|'warning', rule, message, ids: [nodeOrWireIds] }.
 
 import { nodePart } from './rdk/profiles.js';

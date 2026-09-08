@@ -6,6 +6,7 @@ import { checkDoc } from '../src/drc.js';
 import { PARTS } from '../src/palette.js';
 import { BUSES } from '../src/buses.js';
 import { stableSystem, perRequestSystem, ROLE_RULES, SINGLE_SHOT_RULES, LANGUAGE_RULES } from '../src/ai/prompt.js';
+import { initI18n, setLang } from '../src/i18n.js';
 
 const example = (id) => structuredClone(EXAMPLES.find((e) => e.id === id).doc);
 
@@ -123,5 +124,15 @@ test('the per-request block asks for Chinese only when the interface is Chinese'
   assert.match(zh, /Reply in Simplified Chinese \(简体中文\)\. Keep ids, part kinds, bus names, tool names, and field values exactly as they are\./);
   assert.ok(zh.startsWith('Today is 2026-09-08. Effort: medium.'));
   assert.equal(perRequestSystem({ date: '2026-09-08', effort: 'low', singleShot: true, language: 'zh' }).includes(SINGLE_SHOT_RULES), true);
-  assert.equal(stableSystem(), stableSystem(), 'the stable block is unchanged by language');
+});
+
+test('the stable block is byte-identical in Chinese, so provider caching holds', () => {
+  initI18n({ storage: null });
+  const english = stableSystem();
+  setLang('zh');
+  try {
+    assert.equal(stableSystem(), english);
+  } finally {
+    setLang('en');
+  }
 });

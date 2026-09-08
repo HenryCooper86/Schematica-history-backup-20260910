@@ -241,7 +241,7 @@ export function deserialize(text) {
       if (Array.isArray(z.lanes) && lanes.length !== z.lanes.length) {
         warnings.push(tr('Dropped invalid lanes on swimlane "{id}".', { id: z.id }));
       }
-      zone.lanes = lanes.length ? lanes : [tr('Lane 1')];
+      zone.lanes = lanes.length ? lanes : [tr('Lane {n}', { n: 1 })];
     }
     doc.zones.push(zone);
   }

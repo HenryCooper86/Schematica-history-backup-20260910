@@ -1,4 +1,5 @@
-// Bill of materials: pure derivation from a document. Zero dependencies.
+// Bill of materials: pure derivation from a document; only the column
+// headers are language-dependent.
 
 import { partOf } from './custom.js';
 import { tr } from './i18n.js';
