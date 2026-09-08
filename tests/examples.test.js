@@ -7,6 +7,7 @@ import { nodePart } from '../src/rdk/profiles.js';
 import { getPart } from '../src/palette.js';
 import { nodeRect } from '../src/geometry.js';
 import { checkDoc } from '../src/drc.js';
+import { presetsFor } from '../src/presets.js';
 
 test('there are at least three examples with unique ids and names', () => {
   assert.ok(EXAMPLES.length >= 3);
@@ -130,9 +131,69 @@ test('no example wire flows while the Animate toggle is off', () => {
   }
 });
 
-// The menu groups boards by topic so sixteen entries stay scannable.
+// The menu groups boards by topic so twenty-one entries stay scannable.
 test('every example belongs to one of the menu groups and no group is empty', () => {
   assert.deepEqual(EXAMPLE_GROUPS, ['Embedded', 'Vehicle', 'Security']);
   for (const ex of EXAMPLES) assert.ok(EXAMPLE_GROUPS.includes(ex.group), `${ex.id} group "${ex.group}"`);
   for (const g of EXAMPLE_GROUPS) assert.ok(EXAMPLES.some((ex) => ex.group === g), `${g} has boards`);
+});
+
+test('the Mono 2 board is an all-in-one front camera on a Journey 2 feeding the vehicle CAN', () => {
+  const b = EXAMPLES.find((e) => e.id === 'mono2-adas');
+  assert.ok(b, 'board exists');
+  assert.equal(b.name, 'Mono 2 Front-Camera ADAS (Horizon)');
+  assert.equal(b.group, 'Vehicle');
+  const ecu = b.doc.nodes.find((n) => n.kind === 'adas');
+  assert.equal(ecu.sublabel, 'Mono 2');
+  assert.match(ecu.notes, /Journey 2/);
+  assert.equal(b.doc.wires.filter((w) => w.bus === 'gmsl').length, 1, 'a single imager');
+  assert.equal(b.doc.nodes.filter((n) => n.kind === 'frontcam').length, 1);
+  assert.ok(!b.doc.nodes.some((n) => n.kind === 'radar'), 'vision only');
+  const gw = b.doc.nodes.find((n) => n.kind === 'vgateway');
+  assert.ok(b.doc.wires.some((w) => w.bus === 'canfd' && w.from.node === ecu.id && w.to.node === gw.id), 'ECU to gateway over CAN FD');
+  const ecus = b.doc.nodes.filter((n) => n.kind === 'mcu');
+  assert.ok(ecus.length >= 2, 'brake and steering ECUs');
+  for (const n of ecus) assert.ok(b.doc.wires.some((w) => w.bus === 'can' && w.from.node === gw.id && w.to.node === n.id), `${n.label} hangs off the gateway CAN`);
+  assert.ok(b.doc.nodes.some((n) => n.kind === 'obd'));
+  assert.deepEqual(new Set(checkDoc(b.doc).map((f) => f.rule)), new Set(['unconnected-power']), 'only undrawn ECU supplies remain');
+  assert.ok(b.doc.journey.length >= 3);
+});
+
+test('the HSD 600 board carries eleven cameras in four clusters, three radars, and a T1 backbone on a Journey 6P', () => {
+  const b = EXAMPLES.find((e) => e.id === 'hsd600-adas');
+  assert.ok(b, 'board exists');
+  assert.equal(b.name, 'SuperDrive HSD 600 Urban NOA (Horizon)');
+  assert.equal(b.group, 'Vehicle');
+  const dc = b.doc.nodes.find((n) => n.kind === 'adas');
+  assert.equal(dc.sublabel, 'HSD 600');
+  assert.match(dc.notes, /Journey 6P/);
+  const clusters = b.doc.nodes.filter((n) => n.kind === 'frontcam');
+  assert.equal(clusters.length, 4);
+  assert.equal(clusters.reduce((sum, n) => sum + Number(/x(\d+)/.exec(n.sublabel)[1]), 0), 11, 'cluster sizes add up to the HSD 600 camera count');
+  const gmsl = b.doc.wires.filter((w) => w.bus === 'gmsl');
+  assert.deepEqual(new Set(gmsl.map((w) => w.to.port)), new Set(['cam1', 'cam2', 'cam3', 'cam4']));
+  assert.deepEqual(new Set(gmsl.map((w) => w.from.node)), new Set(clusters.map((n) => n.id)));
+  const radars = b.doc.nodes.filter((n) => n.kind === 'radar');
+  assert.equal(radars.length, 3);
+  assert.ok(radars.some((r) => b.doc.wires.some((w) => w.bus === 'canfd' && w.from.node === r.id && w.to.node === dc.id)), 'front radar on CAN FD');
+  const sw = b.doc.nodes.find((n) => n.kind === 't1switch');
+  assert.equal(radars.filter((r) => b.doc.wires.some((w) => w.bus === 't1' && w.from.node === r.id && w.to.node === sw.id)).length, 2, 'corner radars on T1');
+  assert.ok(b.doc.wires.some((w) => w.bus === 't1' && w.from.node === dc.id && w.to.node === sw.id), 'controller on the T1 switch');
+  assert.ok(b.doc.nodes.some((n) => n.kind === 'vgateway') && b.doc.nodes.some((n) => n.kind === 'obd'));
+  assert.deepEqual(new Set(checkDoc(b.doc).map((f) => f.rule)), new Set(['unconnected-power']), 'only undrawn sensor supplies remain');
+  assert.ok(b.doc.journey.length >= 3);
+});
+
+test('every vendor board names its headline part exactly as the preset does, so the Part number datalist matches', () => {
+  const boards = [
+    ['rdk-rover', 'aisbc', 'RDK X5'], ['rdk-perception', 'aisbc', 'RDK X5'],
+    ['rdk-x3-robot', 'aisbc', 'RDK X3'], ['rdk-s100-node', 'aisbc', 'RDK S100'],
+    ['mono2-adas', 'adas', 'Mono 2'], ['hsd600-adas', 'adas', 'HSD 600'],
+  ];
+  for (const [id, kind, sublabel] of boards) {
+    const b = EXAMPLES.find((e) => e.id === id);
+    assert.ok(b, id);
+    assert.ok(b.doc.nodes.some((n) => n.kind === kind && n.sublabel === sublabel), `${id} has a ${kind} "${sublabel}"`);
+    assert.ok(presetsFor(kind).some((p) => p.sublabel === sublabel), `${sublabel} is a ${kind} preset`);
+  }
 });

@@ -49,7 +49,7 @@ then Settings → Pages → deploy from branch `main`, root folder.
 | Export | Export button — PNG at any pixel size, SVG, single-page PDF, or a seamless loop GIF, cropped to content |
 | Record | Rec button — WebM/MP4 video (optional mic or music audio) or animated GIF |
 | Journey | Journey button — save camera steps with captions; Present plays the tour (arrow keys, Esc) |
-| Examples | Examples menu — seventeen built-in boards from sensor nodes to edge-to-cloud, including a D-Robotics RDK X5 rover and stereo perception pipeline, a Horizon Journey 6 ADAS stack, a sensor node that passes every design rule, vehicle OTA and ADAS security boards that mix threat actors, controls, and response flowcharts with the hardware, an EV battery management system, a plant network segmented by Purdue level on a swimlane, and a secure boot chain, journeys included |
+| Examples | Examples menu — twenty-one built-in boards from sensor nodes to edge-to-cloud, including D-Robotics RDK X3, X5 and S100 robots and perception nodes, Horizon Mono 2, Journey 6 and SuperDrive HSD 600 ADAS stacks, a sensor node that passes every design rule, vehicle OTA and ADAS security boards that mix threat actors, controls, and response flowcharts with the hardware, an EV battery management system, a plant network segmented by Purdue level on a swimlane, and a secure boot chain, journeys included |
 | Presets | Part number field — on AI SBCs, automotive SoCs, ADAS controllers, cameras, depth cameras, LiDARs, and serial servos, pick a vendor part (D-Robotics RDK boards and camera modules, Horizon Journey chips and Mono / SuperDrive tiers, and more) to fill the rail and a spec note |
 | Threat details | Threat parts carry their own fields instead of the part-number trio: STIX vocabularies (actor type, sophistication, motivation, malware type), references (CVE, CVSS, ATT&CK technique), and a severity from info to critical that shows as a colored tag. Every part can also carry a disposition (friendly, partner, neutral, unknown, suspicious, adversary, victim), shown as a tag beside the lifecycle status; adversaries and suspicious objects glow with a halo that pulses whatever the Animate toggle says, victims wear a steady one, and the properties panel is headed by the part's name. Network, Security & Edge, and System & Cloud host parts (server, database, cloud, host PC) carry IP address and DNS name fields under their part number |
 | Animate | Animate toggle — traffic dashes flow along wires and Bug/Thermal alerts pulse; off by default, so a freshly opened board's wires are still, and a wire's own "Always" flow setting keeps just that wire moving; adversary glows pulse regardless; captured in recordings |
@@ -120,6 +120,14 @@ install, launch or validate software. Runtime is deliberately left unselected:
 broad package support does not establish an exact runtime compatibility matrix.
 General checks retain explicitly documented incomplete power/return wiring.
 No starter is marked as hardware-tested.
+
+The X3 vision robot starter takes the single X3 CSI connector for one IMX219
+module and routes motion over UART to a drive MCU, because the X3 profile has
+no CAN FD; the camera stays an open compatibility finding. The S100 perception
+node starter feeds the board from a 4S pack inside its documented 12-20V input
+window and pairs a GS130WI through the camera expansion board; the S100 keeps
+generic drawing ports, so its connectors, stereo pair and camera fit stay
+warnings by design.
 
 The assistant's read-only `rdk_reference` tool retrieves the same source-linked
 facts. **Download setup guide** in the board properties exports Markdown with
