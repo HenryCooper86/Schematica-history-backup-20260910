@@ -8,12 +8,17 @@ import { tr, trd } from '../i18n.js';
 // profileFacts, used only by referenceText (the copilot's rdk_reference
 // tool, which always reads English regardless of interface language).
 // Also used bare as an Array.prototype.map callback (profileFacts passes
-// `td` to `.map`), so a non-object second argument (index, array) must be
+// `trd` to `.map`), so a non-object second argument (index, array) must be
 // treated as "no vars" rather than fed to the `in` operator.
 const fillVars = (text, vars) => {
   const s = String(text ?? '');
   return vars && typeof vars === 'object' ? s.replace(/\{(\w+)\}/g, (m, name) => (name in vars ? String(vars[name]) : m)) : s;
 };
+// profileFacts shadows tr/trd below with translate-or-raw switches of the
+// same name, so its calls stay literal tr and trd text for the i18n
+// coverage test; these capture the real functions before that shadowing.
+const trBase = tr;
+const trdBase = trd;
 
 export function rdkProfile(node) {
   return profileFor(
@@ -51,33 +56,33 @@ export function markdownText(value) {
     .replace(/[&<>\\`*_{}\[\]()#+.!|~-]/g, (c) => `&#${c.charCodeAt(0)};`);
 }
 function profileFacts(p, { translate = true } = {}) {
-  const t = translate ? tr : fillVars;
-  const td = translate ? trd : fillVars;
-  if (!p) return [t('Package or product identity is unverified.')];
+  const tr = translate ? trBase : fillVars;
+  const trd = translate ? trdBase : fillVars;
+  if (!p) return [tr('Package or product identity is unverified.')];
   const lines = [
     p.name,
-    t('Checked: {date}', { date: p.checkedOn }),
-    td(p.notes),
+    tr('Checked: {date}', { date: p.checkedOn }),
+    trd(p.notes),
     p.ports
-      ? t('Ports: {list}', { list: p.ports.map((port) => `${port.id} (${port.bus})`).join(', ') })
-      : t('Ports: unverified; generic drawing ports are not validated connectors'),
+      ? tr('Ports: {list}', { list: p.ports.map((port) => `${port.id} (${port.bus})`).join(', ') })
+      : tr('Ports: unverified; generic drawing ports are not validated connectors'),
   ];
   if (p.power) {
-    lines.push(t('Power: {rail}; input {min}–{max}V{current}{power}{load}', {
+    lines.push(tr('Power: {rail}; input {min}–{max}V{current}{power}{load}', {
       rail: p.power.rail, min: p.power.inputMinV, max: p.power.inputMaxV,
-      current: p.power.recommendedCurrentA ? t('; recommended {a}A', { a: p.power.recommendedCurrentA }) : '',
-      power: p.power.recommendedPowerW ? t('; recommended {w}W', { w: p.power.recommendedPowerW }) : '',
-      load: p.power.maxLoadPowerW ? t('; maximum-load supply {w}W', { w: p.power.maxLoadPowerW }) : '',
+      current: p.power.recommendedCurrentA ? tr('; recommended {a}A', { a: p.power.recommendedCurrentA }) : '',
+      power: p.power.recommendedPowerW ? tr('; recommended {w}W', { w: p.power.recommendedPowerW }) : '',
+      load: p.power.maxLoadPowerW ? tr('; maximum-load supply {w}W', { w: p.power.maxLoadPowerW }) : '',
     }));
   }
-  lines.push(...p.requirements.map(td));
-  if (p.compatibility.boardIds) lines.push(t('Documented boards: {list}', { list: p.compatibility.boardIds.join(', ') }));
-  if (p.compatibility.unsupportedBoardIds.length) lines.push(t('Unsupported boards: {list}', { list: p.compatibility.unsupportedBoardIds.join(', ') }));
+  lines.push(...p.requirements.map(trd));
+  if (p.compatibility.boardIds) lines.push(tr('Documented boards: {list}', { list: p.compatibility.boardIds.join(', ') }));
+  if (p.compatibility.unsupportedBoardIds.length) lines.push(tr('Unsupported boards: {list}', { list: p.compatibility.unsupportedBoardIds.join(', ') }));
   const peripherals = compatiblePeripherals(p);
   if (peripherals.length) {
-    lines.push(t('Documented peripherals: {list}', { list: peripherals.map((part) => part.name).join(', ') }));
-    for (const part of peripherals) lines.push(t('{name} requirements: {list}', { name: part.name, list: part.requirements.map(td).join(' ') }));
-    lines.push(t('These documented relationships do not validate other peripherals or replace carrier, adapter and connector requirements.'));
+    lines.push(tr('Documented peripherals: {list}', { list: peripherals.map((part) => part.name).join(', ') }));
+    for (const part of peripherals) lines.push(tr('{name} requirements: {list}', { name: part.name, list: part.requirements.map(trd).join(' ') }));
+    lines.push(tr('These documented relationships do not validate other peripherals or replace carrier, adapter and connector requirements.'));
   }
   return lines;
 }
