@@ -806,6 +806,66 @@ try {
   const backToEn = await js(`(() => ({ examples: document.getElementById('btn-examples').textContent.trim(), first: [...document.querySelectorAll('#palette h3')].map((h) => (h.querySelector(':scope > span') || h).textContent.trim()) }))()`);
   check('switching back re-renders the palette in English', backToEn.examples.startsWith('Examples') && backToEn.first.includes('Compute') && backToEn.first.includes('My parts'), JSON.stringify(backToEn));
 
+  // A dialog and a panel open across the switch: the BOM redraws its rows (the
+  // static walker no longer touches them) and the assistant rebuilds its chrome
+  // without losing what has been typed into the composer.
+  const bomState = () => js(`(() => {
+    const d = document.getElementById('bom-dialog');
+    return {
+      open: d.open === true,
+      title: d.querySelector('h3').textContent,
+      th: document.querySelector('#bom-table thead th').textContent,
+      parts: [...document.querySelectorAll('#bom-table tbody tr')].map((r) => r.cells[0].textContent),
+    };
+  })()`);
+  await js(`document.getElementById('btn-bom').click(); true`);
+  await sleep(150);
+  const bomEn = await bomState();
+  const bomRow = bomEn.parts.indexOf('AI SBC / robot kit');
+  await js(`document.getElementById('btn-lang').click(); true`);
+  await sleep(150);
+  const bomZh = await bomState();
+  await js(`document.getElementById('btn-lang').click(); true`);
+  await sleep(150);
+  const bomBack = await bomState();
+  check('the open BOM dialog switches language, catalogue part names included',
+    bomEn.open && bomRow >= 0 && bomZh.title === '物料清单' && bomZh.th === '部件'
+    && bomZh.parts[bomRow] === 'AI 单板机 / 机器人套件' && bomBack.title === 'Bill of materials'
+    && bomBack.th === 'Part' && bomBack.parts[bomRow] === 'AI SBC / robot kit',
+    JSON.stringify({ bomRow, zh: { title: bomZh.title, th: bomZh.th, part: bomZh.parts[bomRow] }, en: { title: bomBack.title, th: bomBack.th, part: bomBack.parts[bomRow] } }));
+  await js(`document.getElementById('bom-close').click(); true`);
+  await sleep(100);
+
+  const DRAFT = 'a half-written question';
+  const aiState = () => js(`(() => {
+    const p = document.getElementById('assistant');
+    const h3 = p.querySelector('h3');
+    const input = document.getElementById('ai-input');
+    return {
+      hidden: p.hidden,
+      header: [...h3.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join('').trim(),
+      placeholder: input.placeholder,
+      draft: input.value,
+    };
+  })()`);
+  await js(`document.getElementById('btn-assistant').click(); true`);
+  await sleep(150);
+  await js(`(() => { const i = document.getElementById('ai-input'); i.value = ${JSON.stringify(DRAFT)}; i.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+  await js(`document.getElementById('btn-lang').click(); true`);
+  await sleep(150);
+  const aiZh = await aiState();
+  await js(`document.getElementById('btn-lang').click(); true`);
+  await sleep(150);
+  const aiEn = await aiState();
+  check('the open assistant switches language and keeps the unsent draft',
+    aiZh.hidden === false && aiZh.header === '助手' && aiZh.placeholder === '描述一块板图，或提出修改'
+    && aiZh.draft === DRAFT && aiEn.header === 'Assistant'
+    && aiEn.placeholder === 'Describe a board, or ask for a change' && aiEn.draft === DRAFT,
+    JSON.stringify({ zh: aiZh, en: aiEn }));
+  await js(`(() => { const i = document.getElementById('ai-input'); i.value = ''; i.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+  await js(`document.getElementById('ai-close').click(); true`);
+  await sleep(100);
+
   // ---- Assistant: build, undo, highlight, Fix button, thread ----
   // An empty board through a share link (loadBoard clears storage, so the
   // settings are seeded afterwards; they are read at send time).
