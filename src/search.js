@@ -5,14 +5,16 @@
 import { PARTS, CATEGORIES } from './palette.js';
 import { BUSES } from './buses.js';
 import { presetsFor } from './presets.js';
+import { trd } from './i18n.js';
 
 const CATEGORY_NAME = Object.fromEntries(CATEGORIES.map((c) => [c.id, c.name]));
 
 export function partHaystack(part) {
+  const category = CATEGORY_NAME[part.category] || part.category;
   const bits = [
-    part.name, part.kind, CATEGORY_NAME[part.category] || part.category,
-    ...part.ports.flatMap((p) => [p.name, BUSES[p.bus]?.name, BUSES[p.bus]?.short]),
-    ...presetsFor(part.kind).flatMap((p) => [p.name, p.sublabel, p.notes]),
+    part.name, trd(part.name), part.kind, category, trd(category),
+    ...part.ports.flatMap((p) => [p.name, BUSES[p.bus]?.name, BUSES[p.bus] && trd(BUSES[p.bus].name), BUSES[p.bus]?.short]),
+    ...presetsFor(part.kind).flatMap((p) => [p.name, p.sublabel, p.notes, trd(p.notes)]),
   ];
   return bits.filter(Boolean).join(' ').toLowerCase();
 }
@@ -32,10 +34,11 @@ const words = (query) => String(query ?? '').toLowerCase().split(/\s+/).filter(B
 // Library templates (custom part definitions with an id) search the same way.
 // The list is passed in so this module stays free of storage.
 export function templateHaystack(t) {
+  const category = CATEGORY_NAME[t.category] || t.category;
   const bits = [
-    t.name, CATEGORY_NAME[t.category] || t.category,
-    ...(t.ports || []).flatMap((p) => [p.name, BUSES[p.bus]?.name, BUSES[p.bus]?.short]),
-    'custom', 'library',
+    t.name, category,
+    ...(t.ports || []).flatMap((p) => [p.name, BUSES[p.bus]?.name, BUSES[p.bus]?.short, BUSES[p.bus] && trd(BUSES[p.bus].name)]),
+    'custom', 'library', trd(category),
   ];
   return bits.filter(Boolean).join(' ').toLowerCase();
 }

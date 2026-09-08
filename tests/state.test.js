@@ -4,6 +4,7 @@ import {
   uid, newDoc, Store, addNode, addWire, addZone, addNote,
   findItem, updateItem, deleteItems, duplicateItems, SCHEMA_VERSION,
 } from '../src/state.js';
+import { initI18n, setLang } from '../src/i18n.js';
 
 test('uid is unique and prefixed', () => {
   const a = uid('n');
@@ -341,4 +342,20 @@ test('addNode with a definition makes a custom node labelled by its name', () =>
   addNode(store, 'custom', 0, 0, { name: '' });
   assert.equal(store.doc.nodes[1].kind, 'generic', 'an unusable definition falls back to the custom box');
   assert.equal('part' in store.doc.nodes[1], false);
+});
+
+test('a part placed in Chinese gets a Chinese default label; in English the English name', () => {
+  initI18n({ storage: null });
+  const store = new Store(newDoc());
+  const en = addNode(store, 'mcu', 0, 0);
+  assert.equal(store.doc.nodes.find((n) => n.id === en).label, 'MCU');
+  setLang('zh');
+  try {
+    const cn = addNode(store, 'mcu', 0, 0);
+    assert.equal(store.doc.nodes.find((n) => n.id === cn).label, '微控制器');
+    const start = addNode(store, 'startend', 0, 0);
+    assert.equal(store.doc.nodes.find((n) => n.id === start).label, '开始');
+  } finally {
+    setLang('en');
+  }
 });

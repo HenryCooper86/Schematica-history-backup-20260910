@@ -9,6 +9,7 @@ import { filterParts, filterTemplates } from '../search.js';
 import { download } from '../export.js';
 import { escAttr, toast } from './press.js';
 import { badgeHTML } from './badge.js';
+import { tr, trd, onLanguageChange } from '../i18n.js';
 
 export function initPalette({ svg, store, tools, library, editor }) {
   const palette = document.getElementById('palette');
@@ -21,7 +22,7 @@ export function initPalette({ svg, store, tools, library, editor }) {
   // Places a catalogue kind, or a custom definition when `def` is given, with
   // its centre at (x, y), and selects it.
   function place(kind, def, x, y) {
-    const probe = def ? { kind: 'custom', label: def.name, part: def } : { kind, label: getPart(kind).defaultLabel || getPart(kind).name };
+    const probe = def ? { kind: 'custom', label: def.name, part: def } : { kind, label: trd(getPart(kind).defaultLabel || getPart(kind).name) };
     const { w, h } = nodeSize(probe);
     const id = addNode(store, def ? 'custom' : kind, snap(x - w / 2), snap(y - h / 2), def);
     store.setSelection([id]);
@@ -31,12 +32,13 @@ export function initPalette({ svg, store, tools, library, editor }) {
   // ---- My parts ----
   const mine = document.createElement('div');
   mine.id = 'my-parts-group';
-  mine.innerHTML = '<h3 class="my-parts-head"><span>My parts</span><span class="my-parts-tools">'
-    + '<button id="parts-new" type="button" title="Define a new part">+ New</button>'
-    + '<button id="parts-export" type="button" title="Download My parts as a file">Export</button>'
-    + '<button id="parts-import" type="button" title="Import a parts file">Import</button></span></h3>'
+  const headerMarkup = () => `<h3 class="my-parts-head"><span>${escAttr(tr('My parts'))}</span><span class="my-parts-tools">`
+    + `<button id="parts-new" type="button" title="${escAttr(tr('Define a new part'))}">${escAttr(tr('+ New'))}</button>`
+    + `<button id="parts-export" type="button" title="${escAttr(tr('Download My parts as a file'))}">${escAttr(tr('Export'))}</button>`
+    + `<button id="parts-import" type="button" title="${escAttr(tr('Import a parts file'))}">${escAttr(tr('Import'))}</button></span></h3>`
     + '<div class="cat-grid" id="my-parts"></div>'
-    + '<h3 id="board-parts-head" class="sub" hidden>On this board</h3><div class="cat-grid" id="board-parts" hidden></div>';
+    + `<h3 id="board-parts-head" class="sub" hidden>${escAttr(tr('On this board'))}</h3><div class="cat-grid" id="board-parts" hidden></div>`;
+  mine.innerHTML = headerMarkup();
   palette.appendChild(mine);
   const myHead = mine.querySelector('.my-parts-head');
   const myGrid = mine.querySelector('#my-parts');
@@ -50,6 +52,15 @@ export function initPalette({ svg, store, tools, library, editor }) {
     myHead.classList.toggle('collapsed', myCollapsed);
   });
 
+  function relabelHeader() {
+    mine.querySelector('.my-parts-head > span').textContent = tr('My parts');
+    const b = (id, text, title) => { const el = mine.querySelector(`#${id}`); el.textContent = text; el.title = title; };
+    b('parts-new', tr('+ New'), tr('Define a new part'));
+    b('parts-export', tr('Export'), tr('Download My parts as a file'));
+    b('parts-import', tr('Import'), tr('Import a parts file'));
+    mine.querySelector('#board-parts-head').textContent = tr('On this board');
+  }
+
   function templateTile(t) {
     const el = document.createElement('div');
     el.className = 'palette-item custom-item';
@@ -58,14 +69,14 @@ export function initPalette({ svg, store, tools, library, editor }) {
     el.dataset.template = t.id;
     el.draggable = true;
     el.innerHTML = badgeHTML(partOf({ kind: 'custom', part: t })) + `<span class="pi-name">${escAttr(t.name)}</span>`
-      + '<span class="pi-tools"><button type="button" data-edit title="Edit part">&#9998;</button>'
-      + '<button type="button" data-del title="Remove from My parts">&times;</button></span>';
+      + `<span class="pi-tools"><button type="button" data-edit title="${escAttr(tr('Edit part'))}">&#9998;</button>`
+      + `<button type="button" data-del title="${escAttr(tr('Remove from My parts'))}">&times;</button></span>`;
     el.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/schematica-template', t.id); });
     el.addEventListener('click', (e) => {
       if (e.target.closest('[data-edit]')) { editor.open({ def: t, templateId: t.id, mode: 'edit' }); return; }
       if (e.target.closest('[data-del]')) {
         const gone = library.remove(t.id);
-        if (gone) toast(`Removed ${gone.name} from My parts.`, { action: { label: 'Undo', run: () => library.save(gone, gone.id) } });
+        if (gone) toast(tr('Removed {part} from My parts.', { part: gone.name }), { action: { label: tr('Undo'), run: () => library.save(gone, gone.id) } });
         return;
       }
       const c = centre();
@@ -100,7 +111,7 @@ export function initPalette({ svg, store, tools, library, editor }) {
     const el = document.createElement('div');
     el.className = 'palette-item custom-item';
     el.innerHTML = badgeHTML(partOf(n)) + `<span class="pi-name">${escAttr(n.part.name)}</span>`
-      + '<button type="button" class="pi-adopt" data-adopt>Add to library</button>';
+      + `<button type="button" class="pi-adopt" data-adopt>${escAttr(tr('Add to library'))}</button>`;
     el.querySelector('[data-adopt]').addEventListener('click', () => {
       // Resolve the node fresh at click time: the tile was built from a
       // render that may be stale (a share link swapped the board, or an
@@ -119,7 +130,7 @@ export function initPalette({ svg, store, tools, library, editor }) {
           }
         });
       }
-      toast(`${fresh.part.name} added to My parts.`);
+      toast(tr('{part} added to My parts.', { part: fresh.part.name }));
     });
     return el;
   }
@@ -163,7 +174,12 @@ export function initPalette({ svg, store, tools, library, editor }) {
     try {
       const res = library.importJSON(await file.text());
       const n = res.added + res.replaced;
-      toast(`Imported ${res.added} new and ${res.replaced} updated part${n === 1 ? '' : 's'}.${res.warnings.length ? ` ${res.warnings.length} entr${res.warnings.length === 1 ? 'y' : 'ies'} skipped or adjusted.` : ''}`);
+      let msg = n === 1
+        ? tr('Imported {added} new and {replaced} updated part.', { added: res.added, replaced: res.replaced })
+        : tr('Imported {added} new and {replaced} updated parts.', { added: res.added, replaced: res.replaced });
+      const k = res.warnings.length;
+      if (k) msg += ' ' + (k === 1 ? tr('{n} entry skipped or adjusted.', { n: k }) : tr('{n} entries skipped or adjusted.', { n: k }));
+      toast(msg);
     } catch (err) {
       toast(err.message);
     }
@@ -173,12 +189,12 @@ export function initPalette({ svg, store, tools, library, editor }) {
   const groups = [];
   for (const cat of CATEGORIES) {
     const h = document.createElement('h3');
-    h.textContent = cat.name;
+    h.textContent = trd(cat.name);
     palette.appendChild(h);
     const box = document.createElement('div');
     box.className = 'cat-grid';
     palette.appendChild(box);
-    const group = { h, box, collapsed: false, items: [] };
+    const group = { h, box, cat, collapsed: false, items: [] };
     groups.push(group);
     h.addEventListener('click', () => {
       group.collapsed = !group.collapsed;
@@ -189,14 +205,23 @@ export function initPalette({ svg, store, tools, library, editor }) {
       const item = document.createElement('button');
       item.className = 'palette-item';
       item.dataset.kind = part.kind;
-      item.innerHTML = badgeHTML(part) + `<span class="pi-name">${escAttr(part.name)}</span>`;
+      item.innerHTML = badgeHTML(part) + `<span class="pi-name">${escAttr(trd(part.name))}</span>`;
       item.draggable = true;
       item.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/schematica-kind', part.kind); });
       item.addEventListener('click', () => { const c = centre(); place(part.kind, null, c.x, c.y); });
       box.appendChild(item);
-      group.items.push({ el: item, kind: part.kind });
+      group.items.push({ el: item, kind: part.kind, part });
     }
   }
+
+  onLanguageChange(() => {
+    relabelHeader();
+    for (const g of groups) {
+      g.h.textContent = trd(g.cat.name);
+      for (const it of g.items) it.el.querySelector('.pi-name').textContent = trd(it.part.name);
+    }
+    renderMine();
+  });
 
   // ---- Search ----
   // Categories with no match fold away; clearing restores the manual

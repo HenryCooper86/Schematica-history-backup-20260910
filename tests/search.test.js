@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { filterParts, partHaystack, filterTemplates, templateHaystack } from '../src/search.js';
 import { PARTS } from '../src/palette.js';
+import { initI18n, setLang } from '../src/i18n.js';
 
 test('an empty query matches every part', () => {
   assert.equal(filterParts('').size, Object.keys(PARTS).length);
@@ -36,4 +37,18 @@ test('library templates match by name, category, port names, buses, and the word
   assert.deepEqual(filterTemplates('', templates).length, 2);
   assert.deepEqual(filterTemplates('zzz', templates), []);
   assert.match(templateHaystack(templates[0]), /motor driver x4 actuators can/);
+});
+
+test('Chinese queries match translated part, category and bus names while English still matches', () => {
+  initI18n({ storage: null });
+  setLang('zh');
+  try {
+    assert.ok(filterParts('微控制器').has('mcu'), 'part name');
+    assert.ok(filterParts('计算').has('mcu'), 'category name');
+    assert.ok(filterParts('以太网').has('ethphy'), 'bus name');
+    assert.ok(filterParts('mcu').has('mcu'), 'English kind still matches');
+    assert.ok(filterParts('temp sensor').has('temp'), 'English name still matches');
+  } finally {
+    setLang('en');
+  }
 });

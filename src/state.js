@@ -1,5 +1,6 @@
 import { getPart } from './palette.js';
 import { normalizePart, partOf } from './custom.js';
+import { trd } from './i18n.js';
 
 // Ids are random so that two tabs, two peers, or a script minting ids in the
 // same millisecond never collide: 12 base36 characters (~62 bits) after the
@@ -166,7 +167,7 @@ export function addNode(store, kind, x, y, part = null) {
   store.apply((doc) => {
     const node = {
       id, kind: spec.kind, x, y,
-      label: spec.defaultLabel || spec.name, sublabel: '', color: null,
+      label: trd(spec.defaultLabel || spec.name), sublabel: '', color: null,
       addr: '', rail: '', notes: '', status: null, flags: [],
     };
     if (def) node.part = def;
