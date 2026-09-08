@@ -1,4 +1,5 @@
 import { rdkPresets } from './rdk/catalogue.js';
+import { trd } from './i18n.js';
 // Vendor presets: real products offered in the Part number field of a generic
 // part. Picking one fills the part number and, when they are blank, the rail
 // and a one-line spec note. Palette kinds stay generic; vendors are data.
@@ -76,6 +77,6 @@ export function presetPatch(node, value) {
   const patch = { sublabel: hit.sublabel };
   if (node.kind === 'rdksoftware') patch.fields = { ...(node.fields || {}), package: hit.sublabel };
   if (!String(node.rail ?? '').trim() && hit.rail) patch.rail = hit.rail;
-  if (!String(node.notes ?? '').trim() && hit.notes) patch.notes = hit.notes;
+  if (!String(node.notes ?? '').trim() && hit.notes) patch.notes = trd(hit.notes);
   return patch;
 }

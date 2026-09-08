@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PRESETS, presetsFor, presetPatch } from '../src/presets.js';
 import { PARTS } from '../src/palette.js';
+import { initI18n, setLang } from '../src/i18n.js';
 
 test('every preset group names a real part kind and every preset is complete', () => {
   for (const [kind, list] of Object.entries(PRESETS)) {
@@ -45,4 +46,18 @@ test('presetPatch fills blank rail and notes from the chosen part number, never 
   assert.deepEqual(presetPatch(typed, 'rdk x5'), { sublabel: 'RDK X5' }, 'matches case-insensitively; keeps user text');
   assert.deepEqual(presetPatch(blank, 'Something else'), { sublabel: 'Something else' }, 'unknown numbers are plain text');
   assert.deepEqual(presetPatch({ kind: 'battery', rail: '', notes: '' }, 'RDK X5'), { sublabel: 'RDK X5' }, 'presets are per kind');
+});
+
+test('picking a preset in Chinese fills Chinese notes; the sublabel is untouched', () => {
+  initI18n({ storage: null });
+  setLang('zh');
+  try {
+    const patch = presetPatch({ kind: 'lidar', rail: '', notes: '' }, 'RPLIDAR A1');
+    assert.equal(patch.sublabel, 'RPLIDAR A1');
+    assert.equal(patch.rail, '5V');
+    assert.match(patch.notes, /[一-鿿]/, 'notes are Chinese');
+  } finally {
+    setLang('en');
+  }
+  assert.equal(presetPatch({ kind: 'lidar', rail: '', notes: '' }, 'RPLIDAR A1').notes, '2D 360-degree laser scanner, 12 m range, UART.');
 });

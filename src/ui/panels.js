@@ -2,6 +2,7 @@
 // the right-hand panels (P, properties + journey). Each has a toolbar button
 // and a remembered choice; pressing Journey while the right panels are hidden
 // brings them back, since that is what the press wants.
+import { tr, onLanguageChange } from '../i18n.js';
 
 function makeToggle({ key, storageKey, className, buttonId, hideTitle, showTitle }) {
   const app = document.getElementById('app');
@@ -12,7 +13,7 @@ function makeToggle({ key, storageKey, className, buttonId, hideTitle, showTitle
   function set(on) {
     app.classList.toggle(className, on);
     btn.classList.toggle('active', !on);
-    btn.title = on ? showTitle : hideTitle;
+    btn.title = on ? showTitle() : hideTitle();
     try {
       localStorage.setItem(storageKey, on ? '1' : '0');
     } catch { /* storage may be unavailable; the choice holds for this session */ }
@@ -30,11 +31,11 @@ function makeToggle({ key, storageKey, className, buttonId, hideTitle, showTitle
 export function initLayoutToggles() {
   const palette = makeToggle({
     key: 'b', storageKey: 'schematica.palette.hidden', className: 'palette-hidden', buttonId: 'btn-palette',
-    hideTitle: 'Hide the parts palette (B)', showTitle: 'Show the parts palette (B)',
+    hideTitle: () => tr('Hide the parts palette (B)'), showTitle: () => tr('Show the parts palette (B)'),
   });
   const panels = makeToggle({
     key: 'p', storageKey: 'schematica.panels.hidden', className: 'panels-hidden', buttonId: 'btn-panels',
-    hideTitle: 'Hide the right panels (P)', showTitle: 'Show the right panels (P)',
+    hideTitle: () => tr('Hide the right panels (P)'), showTitle: () => tr('Show the right panels (P)'),
   });
 
   window.addEventListener('keydown', (e) => {
@@ -50,6 +51,8 @@ export function initLayoutToggles() {
   document.getElementById('btn-journey').addEventListener('click', () => {
     if (panels.hidden()) panels.set(false);
   }, true);
+
+  onLanguageChange(() => { palette.set(palette.hidden()); panels.set(panels.hidden()); });
 
   return { palette, panels };
 }

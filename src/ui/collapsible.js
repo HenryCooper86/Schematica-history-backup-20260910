@@ -1,6 +1,7 @@
 // Fold a floating panel down to its header bar. The state is remembered per
 // panel in localStorage so a folded panel stays folded across reloads.
 import { onPress, escAttr } from './press.js';
+import { tr } from '../i18n.js';
 
 const KEY = (name) => `schematica.panel.${name}.collapsed`;
 
@@ -24,7 +25,7 @@ function remember(name, collapsed) {
 export function panelHeader(title, name) {
   const folded = isCollapsed(name);
   return `<h3>${escAttr(title)}<button class="panel-toggle" type="button" data-panel="${name}"`
-    + ` title="${folded ? 'Expand panel' : 'Collapse panel'}" aria-expanded="${folded ? 'false' : 'true'}">`
+    + ` title="${escAttr(folded ? tr('Expand panel') : tr('Collapse panel'))}" aria-expanded="${folded ? 'false' : 'true'}">`
     + `${folded ? '&#9656;' : '&#9662;'}</button></h3>`;
 }
 
@@ -37,7 +38,7 @@ export function bindCollapsible(panel, name) {
     remember(name, folded);
     panel.classList.toggle('collapsed', folded);
     btn.innerHTML = folded ? '&#9656;' : '&#9662;';
-    btn.title = folded ? 'Expand panel' : 'Collapse panel';
+    btn.title = folded ? tr('Expand panel') : tr('Collapse panel');
     btn.setAttribute('aria-expanded', folded ? 'false' : 'true');
   });
 }
