@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  uid, newDoc, Store, addNode, addWire, addZone, addNote,
+  uid, newDoc, Store, addNode, addWire, addZone, addSwimlane, addNote,
   findItem, updateItem, deleteItems, duplicateItems, SCHEMA_VERSION,
 } from '../src/state.js';
 import { initI18n, setLang } from '../src/i18n.js';
@@ -358,4 +358,24 @@ test('a part placed in Chinese gets a Chinese default label; in English the Engl
   } finally {
     setLang('en');
   }
+});
+
+test('zones, swimlanes and notes get language-aware default text', () => {
+  initI18n({ storage: null });
+  const store = new Store(newDoc());
+  setLang('zh');
+  try {
+    const z = addZone(store, { x: 0, y: 0, w: 100, h: 100 });
+    assert.equal(store.doc.zones.find((x) => x.id === z).label, '区域');
+    const s = addSwimlane(store, { x: 0, y: 0, w: 400, h: 300 });
+    const lane = store.doc.zones.find((x) => x.id === s);
+    assert.equal(lane.label, '处理');
+    assert.deepEqual(lane.lanes, ['泳道 1', '泳道 2', '泳道 3']);
+    const t = addNote(store, 0, 0);
+    assert.equal(store.doc.notes.find((x) => x.id === t).text, '便签');
+  } finally {
+    setLang('en');
+  }
+  const z = addZone(store, { x: 0, y: 0, w: 100, h: 100 });
+  assert.equal(store.doc.zones.find((x) => x.id === z).label, 'Zone');
 });

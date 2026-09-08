@@ -2,8 +2,9 @@ import { CANVAS_BG, bakeFrame } from './render.js';
 import { wrapText } from './geometry.js';
 import { encodeGIF } from './gif.js';
 import { download } from './export.js';
+import { tr, trd } from './i18n.js';
 
-const VIDEO_FORMATS = [
+export const VIDEO_FORMATS = [
   { id: 'webm-vp9', label: 'WebM — VP9', mime: 'video/webm;codecs=vp9', ext: 'webm' },
   { id: 'webm-vp8', label: 'WebM — VP8', mime: 'video/webm;codecs=vp8', ext: 'webm' },
   { id: 'mp4-h264', label: 'MP4 — H.264', mime: 'video/mp4;codecs=avc1', ext: 'mp4' },
@@ -70,7 +71,7 @@ export function createRecorder(svg, { notify: notifyUser = (m) => alert(m) } = {
 
   function videoFormats() {
     if (typeof MediaRecorder === 'undefined') return [];
-    return VIDEO_FORMATS.filter((f) => MediaRecorder.isTypeSupported(f.mime));
+    return VIDEO_FORMATS.filter((f) => MediaRecorder.isTypeSupported(f.mime)).map((f) => ({ ...f, label: trd(f.label) }));
   }
 
   function drawOverlay() {
@@ -138,7 +139,7 @@ export function createRecorder(svg, { notify: notifyUser = (m) => alert(m) } = {
     } catch (err) {
       failures += 1;
       if (failures >= 3) {
-        abort('Recording failed: the canvas could not be captured.');
+        abort(tr('Recording failed: the canvas could not be captured.'));
       }
     }
     busy = false;
@@ -218,14 +219,14 @@ export function createRecorder(svg, { notify: notifyUser = (m) => alert(m) } = {
             height: canvas.height,
           });
           if (gifFrames.length >= GIF_MAX_FRAMES) {
-            stop('GIF recording reached the 60-second limit and was saved.');
+            stop(tr('GIF recording reached the 60-second limit and was saved.'));
             return;
           }
         }, 1000 / GIF_FPS);
       } else {
         mode = 'video';
         const fmt = VIDEO_FORMATS.find((f) => f.id === formatId);
-        if (!fmt) throw new Error('Unknown recording format.');
+        if (!fmt) throw new Error(tr('Unknown recording format.'));
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
         canvas.width = Math.round(rect.width * dpr);
         canvas.height = Math.round(rect.height * dpr);
@@ -237,7 +238,7 @@ export function createRecorder(svg, { notify: notifyUser = (m) => alert(m) } = {
             try {
               micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
             } catch {
-              throw new Error('Microphone access was denied. Recording not started.');
+              throw new Error(tr('Microphone access was denied. Recording not started.'));
             }
             stream.addTrack(micStream.getAudioTracks()[0]);
           } else if (opts.audio === 'music' && opts.musicFile) {
@@ -254,7 +255,7 @@ export function createRecorder(svg, { notify: notifyUser = (m) => alert(m) } = {
           chunks = [];
           mediaRecorder = new MediaRecorder(stream, { mimeType: fmt.mime });
           mediaRecorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
-          mediaRecorder.onerror = () => abort('Recording failed inside the browser encoder.');
+          mediaRecorder.onerror = () => abort(tr('Recording failed inside the browser encoder.'));
           mediaRecorder.onstop = () => {
             if (chunks.length) {
               download(`${basename}.${fmt.ext}`, new Blob(chunks, { type: fmt.mime.split(';')[0] }), fmt.mime);
@@ -296,10 +297,10 @@ export function createRecorder(svg, { notify: notifyUser = (m) => alert(m) } = {
             download(`${basename}.gif`, new Blob([bytes], { type: 'image/gif' }), 'image/gif');
             if (notice) notifyUser(notice);
           } else {
-            notifyUser('No frames were captured, so no GIF was saved.');
+            notifyUser(tr('No frames were captured, so no GIF was saved.'));
           }
         } catch {
-          notifyUser('GIF encoding failed — nothing was saved.');
+          notifyUser(tr('GIF encoding failed — nothing was saved.'));
         } finally {
           gifFrames.length = 0;
           encoding = false;

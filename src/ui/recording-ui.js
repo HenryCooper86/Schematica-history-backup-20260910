@@ -1,6 +1,7 @@
 // The Rec button and the recording dialog (video formats plus animated GIF).
 import { createRecorder } from '../recorder.js';
 import { toast, escAttr, openModal } from './press.js';
+import { tr, onLanguageChange } from '../i18n.js';
 
 export function initRecording({ svg, store }) {
   const recorder = createRecorder(svg, { notify: toast });
@@ -8,7 +9,7 @@ export function initRecording({ svg, store }) {
   const recBtn = document.getElementById('btn-rec');
 
   function renderFormats() {
-    const formats = [...recorder.videoFormats(), { id: 'gif', label: 'GIF (animated)', ext: 'gif' }];
+    const formats = [...recorder.videoFormats(), { id: 'gif', label: tr('GIF (animated)'), ext: 'gif' }];
     document.getElementById('rec-formats').innerHTML = formats.map((f, i) => (
       `<label><input type="radio" name="rec-format" value="${escAttr(f.id)}"${i === 0 ? ' checked' : ''}> ${escAttr(f.label)}</label>`
     )).join('');
@@ -21,7 +22,7 @@ export function initRecording({ svg, store }) {
 
   function onState(s) {
     if (s.encoding) {
-      recBtn.textContent = 'Encoding…';
+      recBtn.textContent = tr('Encoding…');
       recBtn.disabled = true;
       recBtn.classList.remove('recording');
       return;
@@ -30,10 +31,10 @@ export function initRecording({ svg, store }) {
     if (s.recording) {
       const m = Math.floor(s.elapsed / 60);
       const sec = String(s.elapsed % 60).padStart(2, '0');
-      recBtn.innerHTML = `<span class="rec-dot"></span>${m}:${sec} Stop`;
+      recBtn.innerHTML = `<span class="rec-dot"></span>${m}:${sec} ${escAttr(tr('Stop'))}`;
       recBtn.classList.add('recording');
     } else {
-      recBtn.innerHTML = '<span class="rec-dot"></span>Rec';
+      recBtn.innerHTML = `<span class="rec-dot"></span>${escAttr(tr('Rec'))}`;
       recBtn.classList.remove('recording');
     }
   }
@@ -66,7 +67,7 @@ export function initRecording({ svg, store }) {
     const audio = document.querySelector('input[name="rec-audio"]:checked')?.value || 'none';
     const musicFile = document.getElementById('rec-music').files[0] || null;
     if (format !== 'gif' && audio === 'music' && !musicFile) {
-      toast('Choose a music file first, or pick a different audio option.');
+      toast(tr('Choose a music file first, or pick a different audio option.'));
       return;
     }
     try {
@@ -81,6 +82,11 @@ export function initRecording({ svg, store }) {
     } catch (err) {
       toast(err.message);
     }
+  });
+
+  onLanguageChange(() => {
+    if (recDialog.open) renderFormats();
+    onState(recorder.state());
   });
 
   return recorder;

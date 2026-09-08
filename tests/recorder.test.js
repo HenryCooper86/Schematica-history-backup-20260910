@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { fitRect } from '../src/recorder.js';
+import { fitRect, VIDEO_FORMATS } from '../src/recorder.js';
 
 test('fitRect letterboxes into the destination, centered', () => {
   assert.deepEqual(fitRect(200, 100, 100, 100), { x: 50, y: 0, w: 100, h: 100 });
@@ -21,4 +21,8 @@ test('fitRect returns null for degenerate sizes', () => {
   assert.equal(fitRect(100, 100, 50, 0), null);
   assert.equal(fitRect(100, 100, NaN, 50), null);
   assert.equal(fitRect(100, 100, Infinity, 50), null);
+});
+
+test('video format labels are English data', () => {
+  assert.deepEqual(VIDEO_FORMATS.map((f) => f.label), ['WebM — VP9', 'WebM — VP8', 'MP4 — H.264', 'MP4 — AV1']);
 });

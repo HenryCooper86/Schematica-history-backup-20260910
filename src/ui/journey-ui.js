@@ -2,6 +2,7 @@
 import { addStep, updateStep, removeStep, moveStep, tweenView } from '../journey.js';
 import { onPress, escAttr } from './press.js';
 import { panelHeader, bindCollapsible } from './collapsible.js';
+import { tr, onLanguageChange } from '../i18n.js';
 
 export function initJourney({ svg, store, tools, render, recorder, propsPanel }) {
   const journeyPanel = document.getElementById('journey-panel');
@@ -63,23 +64,23 @@ export function initJourney({ svg, store, tools, render, recorder, propsPanel })
     const ae = document.activeElement;
     if (journeyPanel.contains(ae) && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')) return;
     const steps = store.doc.journey || [];
-    let html = panelHeader('Journey', 'journey');
+    let html = panelHeader(tr('Journey'), 'journey');
     steps.forEach((s, i) => {
       html += `<div class="journey-step" data-step="${escAttr(s.id)}">`
         + `<div class="step-head"><span class="step-num">${i + 1}</span>`
         + `<input type="text" data-jfield="label" value="${escAttr(s.label)}"></div>`
-        + `<textarea data-jfield="caption" placeholder="Caption shown while presenting">${escAttr(s.caption)}</textarea>`
+        + `<textarea data-jfield="caption" placeholder="${escAttr(tr('Caption shown while presenting'))}">${escAttr(s.caption)}</textarea>`
         + '<div class="step-actions">'
-        + '<button data-jact="go">Go</button>'
-        + '<button data-jact="set" title="Update this step to the current view">Set</button>'
+        + `<button data-jact="go">${escAttr(tr('Go'))}</button>`
+        + `<button data-jact="set" title="${escAttr(tr('Update this step to the current view'))}">${escAttr(tr('Set'))}</button>`
         + '<button data-jact="up">&uarr;</button>'
         + '<button data-jact="down">&darr;</button>'
         + '<button data-jact="del">&times;</button>'
         + '</div></div>';
     });
     html += '<div class="journey-actions">'
-      + '<button id="journey-add">+ Add step from current view</button>'
-      + `<button id="journey-present"${steps.length ? '' : ' disabled'}>&#9654; Present</button>`
+      + `<button id="journey-add">${escAttr(tr('+ Add step from current view'))}</button>`
+      + `<button id="journey-present"${steps.length ? '' : ' disabled'}>&#9654; ${escAttr(tr('Present'))}</button>`
       + '</div>';
     journeyPanel.innerHTML = html;
     bindCollapsible(journeyPanel, 'journey');
@@ -115,6 +116,7 @@ export function initJourney({ svg, store, tools, render, recorder, propsPanel })
     propsPanel.render();
   });
   store.subscribe(renderJourney);
+  onLanguageChange(() => { renderJourney(); if (presentState.active) presentShow(); });
 
   // ---- Present mode ----
   function presentShow() {

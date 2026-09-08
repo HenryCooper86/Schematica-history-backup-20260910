@@ -1,6 +1,6 @@
 import { getPart } from './palette.js';
 import { normalizePart, partOf } from './custom.js';
-import { trd } from './i18n.js';
+import { tr, trd } from './i18n.js';
 
 // Ids are random so that two tabs, two peers, or a script minting ids in the
 // same millisecond never collide: 12 base36 characters (~62 bits) after the
@@ -204,7 +204,7 @@ export function resolveBus(current, busA, busB) {
   return null;
 }
 
-export function addZone(store, rect, label = 'Zone') {
+export function addZone(store, rect, label = tr('Zone')) {
   const id = uid('z');
   store.apply((doc) => {
     doc.zones.push({ id, x: rect.x, y: rect.y, w: rect.w, h: rect.h, label, color: '#4a90d9' });
@@ -221,17 +221,17 @@ export function addSwimlane(store, rect) {
       y: rect.y,
       w: Math.max(rect.w, 320),
       h: Math.max(rect.h, 220),
-      label: 'Process',
+      label: tr('Process'),
       color: '#a78bfa',
       kind: 'swimlane',
       orient: 'h',
-      lanes: ['Lane 1', 'Lane 2', 'Lane 3'],
+      lanes: [tr('Lane {n}', { n: 1 }), tr('Lane {n}', { n: 2 }), tr('Lane {n}', { n: 3 })],
     });
   });
   return id;
 }
 
-export function addNote(store, x, y, text = 'Note') {
+export function addNote(store, x, y, text = tr('Note')) {
   const id = uid('t');
   store.apply((doc) => {
     doc.notes.push({ id, x, y, text });
