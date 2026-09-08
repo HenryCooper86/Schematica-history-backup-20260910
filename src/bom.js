@@ -1,10 +1,15 @@
-// Bill of materials: pure derivation from a document; only the column
-// headers are language-dependent.
+// Bill of materials: pure derivation from a document; the column headers and
+// the catalogue part names are language-dependent.
 
 import { partOf } from './custom.js';
-import { tr } from './i18n.js';
+import { tr, trd } from './i18n.js';
 
 export const bomHeaders = () => [tr('Part'), tr('Part number'), tr('Qty'), tr('Refs'), tr('Addresses'), tr('Rails'), tr('Status'), tr('Flags'), tr('Notes')];
+
+// A catalogue part shows its translated name; a custom part's name is the
+// user's own text and stays as typed. The dialog shows the same thing, so an
+// export always matches the table it was taken from.
+const partName = (row) => (row.kind === 'custom' ? row.part : trd(row.part));
 
 export function buildBOM(doc) {
   const groups = new Map();
@@ -52,7 +57,7 @@ export function bomCSV(rows) {
   const lines = [bomHeaders().map(csvCell).join(',')];
   for (const r of rows) {
     lines.push([
-      r.part, r.sublabel, r.qty, r.refs.join('; '), r.addrs.join('; '),
+      partName(r), r.sublabel, r.qty, r.refs.join('; '), r.addrs.join('; '),
       r.rails.join('; '), r.statuses.join('; '), r.flags.join('; '), r.notes.join(' | '),
     ].map(csvCell).join(','));
   }
@@ -66,7 +71,7 @@ export function bomMarkdown(rows) {
     '|---|---|---|---|---|---|---|---|---|',
   ];
   for (const r of rows) {
-    lines.push(`| ${cell(r.part)} | ${cell(r.sublabel)} | ${r.qty} | ${cell(r.refs.join(', '))}`
+    lines.push(`| ${cell(partName(r))} | ${cell(r.sublabel)} | ${r.qty} | ${cell(r.refs.join(', '))}`
       + ` | ${cell(r.addrs.join(', '))} | ${cell(r.rails.join(', '))}`
       + ` | ${cell(r.statuses.join(', '))} | ${cell(r.flags.join(', '))}`
       + ` | ${cell(r.notes.join('; '))} |`);

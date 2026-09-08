@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildBOM, bomCSV, bomMarkdown } from '../src/bom.js';
+import { initI18n, setLang } from '../src/i18n.js';
 
 const node = (id, kind, label, sublabel, extra = {}) => ({
   id, kind, x: 0, y: 0, label, sublabel, color: null,
@@ -60,6 +61,30 @@ test('bomMarkdown renders a table and escapes pipes', () => {
   assert.ok(lines[1].startsWith('|---'));
   assert.equal(lines.length, 2 + 3);
   assert.ok(md.includes('A\\|B'));
+});
+
+test('an export names catalogue parts in the interface language and leaves custom names alone', () => {
+  initI18n({ storage: null });
+  const custom = { name: 'Battery', category: 'power', accent: null, icon: { text: 'B' }, ports: [], fields: [] };
+  const rows = buildBOM({
+    schema: 2, title: 'T', wires: [], zones: [], notes: [], journey: [],
+    nodes: [node('n1', 'mcu', 'Brain', 'STM32'), node('c1', 'custom', 'Pack', '18650', { part: custom })],
+  });
+  setLang('zh');
+  try {
+    const csv = bomCSV(rows).split('\n');
+    assert.equal(csv[0], '部件,型号,数量,位号,地址,电压轨,状态,标记,备注');
+    assert.ok(csv.some((l) => l.startsWith('微控制器,')), bomCSV(rows));
+    assert.ok(csv.some((l) => l.startsWith('Battery,')), 'the author\'s own name is not translated');
+    const md = bomMarkdown(rows).split('\n');
+    assert.ok(md[0].startsWith('| 部件 |'), md[0]);
+    assert.ok(md.some((l) => l.startsWith('| 微控制器 |')), bomMarkdown(rows));
+    assert.ok(md.some((l) => l.startsWith('| Battery |')), 'the author\'s own name is not translated');
+  } finally {
+    setLang('en');
+  }
+  assert.ok(bomCSV(rows).includes('\nMCU,'), 'English is unchanged');
+  assert.ok(bomMarkdown(rows).includes('| MCU |'), 'English is unchanged');
 });
 
 test('custom nodes group by template, or by name without one, and show the definition name', () => {
