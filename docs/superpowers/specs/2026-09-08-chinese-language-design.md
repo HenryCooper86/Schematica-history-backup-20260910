@@ -19,7 +19,7 @@ setup guide; and, in a second phase, the labels, notes, zone labels and journey
 captions of the 21 example boards. The AI copilot is told to answer in Chinese
 when the interface is Chinese.
 
-The mechanism is one function, `t`, keyed by the English string itself. A
+The mechanism is one function, `tr`, keyed by the English string itself. A
 single dictionary maps English to Chinese; anything missing falls back to the
 English text; a coverage test proves the dictionary complete and free of
 orphans, so a reworded English string fails the build instead of silently
@@ -54,14 +54,16 @@ losing its translation.
 
 ## Decisions
 
-- **English-keyed dictionary.** `t('Load an example board')` looks up the
+- **English-keyed dictionary.** `tr('Load an example board')` looks up the
   English text; the code keeps saying what it says. No id scheme.
+- **The function is `tr`, not `t`.** Fourteen modules already use `t` as a
+  local variable (DOM targets, notes, templates); `tr` collides with nothing.
 - **Fallback to English, never to a key.** A missing entry shows English.
 - **Live switch.** Static markup is re-translated in place; panels that render
   themselves redraw on a language-change event. No reload.
 - **Data stays English at rest, translated where shown.** Palette, buses,
   presets, catalogue and checker tables are not rewritten; the code that
-  displays them calls `t`.
+  displays them calls `tr`.
 - **New content defaults follow the language.** In Chinese a new MCU card,
   zone, note or board gets a Chinese default label. That text then belongs to
   the document like any user-typed text.
@@ -90,15 +92,19 @@ Pure, no DOM. Exports:
   current language again is a no-op.
 - `onLanguageChange(fn)` → unsubscribe. Listeners run synchronously in
   registration order.
-- `t(text, vars)` — in English returns `text` with `{name}` placeholders
+- `tr(text, vars)` — in English returns `text` with `{name}` placeholders
   filled from `vars`; in Chinese looks `text` up in the dictionary first, then
   fills placeholders. A key absent from the dictionary returns the English
   text. A placeholder absent from `vars` is left literally as `{name}` so a
-  test can see it. `t` never throws on non-string input; it stringifies.
+  test can see it. `tr` never throws on non-string input; it stringifies.
+- `trd(value)` — the same lookup for a value read from a data table (a part
+  name, a bus name, a preset note), with no placeholder filling. `tr(` always
+  takes a literal; data goes through `trd(`, so the coverage test can tell
+  the two apart.
 
 Conventions the coverage test relies on:
 
-- A `t` call's first argument is always **one single-line string literal**
+- A `tr` call's first argument is always **one single-line string literal**
   (`'...'`, `"..."`, or a backtick literal with no `${}`), never an
   expression. Interpolation goes through `{name}` placeholders and `vars`.
 - Keys are trimmed English phrases with their final punctuation. English
@@ -144,7 +150,7 @@ Terminology, fixed here so every surface agrees:
 search input, the hint bar, the present overlay's nav, and every `<dialog>`
 (`part-dialog`, and the recording, export, DRC and BOM dialogs). For each text
 node whose trimmed text contains an ASCII letter it remembers the original English
-in a `WeakMap` on first visit, then writes `t(original)` back, preserving the
+in a `WeakMap` on first visit, then writes `tr(original)` back, preserving the
 surrounding whitespace. For each element it does the same for the `title`,
 `placeholder` and `aria-label` attributes. Only those roots are visited, so the canvas, the
 palette body and the self-rendering containers (`#props`, `#journey-panel`,
@@ -174,7 +180,7 @@ The toolbar remains one row.
 
 ## Modules that render text
 
-Each module that writes user-facing strings wraps them in `t` and, where it
+Each module that writes user-facing strings wraps them in `tr` and, where it
 holds rendered text, subscribes with `onLanguageChange` inside its own `init`
 and redraws. No central list in `main.js`; `main.js` only calls
 `translateStatic()` before initialising panels and re-renders the SVG on
@@ -184,23 +190,23 @@ change (flag labels are drawn there).
 |---|---|---|
 | `src/ui/press.js` | `toast` messages come already translated by callers; the Undo action label | — |
 | `src/ui/dialogs.js` | export, DRC, BOM, share and file dialogs; confirm prompts; DRC level names | re-render open dialog bodies |
-| `src/ui/examples-menu.js` | group headings via `t`; example names via `localizedExample` (phase 2) | menu is rebuilt on open |
+| `src/ui/examples-menu.js` | group headings via `tr`; example names via `localizedExample` (phase 2) | menu is rebuilt on open |
 | `src/ui/palette-ui.js` | category headings, part names, My parts header and buttons, tooltips, toasts | rebuild the palette |
 | `src/ui/legend.js` | bus names (codes stay) | rebuild |
 | `src/ui/props.js` | field labels, placeholders, status and flag names, section titles, guide download button | re-render from the store |
-| `src/ui/rdk-details.js` | headings, requirement lines via `t`, facts | re-render |
+| `src/ui/rdk-details.js` | headings, requirement lines via `tr`, facts | re-render |
 | `src/ui/part-editor.js` | dialog headings, tabs, validation messages, side names | re-render its static text via `translateStatic(dialog)` and re-render lists |
 | `src/ui/journey-ui.js` | panel headings, buttons, counters, default step label | re-render |
 | `src/ui/recording-ui.js` | dialog text, states, toasts | re-render |
 | `src/ui/panels.js`, `src/ui/collapsible.js` | fold/hide button titles | re-render titles |
 | `src/ui/assistant-ui.js`, `src/ui/assistant-documents.js` | header, states, settings labels, composer placeholder, quick actions, source summaries, error toasts | re-render chrome; the thread's stored messages are left as they were written |
 | `src/render.js` | node flag labels (`Power hungry`, `Long lead time`, `Safety critical`) | SVG re-render from `main.js` |
-| `src/state.js` | default labels: `newDoc(t('Untitled Board'))`, `addNode` uses `t(defaultLabel or name)`, zone `t('Zone')`, note `t('Note')`, swimlane and flow-shape defaults | — (defaults are read at creation) |
-| `src/search.js` | haystack adds `t(name)` for part, category, bus names and preset notes, so Chinese queries match while English still does | — |
+| `src/state.js` | default labels: `newDoc(t('Untitled Board'))`, `addNode` uses `tr(defaultLabel or name)`, zone `tr('Zone')`, note `tr('Note')`, swimlane and flow-shape defaults | — (defaults are read at creation) |
+| `src/search.js` | haystack adds `tr(name)` for part, category, bus names and preset notes, so Chinese queries match while English still does | — |
 | `src/bom.js`, BOM dialog | column headers | dialog re-render |
-| `src/drc.js` | every message through `t` with placeholders; rule ids unchanged | findings are recomputed on open |
-| `src/rdk/checks.js` | messages and reason strings through `t`; catalogue requirements through `t`; source URLs untouched | recomputed |
-| `src/rdk/guide.js` | headings, fixed sentences, checklist through `t`; content and URLs untouched | export is on demand |
+| `src/drc.js` | every message through `tr` with placeholders; rule ids unchanged | findings are recomputed on open |
+| `src/rdk/checks.js` | messages and reason strings through `tr`; catalogue requirements through `tr`; source URLs untouched | recomputed |
+| `src/rdk/guide.js` | headings, fixed sentences, checklist through `tr`; content and URLs untouched | export is on demand |
 | `src/rdk/catalogue.js` | not rewritten; `notes`, `requirements` and source `title` values are translated by the displaying code | — |
 | `src/presets.js` | not rewritten; `notes` translated when shown in the datalist tooltip, props and search | — |
 
@@ -288,13 +294,13 @@ Unit (`node --test`):
   lacks it; `setLang` validates, persists to an injected storage, notifies
   once, and ignores a repeat; `getLang` defaults to English for absent or
   junk storage.
-- `tests/i18n-coverage.test.js`: extracts every `t(` literal from `src`
+- `tests/i18n-coverage.test.js`: extracts every `tr(` literal from `src`
   (single-line literal rule), every ASCII-letter-bearing text node and every
   `title`, `placeholder` and `aria-label` from `index.html`, and every
   data-table string (part names and default labels, category names, bus
   names, preset notes, status and flag labels, catalogue notes, requirements
   and source titles). Asserts every extracted key is in the dictionary, every
-  dictionary key is extracted (no orphans), no value is empty, and no `t(`
+  dictionary key is extracted (no orphans), no value is empty, and no `tr(`
   call uses a computed first argument.
 - `tests/geometry.test.js` additions: a Chinese label is wider than a Latin
   label of the same length; ASCII `textUnits` equals `.length`; a mixed
