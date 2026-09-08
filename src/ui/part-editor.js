@@ -15,7 +15,6 @@ import { ACCENT_SWATCHES } from './props.js';
 import { badgeHTML } from './badge.js';
 import { escAttr, toast, openModal } from './press.js';
 import { tr, trd, onLanguageChange } from '../i18n.js';
-import { translateStatic } from './i18n-dom.js';
 
 export function initPartEditor({ store, library, svg, tools }) {
   const dialog = document.getElementById('part-dialog');
@@ -346,9 +345,10 @@ export function initPartEditor({ store, library, svg, tools }) {
   // Canvas shortcuts listen on window; a keypress inside the form is the form's.
   dialog.addEventListener('keydown', (e) => e.stopPropagation());
 
+  // The dialog's own markup was present at load, so the static walker's replay
+  // covers it; everything rendered here is redrawn instead.
   onLanguageChange(() => {
     renderStatic();
-    translateStatic(dialog);
     if (dialog.open) { renderTitles(); renderAll(); refresh(); }
   });
 

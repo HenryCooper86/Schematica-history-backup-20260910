@@ -9,7 +9,7 @@ import { buildBOM, bomCSV, bomMarkdown, bomHeaders } from '../bom.js';
 import { checkDoc } from '../drc.js';
 import { encodeShare } from '../share.js';
 import { toast, openModal } from './press.js';
-import { tr, onLanguageChange } from '../i18n.js';
+import { tr, trd, onLanguageChange } from '../i18n.js';
 
 export function initDialogs({ store }) {
   const safeName = (ext) => `${(store.doc.title || 'schematica').replace(/[^\w-]+/g, '_')}${ext}`;
@@ -133,8 +133,10 @@ export function initDialogs({ store }) {
   const bomDialog = document.getElementById('bom-dialog');
   function renderBOM() {
     const bomRows = buildBOM(store.doc);
+    // A catalogue part shows its translated name; a custom part's name is the
+    // user's own text and stays as typed.
     const body = bomRows.map((r) => (
-      `<tr><td>${esc(r.part)}</td><td>${esc(r.sublabel)}</td><td>${r.qty}</td>`
+      `<tr><td>${esc(r.kind === 'custom' ? r.part : trd(r.part))}</td><td>${esc(r.sublabel)}</td><td>${r.qty}</td>`
       + `<td class="wrap">${esc(r.refs.join(', '))}</td><td>${esc(r.addrs.join(', '))}</td>`
       + `<td>${esc(r.rails.join(', '))}</td><td>${esc(r.statuses.join(', '))}</td>`
       + `<td>${esc(r.flags.join(', '))}</td><td class="wrap">${esc(r.notes.join('; '))}</td></tr>`
