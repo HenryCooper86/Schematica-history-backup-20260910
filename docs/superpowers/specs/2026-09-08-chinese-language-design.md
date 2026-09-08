@@ -225,6 +225,11 @@ Its caller in `src/ui/assistant-ui.js` passes `getLang()`. `stableSystem()` and 
 byte-identical to today, so provider caching is unaffected. Assistant chrome
 translates like any panel; stored thread messages are not rewritten.
 
+Checker messages the copilot reads — the `run_checks` tool result, the
+board-context findings, and the Fix quick-action prompts — follow the
+interface language, while rule ids, part ids and source URLs stay English;
+`rdk_reference` stays English because it is reference material.
+
 ## Geometry: CJK widths in `src/geometry.js`
 
 `textUnits(s)` sums per code point: CJK Unified Ideographs (U+4E00–U+9FFF),
