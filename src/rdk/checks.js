@@ -1,5 +1,6 @@
 // Pure, source-aware architectural checks. Unknown metadata is never support.
 import { profileFor } from './profiles.js';
+import { tr, trd } from '../i18n.js';
 
 const refs = (w) => [
   [w.from, w.to],
@@ -10,7 +11,7 @@ const sources = (...profiles) =>
     ...new Set(profiles.flatMap((p) => (p?.sources || []).map((s) => s.url))),
   ].join(' ');
 const requirements = (...profiles) =>
-  [...new Set(profiles.flatMap((p) => p?.requirements || []))].join(' ');
+  [...new Set(profiles.flatMap((p) => p?.requirements || []))].map(trd).join(' ');
 const isBoard = (n) => n?.kind === 'aisbc';
 const isCamera = (n) => ['mipicam', 'depthcam'].includes(n?.kind);
 const voltage = (value) => {
@@ -61,7 +62,7 @@ export function checkRdk(doc) {
       add(
         'warning',
         'rdk-interface',
-        `${n.label}: connector profile is unverified. ${requirements(p)} ${sources(p)}`,
+        tr('{label}: connector profile is unverified. {requirements} {sources}', { label: n.label, requirements: requirements(p), sources: sources(p) }),
         [n.id],
       );
     }
@@ -70,7 +71,7 @@ export function checkRdk(doc) {
         add(
           'error',
           'rdk-csi-capacity',
-          `${n.label} ${slot.port} is shared by multiple camera inputs.`,
+          tr('{label} {port} is shared by multiple camera inputs.', { label: n.label, port: slot.port }),
           [n.id, ...slot.endpoints.map((e) => e.node), ...slot.wireIds],
         );
       }
@@ -109,14 +110,14 @@ export function checkRdk(doc) {
         add(
           'error',
           'rdk-stereo-links',
-          `${n.label} requires left and right MIPI links to two distinct supported CSI connectors on the same board. ${sources(p)}`,
+          tr('{label} requires left and right MIPI links to two distinct supported CSI connectors on the same board. {sources}', { label: n.label, sources: sources(p) }),
           ids,
         );
       else if (hosts.some((h) => !profileFor(h)?.ports))
         add(
           'warning',
           'rdk-stereo-links',
-          `${n.label}: stereo connector pair is unverified. ${requirements(p, ...hosts.map(profileFor))} ${sources(p, ...hosts.map(profileFor))}`,
+          tr('{label}: stereo connector pair is unverified. {requirements} {sources}', { label: n.label, requirements: requirements(p, ...hosts.map(profileFor)), sources: sources(p, ...hosts.map(profileFor)) }),
           ids,
         );
     }
@@ -140,7 +141,7 @@ export function checkRdk(doc) {
           add(
             'error',
             'rdk-power',
-            `${n.label} supply ${supply.rail} is outside its documented ${p.power.inputMinV}–${p.power.inputMaxV}V input range. ${sources(p)}`,
+            tr('{label} supply {rail} is outside its documented {min}–{max}V input range. {sources}', { label: n.label, rail: supply.rail, min: p.power.inputMinV, max: p.power.inputMaxV, sources: sources(p) }),
             supply.ids,
           );
       }
@@ -156,27 +157,27 @@ export function checkRdk(doc) {
         data = component?.software;
       const ids = [n.id, ...(target ? [target.id] : [])];
       let reason = '';
-      if (!fields.target) reason = 'Select a target RDK board.';
+      if (!fields.target) reason = tr('Select a target RDK board.');
       else if (!isBoard(target))
-        reason = 'Target board is missing or is not a board.';
+        reason = tr('Target board is missing or is not a board.');
       else if (!data || !board)
-        reason = 'Package/board compatibility is unverified.';
+        reason = tr('Package/board compatibility is unverified.');
       else if (component.compatibility.unsupportedBoardIds.includes(board.id))
-        reason = 'Package is explicitly unsupported on the selected board.';
+        reason = tr('Package is explicitly unsupported on the selected board.');
       else if (!data.boardIds?.includes(board.id))
-        reason = 'Package/board compatibility is unverified.';
+        reason = tr('Package/board compatibility is unverified.');
       else if (String(fields.runtime || '').trim()) {
         if (!data.runtimes)
-          reason = 'Selected runtime compatibility is unverified.';
+          reason = tr('Selected runtime compatibility is unverified.');
         else if (!data.runtimes.includes(fields.runtime.trim()))
           reason =
-            'Selected runtime is outside the documented supported runtimes.';
+            tr('Selected runtime is outside the documented supported runtimes.');
       }
       if (reason)
         add(
           'warning',
           'rdk-software',
-          `${n.label}: ${reason} ${sources(component, board) || 'https://d-robotics.github.io/tros_doc/en/tros/'}`,
+          tr('{label}: {reason} {sources}', { label: n.label, reason, sources: sources(component, board) || 'https://d-robotics.github.io/tros_doc/en/tros/' }),
           ids,
         );
     }
@@ -190,7 +191,7 @@ export function checkRdk(doc) {
         add(
           'error',
           'rdk-interface',
-          `${n.label}: connector ${own.port} is unavailable on ${p.name}. ${sources(p)}`,
+          tr('{label}: connector {port} is unavailable on {product}. {sources}', { label: n.label, port: own.port, product: p.name, sources: sources(p) }),
           [n.id, w.id],
         );
       const host = byId.get(other.node);
@@ -213,7 +214,7 @@ export function checkRdk(doc) {
         add(
           'error',
           'rdk-compatibility',
-          `${n.label} is explicitly unsupported on ${board.name}. ${sources(p, board) || 'https://d-robotics.github.io/rdk_doc/en/Quick_start/accessory/'}`,
+          tr('{label} is explicitly unsupported on {product}. {sources}', { label: n.label, product: board.name, sources: sources(p, board) || 'https://d-robotics.github.io/rdk_doc/en/Quick_start/accessory/' }),
           ids,
         );
       else if (
@@ -225,7 +226,7 @@ export function checkRdk(doc) {
         add(
           'warning',
           'rdk-compatibility',
-          `${n.label} with ${host.label}: compatibility is unverified. ${requirements(p, board)} ${sources(p, board) || 'https://d-robotics.github.io/rdk_doc/en/Quick_start/accessory/'}`,
+          tr('{label} with {host}: compatibility is unverified. {requirements} {sources}', { label: n.label, host: host.label, requirements: requirements(p, board), sources: sources(p, board) || 'https://d-robotics.github.io/rdk_doc/en/Quick_start/accessory/' }),
           ids,
         );
     }

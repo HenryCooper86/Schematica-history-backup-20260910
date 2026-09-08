@@ -1,4 +1,5 @@
 import { displayPart, nodePart } from './rdk/profiles.js';
+import { trd } from './i18n.js';
 import { BUSES } from './buses.js';
 import { CATEGORY_COLORS, DISPOSITIONS, SEVERITY_COLORS } from './palette.js';
 import {
@@ -185,7 +186,7 @@ const STATUS_META = {
 // Flags render like net_draw's effect badges: a ringed circle with a small
 // icon on the card's top-right edge, and a halo around the card in the color
 // of the most severe flag.
-const FLAG_META = {
+export const FLAG_META = {
   bug: {
     label: 'Bug', color: '#f87171', sev: 3,
     icon: '<path d="M12 7.5a4 4 0 0 1 4 4v3a4 4 0 0 1-8 0v-3a4 4 0 0 1 4-4z"/>'
@@ -248,14 +249,14 @@ function flagBadgesMarkup(flags, W) {
   shown.forEach((k, i) => {
     const f = FLAG_META[k];
     const bx = W - 13 - i * 23;
-    s += `<g class="fxbadge"><title>${esc(f.label)}</title>`
+    s += `<g class="fxbadge"><title>${esc(trd(f.label))}</title>`
       + `<circle cx="${bx}" cy="0" r="10.5" fill="${CHIP_BG}" stroke="${f.color}" stroke-width="1.6"/>`
       + `<g transform="translate(${bx - 6.6} -6.6) scale(0.55)" fill="none" stroke="${f.color}"`
       + ` stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${f.icon}</g></g>`;
   });
   if (flags.length > shown.length) {
     const bx = W - 13 - shown.length * 23;
-    const rest = flags.slice(shown.length).map((k) => FLAG_META[k].label).join(', ');
+    const rest = flags.slice(shown.length).map((k) => trd(FLAG_META[k].label)).join(', ');
     s += `<g class="fxbadge"><title>${esc(rest)}</title>`
       + `<circle cx="${bx}" cy="0" r="10.5" fill="${CHIP_BG}" stroke="#8b9bb4" stroke-width="1.6"/>`
       + `<text x="${bx}" y="3.4" text-anchor="middle" font-size="9" font-weight="700" fill="#8b9bb4"`

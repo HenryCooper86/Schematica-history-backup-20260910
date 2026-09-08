@@ -3,6 +3,7 @@
 
 import { nodePart } from './rdk/profiles.js';
 import { checkRdk } from './rdk/checks.js';
+import { tr } from './i18n.js';
 
 function i2cComponents(doc) {
   // Connected components over nodes joined by i2c-bus wires.
@@ -58,7 +59,7 @@ export function checkDoc(doc) {
         findings.push({
           level: 'error',
           rule: 'i2c-addr-conflict',
-          message: `I2C address ${addr} is used by ${nodes.map((n) => n.label).join(' and ')} on the same bus.`,
+          message: tr('I2C address {addr} is used by {names} on the same bus.', { addr, names: nodes.map((n) => n.label).join(tr(' and ')) }),
           ids: nodes.map((n) => n.id),
         });
       }
@@ -79,7 +80,7 @@ export function checkDoc(doc) {
         findings.push({
           level: 'warning',
           rule: supply ? 'unconnected-power' : 'unconnected-port',
-          message: `${n.label}'s ${port.name} pin is unconnected.`,
+          message: tr('{label}\'s {port} pin is unconnected.', { label: n.label, port: port.name }),
           ids: [n.id],
         });
       }
@@ -92,7 +93,9 @@ export function checkDoc(doc) {
     findings.push({
       level: 'warning',
       rule: 'floating-node',
-      message: `${floating.map((n) => n.label).join(', ')} ${floating.length === 1 ? 'is' : 'are'} not wired to anything.`,
+      message: floating.length === 1
+        ? tr('{names} is not wired to anything.', { names: floating.map((n) => n.label).join(', ') })
+        : tr('{names} are not wired to anything.', { names: floating.map((n) => n.label).join(', ') }),
       ids: floating.map((n) => n.id),
     });
   }
@@ -108,7 +111,7 @@ export function checkDoc(doc) {
       findings.push({
         level: 'warning',
         rule: 'bus-mismatch',
-        message: `A ${w.bus.toUpperCase()} wire connects ports that are ${ends.map((b) => String(b).toUpperCase()).join(' and ')}.`,
+        message: tr('A {bus} wire connects ports that are {a} and {b}.', { bus: w.bus.toUpperCase(), a: String(ends[0]).toUpperCase(), b: String(ends[1]).toUpperCase() }),
         ids: [w.id],
       });
     }
@@ -120,7 +123,7 @@ export function checkDoc(doc) {
       findings.push({
         level: 'warning',
         rule: 'lifecycle',
-        message: `${n.label} is ${n.status === 'deprecated' ? 'marked deprecated' : 'flagged end-of-life'}.`,
+        message: n.status === 'deprecated' ? tr('{label} is marked deprecated.', { label: n.label }) : tr('{label} is flagged end-of-life.', { label: n.label }),
         ids: [n.id],
       });
     }

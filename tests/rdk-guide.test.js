@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { newDoc } from '../src/state.js';
 import { rdkGuide, safeSources } from '../src/rdk/guide.js';
 import { rdkDetails, targetOptions } from '../src/ui/rdk-details.js';
+import { initI18n, setLang } from '../src/i18n.js';
+import { EXAMPLES } from '../src/examples.js';
 const node = (id, kind, sublabel, fields) => ({
   id,
   kind,
@@ -139,4 +141,21 @@ test('board properties show only documented peripheral relationships and conditi
     rdkDetails(doc.nodes[0], doc),
     /Documented peripherals:.*GS130W/,
   );
+});
+
+test('the setup guide headings follow the interface language while ids and URLs stay', () => {
+  initI18n({ storage: null });
+  const rover = EXAMPLES.find((e) => e.id === 'rdk-rover').doc;
+  setLang('zh');
+  try {
+    const md = rdkGuide(rover);
+    assert.match(md, /^# RDK 搭建指南：/m);
+    assert.match(md, /^## 物料清单$/m);
+    assert.match(md, /^## 准备清单$/m);
+    assert.match(md, /- n3\.csi1 → n5\.csi \(mipi\)/, 'connection lines are ids');
+    assert.match(md, /https:\/\/d-robotics\.github\.io\//);
+  } finally {
+    setLang('en');
+  }
+  assert.match(rdkGuide(rover), /^## Bill of materials$/m);
 });

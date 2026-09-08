@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { checkDoc } from '../src/drc.js';
+import { initI18n, setLang } from '../src/i18n.js';
 const n = (id, kind, sublabel = '', extra = {}) => ({
   id,
   kind,
@@ -250,5 +251,24 @@ test('documented runtime allow-list distinguishes supported and excluded runtime
     );
   } finally {
     p.software.runtimes = previous;
+  }
+});
+
+test('RDK messages follow the interface language; rule ids and source URLs do not', () => {
+  initI18n({ storage: null });
+  const doc = { schema: 2, title: '', nodes: [n('b', 'aisbc', 'RDK X5'), n('c', 'mipicam', 'IMX219')], wires: [
+    { id: 'w', bus: 'mipi', from: { node: 'b', port: 'csi1' }, to: { node: 'c', port: 'csi' }, label: '', arrow: null, style: null, flow: null },
+  ], zones: [], notes: [], journey: [] };
+  const en = checkDoc(doc).filter((f) => f.rule.startsWith('rdk-'));
+  setLang('zh');
+  try {
+    const zh = checkDoc(doc).filter((f) => f.rule.startsWith('rdk-'));
+    assert.deepEqual(zh.map((f) => f.rule), en.map((f) => f.rule));
+    for (const f of zh) {
+      assert.match(f.message, /[一-鿿]/, f.rule);
+      assert.match(f.message, /https:\/\/d-robotics\.github\.io\//, 'sources stay');
+    }
+  } finally {
+    setLang('en');
   }
 });

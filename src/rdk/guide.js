@@ -2,6 +2,16 @@
 import { profileFor, RDK_PRODUCTS } from './catalogue.js';
 import { cameraOccupancy } from './checks.js';
 import { checkDoc } from '../drc.js';
+import { tr, trd } from '../i18n.js';
+
+// Placeholder fill with no dictionary lookup: the untranslated path for
+// profileFacts, used only by referenceText (the copilot's rdk_reference
+// tool, which always reads English regardless of interface language).
+function fillVars(text, vars) {
+  const key = text == null ? '' : String(text);
+  if (!vars) return key;
+  return key.replace(/\{(\w+)\}/g, (m, name) => (name in vars ? String(vars[name]) : m));
+}
 
 export function rdkProfile(node) {
   return profileFor(
@@ -38,41 +48,40 @@ export function markdownText(value) {
     .replace(/[\r\n\u2028\u2029]+/g, ' ')
     .replace(/[&<>\\`*_{}\[\]()#+.!|~-]/g, (c) => `&#${c.charCodeAt(0)};`);
 }
-function profileFacts(p) {
-  if (!p) return ['Package or product identity is unverified.'];
+function profileFacts(p, { translate = true } = {}) {
+  const t = translate ? tr : fillVars;
+  const td = translate ? trd : fillVars;
+  if (!p) return [t('Package or product identity is unverified.')];
   const lines = [
     p.name,
-    `Checked: ${p.checkedOn}`,
-    p.notes,
-    `Ports: ${p.ports ? p.ports.map((port) => `${port.id} (${port.bus})`).join(', ') : 'unverified; generic drawing ports are not validated connectors'}`,
+    t('Checked: {date}', { date: p.checkedOn }),
+    td(p.notes),
+    p.ports
+      ? t('Ports: {list}', { list: p.ports.map((port) => `${port.id} (${port.bus})`).join(', ') })
+      : t('Ports: unverified; generic drawing ports are not validated connectors'),
   ];
-  if (p.power)
-    lines.push(
-      `Power: ${p.power.rail}; input ${p.power.inputMinV}–${p.power.inputMaxV}V${p.power.recommendedCurrentA ? `; recommended ${p.power.recommendedCurrentA}A` : ''}${p.power.recommendedPowerW ? `; recommended ${p.power.recommendedPowerW}W` : ''}${p.power.maxLoadPowerW ? `; maximum-load supply ${p.power.maxLoadPowerW}W` : ''}`,
-    );
-  lines.push(...p.requirements);
-  if (p.compatibility.boardIds)
-    lines.push(`Documented boards: ${p.compatibility.boardIds.join(', ')}`);
-  if (p.compatibility.unsupportedBoardIds.length)
-    lines.push(
-      `Unsupported boards: ${p.compatibility.unsupportedBoardIds.join(', ')}`,
-    );
+  if (p.power) {
+    lines.push(t('Power: {rail}; input {min}–{max}V{current}{power}{load}', {
+      rail: p.power.rail, min: p.power.inputMinV, max: p.power.inputMaxV,
+      current: p.power.recommendedCurrentA ? t('; recommended {a}A', { a: p.power.recommendedCurrentA }) : '',
+      power: p.power.recommendedPowerW ? t('; recommended {w}W', { w: p.power.recommendedPowerW }) : '',
+      load: p.power.maxLoadPowerW ? t('; maximum-load supply {w}W', { w: p.power.maxLoadPowerW }) : '',
+    }));
+  }
+  lines.push(...p.requirements.map(td));
+  if (p.compatibility.boardIds) lines.push(t('Documented boards: {list}', { list: p.compatibility.boardIds.join(', ') }));
+  if (p.compatibility.unsupportedBoardIds.length) lines.push(t('Unsupported boards: {list}', { list: p.compatibility.unsupportedBoardIds.join(', ') }));
   const peripherals = compatiblePeripherals(p);
   if (peripherals.length) {
-    lines.push(
-      `Documented peripherals: ${peripherals.map((part) => part.name).join(', ')}`,
-    );
-    for (const part of peripherals)
-      lines.push(`${part.name} requirements: ${part.requirements.join(' ')}`);
-    lines.push(
-      'These documented relationships do not validate other peripherals or replace carrier, adapter and connector requirements.',
-    );
+    lines.push(t('Documented peripherals: {list}', { list: peripherals.map((part) => part.name).join(', ') }));
+    for (const part of peripherals) lines.push(t('{name} requirements: {list}', { name: part.name, list: part.requirements.map(td).join(' ') }));
+    lines.push(t('These documented relationships do not validate other peripherals or replace carrier, adapter and connector requirements.'));
   }
   return lines;
 }
 export function referenceText(profile) {
   return [
-    ...profileFacts(profile),
+    ...profileFacts(profile, { translate: false }),
     ...safeSources(profile).map(
       (s) => `${s.title}${s.archived ? ' (archived)' : ''}: ${s.url}`,
     ),
@@ -82,7 +91,7 @@ export function rdkFacts(node, doc) {
   const lines = profileFacts(rdkProfile(node));
   for (const slot of cameraOccupancy(doc, node))
     lines.push(
-      `CSI ${slot.port}: ${slot.endpoints.length ? slot.endpoints.map((e) => `${e.node}.${e.port}`).join(', ') : 'unused'}`,
+      tr('CSI {port}: {endpoints}', { port: slot.port, endpoints: slot.endpoints.length ? slot.endpoints.map((e) => `${e.node}.${e.port}`).join(', ') : tr('unused') }),
     );
   return lines;
 }
@@ -90,63 +99,68 @@ export function rdkGuide(doc) {
   if (!doc.nodes.some((n) => n.kind === 'aisbc' && rdkProfile(n))) return '';
   const m = markdownText;
   const out = [
-    `# RDK setup guide: ${m(doc.title)}`,
+    tr('# RDK setup guide: {title}', { title: m(doc.title) }),
     '',
-    'Architecture reference only. Verify the exact hardware revision, adapters, power supply and software documentation before setup. Diagram checks do not certify hardware operation.',
+    tr('Architecture reference only. Verify the exact hardware revision, adapters, power supply and software documentation before setup. Diagram checks do not certify hardware operation.'),
     '',
-    '## Bill of materials',
+    tr('## Bill of materials'),
   ];
   // Include every diagram component: unknown accessories must remain visible.
   for (const n of doc.nodes) {
     out.push(
-      `- ${m(n.label)} (${m(n.id)}): ${m(n.kind === 'rdksoftware' ? n.fields?.package || 'package not selected' : n.sublabel || n.kind)}`,
+      `- ${m(n.label)} (${m(n.id)}): ${m(n.kind === 'rdksoftware' ? n.fields?.package || tr('package not selected') : n.sublabel || n.kind)}`,
     );
     if (rdkProfile(n) || n.kind === 'rdksoftware')
       for (const line of rdkFacts(n, doc)) out.push(`  - ${m(line)}`);
-    if (n.notes) out.push(`  - Component notes / assumptions: ${m(n.notes)}`);
+    if (n.notes) out.push(tr('  - Component notes / assumptions: {notes}', { notes: m(n.notes) }));
   }
-  out.push('', '## Connections');
+  out.push('', tr('## Connections'));
   for (const w of doc.wires)
     out.push(
       `- ${m(w.from.node)}.${m(w.from.port)} → ${m(w.to.node)}.${m(w.to.port)} (${m(w.bus)})`,
     );
-  if (!doc.wires.length) out.push('No connections drawn.');
-  out.push('', '## Software mapping');
+  if (!doc.wires.length) out.push(tr('No connections drawn.'));
+  out.push('', tr('## Software mapping'));
   for (const n of doc.nodes.filter((n) => n.kind === 'rdksoftware')) {
     const target = doc.nodes.find(
       (b) => b.id === n.fields?.target && b.kind === 'aisbc',
     );
     out.push(
-      `- ${m(n.label)}: package ${m(n.fields?.package || 'not selected')}; target: ${m(target ? `${target.label} (${target.id})` : `${n.fields?.target || 'not selected'} (missing or non-board target)`)}; Runtime: ${m(n.fields?.runtime || 'not selected (optional component-level assumption)')}`,
+      tr('- {label}: package {package}; target: {target}; Runtime: {runtime}', {
+        label: m(n.label),
+        package: m(n.fields?.package || tr('not selected')),
+        target: m(target ? `${target.label} (${target.id})` : tr('{id} (missing or non-board target)', { id: n.fields?.target || tr('not selected') })),
+        runtime: m(n.fields?.runtime || tr('not selected (optional component-level assumption)')),
+      }),
     );
   }
-  out.push('', '## Diagram notes and assumptions');
+  out.push('', tr('## Diagram notes and assumptions'));
   for (const note of doc.notes) out.push(`- ${m(note.text)}`);
-  if (!doc.notes.length) out.push('No diagram notes recorded.');
-  out.push('', '## Findings');
+  if (!doc.notes.length) out.push(tr('No diagram notes recorded.'));
+  out.push('', tr('## Findings'));
   const findings = checkDoc(doc);
   for (const f of findings)
-    out.push(`- ${m(f.level)} ${f.rule}: ${m(f.message)}`);
+    out.push(`- ${m(f.level === 'error' ? tr('error') : tr('warning'))} ${f.rule}: ${m(f.message)}`);
   if (!findings.length)
     out.push(
-      'No current architectural findings. Physical operation still requires verification.',
+      tr('No current architectural findings. Physical operation still requires verification.'),
     );
   out.push(
     '',
-    '## Preparation checklist',
-    '- Confirm the exact hardware revision and any carrier or expansion board against the official references; resolve unverified connectors and adapter requirements.',
-    '- Verify the required cables, connector orientation and separate stereo CSI paths against the documented assembly.',
-    '- Check power voltage, supply capacity, regulation and all return/ground connections; resolve the current findings above.',
-    '- Review each software package, target board and selected runtime in the software mapping against its official documentation. If runtime is not selected, record that decision before setup.',
-    '- Create a hardware validation record with the actual board revision, assembly, software/runtime versions, observations and unresolved issues after physical testing. This guide does not establish validation results.',
+    tr('## Preparation checklist'),
+    tr('- Confirm the exact hardware revision and any carrier or expansion board against the official references; resolve unverified connectors and adapter requirements.'),
+    tr('- Verify the required cables, connector orientation and separate stereo CSI paths against the documented assembly.'),
+    tr('- Check power voltage, supply capacity, regulation and all return/ground connections; resolve the current findings above.'),
+    tr('- Review each software package, target board and selected runtime in the software mapping against its official documentation. If runtime is not selected, record that decision before setup.'),
+    tr('- Create a hardware validation record with the actual board revision, assembly, software/runtime versions, observations and unresolved issues after physical testing. This guide does not establish validation results.'),
   );
-  out.push('', '## Official references');
+  out.push('', tr('## Official references'));
   const sources = new Map();
   for (const n of doc.nodes)
     for (const s of safeSources(rdkProfile(n))) sources.set(s.url, s);
   for (const s of sources.values())
     out.push(
-      `- [${m(s.title)}${s.archived ? ' (archived)' : ''}](<${s.url.replace(/[<>\s()]/g, (c) => encodeURIComponent(c))}>)`,
+      `- [${m(trd(s.title))}${s.archived ? m(tr(' (archived)')) : ''}](<${s.url.replace(/[<>\s()]/g, (c) => encodeURIComponent(c))}>)`,
     );
   return out.join('\n') + '\n';
 }

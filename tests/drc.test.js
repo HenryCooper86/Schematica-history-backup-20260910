@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { checkDoc } from '../src/drc.js';
+import { initI18n, setLang } from '../src/i18n.js';
 
 const node = (id, kind, extra = {}) => ({
   id, kind, x: 0, y: 0, label: id, sublabel: '', color: null,
@@ -106,4 +107,24 @@ test('custom parts report unwired required ports by bus; optional ports and buil
   assert.deepEqual(port.map((f) => f.message), ["c's EN pin is unconnected."]);
   assert.equal(port[0].level, 'warning');
   assert.ok(!findings.some((f) => /OUT|CAN|GND/.test(f.message)), 'optional and wired ports are silent');
+});
+
+test('design-rule messages follow the interface language and keep their rule ids', () => {
+  initI18n({ storage: null });
+  const doc = { schema: 2, title: '', nodes: [node('a', 'mcu'), node('b', 'temp', { addr: '0x76' }), node('c', 'temp', { addr: '0x76' })], wires: [
+    { id: 'w1', bus: 'i2c', from: { node: 'a', port: 'i2c' }, to: { node: 'b', port: 'i2c' }, label: '', arrow: null, style: null, flow: null },
+    { id: 'w2', bus: 'i2c', from: { node: 'a', port: 'i2c' }, to: { node: 'c', port: 'i2c' }, label: '', arrow: null, style: null, flow: null },
+  ], zones: [], notes: [], journey: [] };
+  const en = checkDoc(doc);
+  assert.equal(en[0].rule, 'i2c-addr-conflict');
+  assert.equal(en[0].message, 'I2C address 0x76 is used by b and c on the same bus.');
+  setLang('zh');
+  try {
+    const zh = checkDoc(doc);
+    assert.deepEqual(zh.map((f) => f.rule), en.map((f) => f.rule));
+    assert.equal(zh[0].message, 'I2C 地址 0x76 被同一总线上的 b 和 c 同时使用。');
+    assert.match(zh.find((f) => f.rule === 'unconnected-power').message, /引脚未连接/);
+  } finally {
+    setLang('en');
+  }
 });
