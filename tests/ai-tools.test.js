@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { TOOLS, createExecutor, statusLine } from '../src/ai/tools.js';
 import { newDoc } from '../src/state.js';
 import { EXAMPLES } from '../src/examples.js';
+import { initI18n, setLang } from '../src/i18n.js';
 
 function plain(doc) {
   return createExecutor({ getDoc: () => doc, commit: (fn) => fn(doc), selection: () => ['n5'] });
@@ -145,4 +146,17 @@ test('tool descriptions mention custom parts where the model needs to know', () 
   assert.match(by.search_parts, /library templates/);
   assert.match(by.apply_edits, /kind custom/);
   assert.match(by.run_checks, /required ports/);
+});
+
+test('tool status lines follow the interface language', () => {
+  initI18n({ storage: null });
+  assert.equal(statusLine('run_checks'), 'running checks');
+  setLang('zh');
+  try {
+    assert.equal(statusLine('run_checks'), '正在运行检查');
+    assert.equal(statusLine('search_parts', { query: 'imu' }), '正在搜索部件：imu');
+    assert.equal(statusLine('apply_edits', { ops: [1, 2] }), '正在应用 2 项编辑');
+  } finally {
+    setLang('en');
+  }
 });

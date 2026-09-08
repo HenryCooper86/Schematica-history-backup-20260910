@@ -1,5 +1,6 @@
 // One error shape for every provider, with a short code the panel maps to a
 // message: auth, rate, network, model, context, refusal, request.
+import { tr } from '../../i18n.js';
 export class ProviderError extends Error {
   constructor(message, { code = 'request', status = 0, hint = '' } = {}) {
     super(message);
@@ -15,7 +16,7 @@ export class ProviderError extends Error {
 export const MAX_TOOL_INPUT = 256 * 1024;
 
 export function mapHttpError(status, body, provider) {
-  let message = `${provider} returned HTTP ${status}`;
+  let message = tr('{provider} returned HTTP {status}', { provider, status });
   try {
     const j = typeof body === 'string' ? JSON.parse(body) : body;
     message = j?.error?.message || j?.message || j?.error || message;
@@ -34,7 +35,7 @@ export function networkError(provider, err, baseUrl = '') {
   let relay = false;
   try { relay = /^\/(ollama\.com|api\.moonshot\.ai)(\/|$)/.test(new URL(baseUrl).pathname); } catch { /* a malformed URL is reported by fetch */ }
   const hint = relay
-    ? 'Check that the relay is deployed and reachable, then set Base URL to its URL followed by /ollama.com/v1 or /api.moonshot.ai/v1 for your provider. See relay/README.md.'
+    ? tr('Check that the relay is deployed and reachable, then set Base URL to its URL followed by /ollama.com/v1 or /api.moonshot.ai/v1 for your provider. See relay/README.md.')
     : '';
-  return new ProviderError(`Could not reach ${provider}: ${err?.message || err}`, { code: 'network', hint });
+  return new ProviderError(tr('Could not reach {provider}: {error}', { provider, error: err?.message || err }), { code: 'network', hint });
 }

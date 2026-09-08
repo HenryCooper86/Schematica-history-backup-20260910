@@ -12,6 +12,7 @@ import { boardText, partLine, templateLine } from './context.js';
 
 import { searchRdk } from '../rdk/catalogue.js';
 import { referenceText, rdkProfile } from '../rdk/guide.js';
+import { tr } from '../i18n.js';
 
 const EMPTY = { type: 'object', properties: {}, additionalProperties: false };
 
@@ -57,13 +58,13 @@ export const TOOLS = [
 export function statusLine(name, input = {}) {
   const i = input && typeof input === 'object' ? input : {};
   switch (name) {
-    case 'rdk_reference': return `reading RDK reference: ${i.query ?? ''}`;
-    case 'search_parts': return `searching parts: ${i.query ?? ''}`;
-    case 'get_board': return 'reading the board';
-    case 'run_checks': return 'running checks';
-    case 'list_presets': return `presets for ${i.kind ?? ''}`;
-    case 'apply_edits': return `applying ${Array.isArray(i.ops) ? i.ops.length : 0} edits`;
-    case 'arrange': return 'arranging the board';
+    case 'rdk_reference': return tr('reading RDK reference: {query}', { query: i.query ?? '' });
+    case 'search_parts': return tr('searching parts: {query}', { query: i.query ?? '' });
+    case 'get_board': return tr('reading the board');
+    case 'run_checks': return tr('running checks');
+    case 'list_presets': return tr('presets for {kind}', { kind: i.kind ?? '' });
+    case 'apply_edits': return tr('applying {n} edits', { n: Array.isArray(i.ops) ? i.ops.length : 0 });
+    case 'arrange': return tr('arranging the board');
     default: return name;
   }
 }

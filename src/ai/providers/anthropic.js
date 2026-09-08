@@ -3,6 +3,7 @@
 // are replayed verbatim on later turns, as the API requires.
 import { sseParser, readStream } from './stream.js';
 import { ProviderError, mapHttpError, networkError, MAX_TOOL_INPUT } from './errors.js';
+import { tr } from '../../i18n.js';
 
 const VERSION = '2023-06-01';
 const MAX_TOKENS = 16000;
@@ -92,7 +93,7 @@ export function createAnthropicAccumulator(onText) {
         if (d.type === 'text_delta') { b.text += d.text; onText?.(d.text); }
         else if (d.type === 'input_json_delta') {
           partial[data.index] += d.partial_json;
-          if (partial[data.index].length > MAX_TOOL_INPUT) failure = failure || new ProviderError('A tool call input exceeded 256 KB; split the work into smaller batches.', { code: 'request' });
+          if (partial[data.index].length > MAX_TOOL_INPUT) failure = failure || new ProviderError(tr('A tool call input exceeded 256 KB; split the work into smaller batches.'), { code: 'request' });
         }
         else if (d.type === 'thinking_delta') b.thinking += d.thinking;
         else if (d.type === 'signature_delta') b.signature = d.signature;
@@ -103,12 +104,12 @@ export function createAnthropicAccumulator(onText) {
         stopDetails = data.delta?.stop_details || null;
         usage.output = data.usage?.output_tokens ?? usage.output;
       } else if (type === 'error') {
-        failure = new ProviderError(data.error?.message || 'stream error', { code: 'request' });
+        failure = new ProviderError(data.error?.message || tr('stream error'), { code: 'request' });
       }
     },
     result() {
       if (failure) throw failure;
-      if (!stopReason) throw new ProviderError('The response stream ended before the reply completed. Try again.', { code: 'network' });
+      if (!stopReason) throw new ProviderError(tr('The response stream ended before the reply completed. Try again.'), { code: 'network' });
       const raw = blocks.flatMap((b, i) => {
         if (b.type !== 'tool_use') return [b];
         if (stopReason === 'max_tokens' || stopReason === 'refusal') return [];

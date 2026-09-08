@@ -2,6 +2,7 @@
 // and any endpoint that speaks the same shapes.
 import { sseParser, readStream } from './stream.js';
 import { ProviderError, mapHttpError, networkError, MAX_TOOL_INPUT } from './errors.js';
+import { tr } from '../../i18n.js';
 
 const STOP = { stop: 'end', tool_calls: 'tool_use', length: 'max_tokens', content_filter: 'refusal' };
 
@@ -66,14 +67,14 @@ export function createOpenAIAccumulator(onText) {
         if (tc.id) calls[i].id = tc.id;
         if (tc.function?.name) calls[i].name = tc.function.name;
         if (tc.function?.arguments) calls[i].args += tc.function.arguments;
-        if (calls[i].args.length > MAX_TOOL_INPUT) failure = failure || new ProviderError('A tool call input exceeded 256 KB; split the work into smaller batches.', { code: 'request' });
+        if (calls[i].args.length > MAX_TOOL_INPUT) failure = failure || new ProviderError(tr('A tool call input exceeded 256 KB; split the work into smaller batches.'), { code: 'request' });
       }
       if (choice.finish_reason) finish = choice.finish_reason;
     },
     result() {
       if (failure) throw failure;
-      if (!finish) throw new ProviderError('The response stream ended before the reply completed. Try again.', { code: 'network' });
-      if (finish === 'error') throw new ProviderError('The provider failed while streaming the reply.');
+      if (!finish) throw new ProviderError(tr('The response stream ended before the reply completed. Try again.'), { code: 'network' });
+      if (finish === 'error') throw new ProviderError(tr('The provider failed while streaming the reply.'));
       const toolCalls = (finish === 'length' || finish === 'content_filter' ? [] : calls.filter(Boolean)).map((c, i) => ({
         id: c.id || `call_${i}`, name: c.name, input: c.args.trim() ? JSON.parse(c.args) : {},
       }));

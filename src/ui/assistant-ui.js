@@ -15,9 +15,10 @@ import { findItem } from '../state.js';
 import { panelHeader, bindCollapsible } from './collapsible.js';
 import { escAttr, toast, onPress } from './press.js';
 import { initAssistantDocuments } from './assistant-documents.js';
+import { tr, trd, onLanguageChange, getLang } from '../i18n.js';
 
-const PRIVACY = 'The board\'s text and API key are sent to your chosen endpoint, through a relay when configured. Keys are saved in this browser only when you choose Remember.';
-const INTRO = 'Describe a board and it builds it; ask for a change and it edits the one you have. Every reply is a single undo step.';
+const privacy = () => tr('The board\'s text and API key are sent to your chosen endpoint, through a relay when configured. Keys are saved in this browser only when you choose Remember.');
+const intro = () => tr('Describe a board and it builds it; ask for a change and it edits the one you have. Every reply is a single undo step.');
 
 // Lucide icons (ISC, see THIRD_PARTY_NOTICES.md), the same stroke family as
 // the toolbar. 24-box paths; the size comes from CSS.
@@ -43,17 +44,12 @@ const icon = (name) => `<svg class="ai-ic" viewBox="0 0 24 24" aria-hidden="true
 
 // What the header's dot says about the provider: the probe result when there
 // is one, otherwise whether there is anything to call at all.
-const STATES = {
-  unset: 'Set up',
-  untested: 'Untested',
-  ready: 'Ready',
-  single: 'Single-shot',
-};
+const states = () => ({ unset: tr('Set up'), untested: tr('Untested'), ready: tr('Ready'), single: tr('Single-shot') });
 
-const ACTION_CARDS = [
-  { act: 'build', icon: 'build', title: 'Build from a brief', desc: 'Start a board from a short spec' },
-  { act: 'fix', icon: 'fix', title: 'Fix checks', desc: 'Resolve the design-rule findings on this board' },
-  { act: 'fill', icon: 'fill', title: 'Fill in details', desc: 'Part numbers, addresses, and rails from the presets' },
+const actionCards = () => [
+  { act: 'build', icon: 'build', title: tr('Build from a brief'), desc: tr('Start a board from a short spec') },
+  { act: 'fix', icon: 'fix', title: tr('Fix checks'), desc: tr('Resolve the design-rule findings on this board') },
+  { act: 'fill', icon: 'fill', title: tr('Fill in details'), desc: tr('Part numbers, addresses, and rails from the presets') },
 ];
 
 export function initAssistant({ store, tools, render, svg, library = null }) {
@@ -65,58 +61,122 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
   try { storage = window.localStorage; } catch { storage = null; }
   const settings = createSettings(storage);
   let settingsOpen = false;
-
-  panel.innerHTML = panelHeader('Assistant', 'assistant')
-    + '<button id="ai-meta" type="button" data-state="unset" title="Provider settings"><i class="ai-dot"></i><span></span><em class="ai-state"></em></button>'
-    + '<div id="ai-body">'
-    + '<form id="ai-settings" hidden>'
-    + `<label><span>Provider</span><select id="ai-provider">${Object.entries(PROVIDERS).map(([id, p]) => `<option value="${id}">${escAttr(p.name)}</option>`).join('')}</select></label>`
-    + '<label><span>Model</span><input id="ai-model" type="text" list="ai-models" spellcheck="false" autocomplete="off"><datalist id="ai-models"></datalist></label>'
-    + '<label><span>Base URL</span><input id="ai-base" type="url" spellcheck="false" autocomplete="off"></label>'
-    + `<label><span>API key</span><span class="ai-keywrap"><input id="ai-key" type="password" autocomplete="off" placeholder="paste your key"><button id="ai-key-eye" class="ai-icon-btn" type="button" title="Show key" aria-label="Show key">${icon('eye')}</button></span></label>`
-    + '<label class="row"><input id="ai-remember" type="checkbox"> Remember the key on this device</label>'
-    + `<label><span>Effort</span><select id="ai-effort">${EFFORTS.map((e) => `<option value="${e}">${e}</option>`).join('')}</select></label>`
-    + '<div class="ai-buttons"><button id="ai-save" type="submit">Save</button><button id="ai-test" type="button">Test connection</button>'
-    + '<button id="ai-models-btn" type="button">List models</button><button id="ai-forget" type="button">Forget key</button></div>'
-    + '<div id="ai-test-result" class="ai-result" hidden></div>'
-    + `<div class="ai-note" id="ai-help"></div><div class="ai-note ai-privacy">${escAttr(PRIVACY)}</div>`
-    + '</form>'
-    + '<div id="ai-thread" role="log" aria-live="polite"></div>'
-    + `<div id="ai-actions" class="cards"><p class="ai-intro">${escAttr(INTRO)}</p>`
-    + ACTION_CARDS.map((c) => `<button type="button" data-act="${c.act}"><i class="ai-act-ic">${icon(c.icon)}</i><span><b>${escAttr(c.title)}</b><small>${escAttr(c.desc)}</small></span></button>`).join('')
-    + '</div>'
-    + '</div>'
-    + '<div id="ai-foot"><div id="ai-documents"></div><div id="ai-composer">'
-    + '<textarea id="ai-input" rows="1" placeholder="Describe a board, or ask for a change" aria-label="Message the assistant"></textarea>'
-    + '<div class="ai-composer-row"><span class="ai-hint"><kbd>Enter</kbd> send &middot; <kbd>Shift</kbd>+<kbd>Enter</kbd> new line</span>'
-    + `<button id="ai-send" type="button" title="Send (Enter)" aria-label="Send">${icon('send')}</button>`
-    + `<button id="ai-stop" type="button" title="Stop the request" aria-label="Stop" hidden>${icon('stop')}</button></div>`
-    + '</div><div id="ai-usage"></div></div>';
-  // The shared header gets the panel's badge and its own controls around the
-  // fold toggle: new thread and settings before it, close after it.
-  const h3 = panel.querySelector('h3');
-  h3.insertAdjacentHTML('afterbegin', `<span class="ai-badge">${icon('sparkles')}</span>`);
-  h3.querySelector('.panel-toggle').insertAdjacentHTML('beforebegin', '<span class="ai-tools">'
-    + `<button id="ai-new" class="ai-icon-btn" type="button" title="New thread" aria-label="New thread">${icon('newThread')}</button>`
-    + `<button id="ai-gear" class="ai-icon-btn" type="button" title="Settings" aria-label="Assistant settings">${icon('settings')}</button></span>`);
-  h3.querySelector('.panel-toggle').insertAdjacentHTML('afterend', `<button id="ai-close" class="ai-icon-btn" type="button" title="Close (A)" aria-label="Close the assistant">${icon('close')}</button>`);
-  bindCollapsible(panel, 'assistant');
+  let busy = null;           // AbortController while a request runs
 
   const el = (id) => document.getElementById(id);
-  const form = el('ai-settings');
-  const meta = el('ai-meta');
-  const metaText = meta.querySelector('span');
-  const metaState = meta.querySelector('.ai-state');
-  const result = el('ai-test-result');
+  // The whole chrome is rebuilt when the interface language changes, so every
+  // element inside the panel is a fresh node afterwards: the references live
+  // here and bindChrome() re-resolves them and rebinds their listeners. What
+  // the panel holds — the thread, the settings, a running request, the
+  // attached documents — is state outside the markup and survives.
+  let form, meta, metaText, metaState, result, thread, actions, composer, input, sendBtn, stopBtn, usageEl, documentsEl;
+
+  function renderChrome() {
+    // A rebuild must not swallow what the user has already typed.
+    const draft = input ? input.value : '';
+    panel.innerHTML = panelHeader(tr('Assistant'), 'assistant')
+      + `<button id="ai-meta" type="button" data-state="unset" title="${escAttr(tr('Provider settings'))}"><i class="ai-dot"></i><span></span><em class="ai-state"></em></button>`
+      + '<div id="ai-body">'
+      + '<form id="ai-settings" hidden>'
+      + `<label><span>${escAttr(tr('Provider'))}</span><select id="ai-provider">${Object.entries(PROVIDERS).map(([id, p]) => `<option value="${id}">${escAttr(p.name)}</option>`).join('')}</select></label>`
+      + `<label><span>${escAttr(tr('Model'))}</span><input id="ai-model" type="text" list="ai-models" spellcheck="false" autocomplete="off"><datalist id="ai-models"></datalist></label>`
+      + `<label><span>${escAttr(tr('Base URL'))}</span><input id="ai-base" type="url" spellcheck="false" autocomplete="off"></label>`
+      + `<label><span>${escAttr(tr('API key'))}</span><span class="ai-keywrap"><input id="ai-key" type="password" autocomplete="off" placeholder="${escAttr(tr('paste your key'))}"><button id="ai-key-eye" class="ai-icon-btn" type="button" title="${escAttr(tr('Show key'))}" aria-label="${escAttr(tr('Show key'))}">${icon('eye')}</button></span></label>`
+      + `<label class="row"><input id="ai-remember" type="checkbox"> ${escAttr(tr('Remember the key on this device'))}</label>`
+      + `<label><span>${escAttr(tr('Effort'))}</span><select id="ai-effort">${EFFORTS.map((e) => `<option value="${e}">${escAttr(trd(e))}</option>`).join('')}</select></label>`
+      + `<div class="ai-buttons"><button id="ai-save" type="submit">${escAttr(tr('Save'))}</button><button id="ai-test" type="button">${escAttr(tr('Test connection'))}</button>`
+      + `<button id="ai-models-btn" type="button">${escAttr(tr('List models'))}</button><button id="ai-forget" type="button">${escAttr(tr('Forget key'))}</button></div>`
+      + '<div id="ai-test-result" class="ai-result" hidden></div>'
+      + `<div class="ai-note" id="ai-help"></div><div class="ai-note ai-privacy">${escAttr(privacy())}</div>`
+      + '</form>'
+      + '<div id="ai-thread" role="log" aria-live="polite"></div>'
+      + `<div id="ai-actions" class="cards"><p class="ai-intro">${escAttr(intro())}</p>`
+      + actionCards().map((c) => `<button type="button" data-act="${c.act}"><i class="ai-act-ic">${icon(c.icon)}</i><span><b>${escAttr(c.title)}</b><small>${escAttr(c.desc)}</small></span></button>`).join('')
+      + '</div>'
+      + '</div>'
+      + '<div id="ai-foot"><div id="ai-documents"></div><div id="ai-composer">'
+      + `<textarea id="ai-input" rows="1" placeholder="${escAttr(tr('Describe a board, or ask for a change'))}" aria-label="${escAttr(tr('Message the assistant'))}"></textarea>`
+      + `<div class="ai-composer-row"><span class="ai-hint"><kbd>Enter</kbd> ${escAttr(tr('send'))} &middot; <kbd>Shift</kbd>+<kbd>Enter</kbd> ${escAttr(tr('new line'))}</span>`
+      + `<button id="ai-send" type="button" title="${escAttr(tr('Send (Enter)'))}" aria-label="${escAttr(tr('Send'))}">${icon('send')}</button>`
+      + `<button id="ai-stop" type="button" title="${escAttr(tr('Stop the request'))}" aria-label="${escAttr(tr('Stop'))}" hidden>${icon('stop')}</button></div>`
+      + '</div><div id="ai-usage"></div></div>';
+    // The shared header gets the panel's badge and its own controls around the
+    // fold toggle: new thread and settings before it, close after it.
+    const h3 = panel.querySelector('h3');
+    h3.insertAdjacentHTML('afterbegin', `<span class="ai-badge">${icon('sparkles')}</span>`);
+    h3.querySelector('.panel-toggle').insertAdjacentHTML('beforebegin', '<span class="ai-tools">'
+      + `<button id="ai-new" class="ai-icon-btn" type="button" title="${escAttr(tr('New thread'))}" aria-label="${escAttr(tr('New thread'))}">${icon('newThread')}</button>`
+      + `<button id="ai-gear" class="ai-icon-btn" type="button" title="${escAttr(tr('Settings'))}" aria-label="${escAttr(tr('Assistant settings'))}">${icon('settings')}</button></span>`);
+    h3.querySelector('.panel-toggle').insertAdjacentHTML('afterend', `<button id="ai-close" class="ai-icon-btn" type="button" title="${escAttr(tr('Close (A)'))}" aria-label="${escAttr(tr('Close the assistant'))}">${icon('close')}</button>`);
+    bindCollapsible(panel, 'assistant');
+    bindChrome();
+    if (draft) { input.value = draft; grow(); }
+  }
+
+  // Everything the fresh markup needs: the references, and the listeners on
+  // nodes the rebuild replaced. Listeners on nodes outside the panel (the
+  // toolbar button, the window, the document, the store) are bound once, on
+  // their own, and must not come through here.
+  function bindChrome() {
+    form = el('ai-settings');
+    meta = el('ai-meta');
+    metaText = meta.querySelector('span');
+    metaState = meta.querySelector('.ai-state');
+    result = el('ai-test-result');
+    thread = el('ai-thread');
+    actions = el('ai-actions');
+    composer = el('ai-composer');
+    input = el('ai-input');
+    sendBtn = el('ai-send');
+    stopBtn = el('ai-stop');
+    usageEl = el('ai-usage');
+    // The documents container keeps its node across a rebuild: the attachments
+    // component holds it, along with the drop listeners bound on it directly.
+    const keptDocuments = documentsEl;
+    documentsEl = el('ai-documents');
+    if (keptDocuments) { documentsEl.replaceWith(keptDocuments); documentsEl = keptDocuments; }
+
+    form.addEventListener('input', invalidateDraft);
+    form.addEventListener('change', invalidateDraft);
+    form.addEventListener('submit', saveSettings);
+    el('ai-provider').addEventListener('change', changeProvider);
+    el('ai-key-eye').addEventListener('click', showKey);
+    el('ai-forget').addEventListener('click', forgetKey);
+    el('ai-test').addEventListener('click', testConnection);
+    el('ai-models-btn').addEventListener('click', listModels);
+    el('ai-gear').addEventListener('click', () => showSettings(!settingsOpen));
+    meta.addEventListener('click', () => showSettings(true));
+    el('ai-close').addEventListener('click', close);
+    el('ai-new').addEventListener('click', () => { if (!busy) { clearThread(); showSettings(false); } });
+    input.addEventListener('input', grow);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        send(input.value);
+      }
+    });
+    sendBtn.addEventListener('click', () => send(input.value));
+    stopBtn.addEventListener('click', () => busy?.abort());
+    actions.querySelectorAll('button').forEach((b) => {
+      b.addEventListener('click', () => ACTIONS[b.dataset.act]());
+    });
+    grow();
+    // An open settings sheet and a running request outlive the markup.
+    form.hidden = !settingsOpen;
+    el('ai-gear').classList.toggle('active', settingsOpen);
+    if (busy) setBusy(true);
+  }
+
+  renderChrome();
 
   function refreshMeta() {
     const s = settings.get();
     const single = s.tools === false;
-    metaText.innerHTML = `${escAttr(PROVIDERS[s.provider].name)} · <code>${escAttr(s.model || 'no model')}</code>${single ? ' · single-shot' : ''}`;
+    metaText.innerHTML = `${escAttr(PROVIDERS[s.provider].name)} · <code>${escAttr(s.model || tr('no model'))}</code>${single ? escAttr(tr(' · single-shot')) : ''}`;
     const state = !settings.configured() ? 'unset' : s.tools === true ? 'ready' : single ? 'single' : 'untested';
     meta.dataset.state = state;
-    metaState.textContent = STATES[state];
-    meta.title = `${metaText.textContent} · ${STATES[state]}. Click for settings.`;
+    metaState.textContent = states()[state];
+    meta.title = tr('{meta} · {state}. Click for settings.', { meta: metaText.textContent, state: states()[state] });
   }
 
   function showResult(kind, text) {
@@ -137,8 +197,6 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
     testedConnection = null;
     result.hidden = true;
   }
-  form.addEventListener('input', invalidateDraft);
-  form.addEventListener('change', invalidateDraft);
 
   function fillForm() {
     const s = settings.get();
@@ -151,10 +209,10 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
     const p = PROVIDERS[s.provider];
     el('ai-key').disabled = !p.needsKey;
     el('ai-key-eye').disabled = !p.needsKey;
-    el('ai-key').placeholder = p.needsKey ? 'paste your key' : 'no key needed';
+    el('ai-key').placeholder = p.needsKey ? tr('paste your key') : tr('no key needed');
     // Anthropic has no model list endpoint the browser may call.
     el('ai-models-btn').hidden = p.adapter === 'anthropic';
-    el('ai-help').textContent = p.help || '';
+    el('ai-help').textContent = trd(p.help || '');
     suggestModels(p.models);
   }
 
@@ -175,7 +233,7 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
     refreshMeta();
   }
 
-  el('ai-provider').addEventListener('change', () => {
+  function changeProvider() {
     const provider = el('ai-provider').value;
     settings.set({ provider, model: '', baseUrl: '', tools: null });
     // Model-facing turns from one provider must not replay to another (raw
@@ -185,17 +243,17 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
     result.hidden = true;
     fillForm();
     refreshMeta();
-  });
+  }
 
-  el('ai-key-eye').addEventListener('click', () => {
+  function showKey() {
     const k = el('ai-key');
     const shown = k.type === 'password';
     k.type = shown ? 'text' : 'password';
     el('ai-key-eye').innerHTML = icon(shown ? 'eyeOff' : 'eye');
-    el('ai-key-eye').title = shown ? 'Hide key' : 'Show key';
-  });
+    el('ai-key-eye').title = shown ? tr('Hide key') : tr('Show key');
+  }
 
-  form.addEventListener('submit', (e) => {
+  function saveSettings(e) {
     e.preventDefault();
     const s = formSettings();
     const key = el('ai-key').value.trim();
@@ -205,20 +263,20 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
     if (testedConnection && sameConnection(testedConnection.settings, s) && testedConnection.key === key) settings.set({ tools: testedConnection.ok });
     if (!sameConnection(previous, s)) { history = []; saveThread(); }
     refreshMeta();
-    if (settings.configured()) { showSettings(false); toast('Assistant settings saved.'); } else showResult('warn', 'Add a model and, for this provider, a key.');
-  });
+    if (settings.configured()) { showSettings(false); toast(tr('Assistant settings saved.')); } else showResult('warn', tr('Add a model and, for this provider, a key.'));
+  }
 
-  el('ai-forget').addEventListener('click', () => {
+  function forgetKey() {
     invalidateDraft();
     settings.forgetKey();
     el('ai-key').value = '';
     el('ai-remember').checked = false;
     settings.set({ remember: false });
     refreshMeta();
-    toast('Key forgotten.');
-  });
+    toast(tr('Key forgotten.'));
+  }
 
-  el('ai-test').addEventListener('click', async () => {
+  async function testConnection() {
     const s = formSettings();
     const key = el('ai-key').value.trim();
     const version = formVersion;
@@ -226,27 +284,27 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
     testedConnection = null;
     if (sameConnection(s, settings.get()) && key === settings.getKey()) settings.set({ tools: null });
     el('ai-test').disabled = true;
-    showResult('wait', `Connecting to ${s.model || 'the model'}…`);
+    showResult('wait', tr('Connecting to {model}…', { model: s.model || tr('the model') }));
     try {
       const ok = await probeTools(makeProvider(s, key));
       if (!current()) return;
       testedConnection = { settings: s, key, ok };
       if (sameConnection(s, settings.get()) && key === settings.getKey()) settings.set({ tools: ok });
-      const msg = ok ? 'Connected. This model calls tools.' : 'Connected. This model cannot call tools; the assistant will use single-shot mode.';
+      const msg = ok ? tr('Connected. This model calls tools.') : tr('Connected. This model cannot call tools; the assistant will use single-shot mode.');
       showResult(ok ? 'ok' : 'warn', msg);
       toast(msg);
       refreshMeta();
     } catch (err) {
       if (!current()) return;
-      const msg = `Test failed: ${err.message}${err.hint ? `\n${err.hint}` : ''}`;
+      const msg = tr('Test failed: {error}', { error: `${err.message}${err.hint ? `\n${err.hint}` : ''}` });
       showResult('err', msg);
       toast(msg);
     } finally {
       el('ai-test').disabled = false;
     }
-  });
+  }
 
-  el('ai-models-btn').addEventListener('click', async () => {
+  async function listModels() {
     const version = formVersion;
     const p = PROVIDERS[el('ai-provider').value];
     const baseUrl = el('ai-base').value.trim();
@@ -255,19 +313,16 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
       const names = await listOpenAIModels({ baseUrl, apiKey });
       if (version !== formVersion) return;
       suggestModels(names);
-      const msg = names.length ? `${names.length} models listed; pick one in the Model field.` : 'The endpoint listed no models.';
+      const msg = names.length ? tr('{n} models listed; pick one in the Model field.', { n: names.length }) : tr('The endpoint listed no models.');
       showResult(names.length ? 'ok' : 'warn', msg);
       toast(msg);
     } catch (err) {
       if (version !== formVersion) return;
-      const msg = `Could not list models: ${err.message}${err.hint ? `\n${err.hint}` : ''}`;
+      const msg = tr('Could not list models: {error}', { error: `${err.message}${err.hint ? `\n${err.hint}` : ''}` });
       showResult('err', msg);
       toast(msg);
     }
-  });
-
-  el('ai-gear').addEventListener('click', () => showSettings(!settingsOpen));
-  meta.addEventListener('click', () => showSettings(true));
+  }
 
   function isOpen() { return !panel.hidden; }
   function open() {
@@ -291,7 +346,6 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
   // The right-hand panels end above this one: publish the height it takes
   // (plus its offset and a gap) as a CSS variable on the canvas area.
   const wrap = document.getElementById('canvas-wrap');
-  const thread = el('ai-thread');
   function reserve() {
     const h = panel.hidden ? 0 : Math.round(panel.getBoundingClientRect().height) + 54 + 10;
     wrap.style.setProperty('--ai-reserve', `${h}px`);
@@ -301,7 +355,6 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
   if (typeof ResizeObserver === 'function') new ResizeObserver(reserve).observe(panel);
   reserve();
   btn.addEventListener('click', toggle);
-  el('ai-close').addEventListener('click', close);
   // Like the journey button, opening the assistant is a request to see panels.
   btn.addEventListener('click', () => {
     const app = document.getElementById('app');
@@ -318,23 +371,24 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
 
   refreshMeta();
 
+  onLanguageChange(() => {
+    renderChrome();
+    attachments.relabel();
+    refreshMeta();
+    if (settingsOpen) fillForm();
+    renderThread();
+  });
+
   // ---- Thread ----
-  const actions = el('ai-actions');
-  const composer = el('ai-composer');
-  const input = el('ai-input');
-  const sendBtn = el('ai-send');
-  const stopBtn = el('ai-stop');
-  const usageEl = el('ai-usage');
   let history = [];          // provider-facing messages
   let visible = [];          // what the thread shows: { role, text, undoSnap?, touched? }
-  let busy = null;           // AbortController while a request runs
   let generation = store.generation;
   const totals = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
   const stable = stableSystem();
   // Initialization calls onChange before the controller is assigned.
   let attachments;
   function refreshSend() { sendBtn.disabled = !!busy || !!attachments?.isImporting(); }
-  attachments = initAssistantDocuments({ container: el('ai-documents'), onChange: refreshSend });
+  attachments = initAssistantDocuments({ container: documentsEl, onChange: refreshSend });
 
   // The composer grows with its text up to a few lines, then scrolls; the
   // send button lights up once there is something to send.
@@ -343,8 +397,6 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
     input.style.height = `${Math.min(input.scrollHeight, 132)}px`;
     composer.classList.toggle('has-text', input.value.trim().length > 0);
   }
-  input.addEventListener('input', grow);
-  grow();
 
   // Keep the last 40 model-facing messages, but never cut between a
   // tool_use and its results: start at a user message that carries text.
@@ -391,8 +443,8 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
   function chipRow(m, index) {
     if (!m.touched?.length) return '';
     const live = !busy && m.undoSnap && store.undoStack.at(-1) === m.undoSnap;
-    return `<div class="ai-chips"><button type="button" data-undo="${index}"${live ? '' : ' disabled'}>${icon('undo')}Undo this</button>`
-      + `<button type="button" data-show="${index}">${icon('show')}Show changes</button></div>`;
+    return `<div class="ai-chips"><button type="button" data-undo="${index}"${live ? '' : ' disabled'}>${icon('undo')}${escAttr(tr('Undo this'))}</button>`
+      + `<button type="button" data-show="${index}">${icon('show')}${escAttr(tr('Show changes'))}</button></div>`;
   }
 
   // Consecutive tool status lines render as one activity block, a check per
@@ -415,7 +467,7 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
       if (m.role === 'assistant' && !m.text && !m.touched?.length) {
         // Thinking dots before the first tool call; once there is a live
         // status line its spinner is the indicator.
-        if (busy && i === last && visible[i - 1]?.role !== 'status') { flush(); parts.push('<div class="ai-typing" aria-label="Thinking"><i></i><i></i><i></i></div>'); }
+        if (busy && i === last && visible[i - 1]?.role !== 'status') { flush(); parts.push(`<div class="ai-typing" aria-label="${escAttr(tr('Thinking'))}"><i></i><i></i><i></i></div>`); }
         return;
       }
       flush();
@@ -500,13 +552,13 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
   function errorText(err) {
     if (err instanceof ProviderError) {
       const lead = {
-        auth: 'The provider rejected the key.',
-        rate: 'The provider is rate-limiting requests; try again in a moment.',
-        network: 'Could not reach the provider.',
-        model: 'The model was not found.',
-        context: 'The thread is too long for the model; start a new thread.',
-        refusal: 'The model declined this request.',
-      }[err.code] || 'The request failed.';
+        auth: tr('The provider rejected the key.'),
+        rate: tr('The provider is rate-limiting requests; try again in a moment.'),
+        network: tr('Could not reach the provider.'),
+        model: tr('The model was not found.'),
+        context: tr('The thread is too long for the model; start a new thread.'),
+        refusal: tr('The model declined this request.'),
+      }[err.code] || tr('The request failed.');
       return `${lead} ${err.message}${err.hint ? `\n${err.hint}` : ''}`;
     }
     return err?.message || String(err);
@@ -533,9 +585,9 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
   }
 
   function usageText(u, cost) {
-    let s = `${u.input.toLocaleString()} in · ${u.output.toLocaleString()} out`;
-    if (u.cacheRead) s += ` · ${u.cacheRead.toLocaleString()} cached`;
-    if (cost !== null) s += ` · ≈ $${cost.toFixed(cost < 0.01 ? 4 : 2)} (estimate)`;
+    let s = tr('{in} in · {out} out', { in: u.input.toLocaleString(), out: u.output.toLocaleString() });
+    if (u.cacheRead) s += tr(' · {n} cached', { n: u.cacheRead.toLocaleString() });
+    if (cost !== null) s += tr(' · ≈ ${cost} (estimate)', { cost: cost.toFixed(cost < 0.01 ? 4 : 2) });
     return s;
   }
   function setUsage(text) {
@@ -559,7 +611,9 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
     const board = boardText(store.doc, { selection: [...store.selection], findings: checkDoc(store.doc) });
     const system = [stable, perRequestSystem({ date: new Date().toISOString().slice(0, 10), effort: s.effort, singleShot: s.tools === false })];
     const sources = attachments.context();
-    const sourceSummary = sources.entries.length ? '\n\nSources: ' + sources.entries.map(e => `${e.name} (${e.used.toLocaleString()}/${e.total.toLocaleString()} chars${e.partial ? ', partial' : ''})`).join('; ') : '';
+    const sourceSummary = sources.entries.length
+      ? '\n\n' + tr('Sources: {list}', { list: sources.entries.map((e) => tr('{name} ({used}/{total} chars{partial})', { name: e.name, used: e.used.toLocaleString(), total: e.total.toLocaleString(), partial: e.partial ? tr(', partial') : '' })).join('; ') })
+      : '';
     visible.push({ role: 'user', text: userText + sourceSummary });
     const reply = { role: 'assistant', text: '' };
     visible.push(reply);
@@ -593,9 +647,9 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
     // The board this reply was written against is gone: it has its own thread.
     if (store.generation !== gen) return;
     history = trimHistory(res.messages);
-    reply.text = res.text || (res.error ? '' : '(no reply)');
-    if (res.cutOff) reply.text += `\n\n(${res.stop === 'aborted' ? 'Stopped' : 'Cut off'}; edits made so far are kept.)`;
-    if (res.stop === 'max_tokens') reply.text += '\n\n(The reply hit the length limit.)';
+    reply.text = res.text || (res.error ? '' : tr('(no reply)'));
+    if (res.cutOff) reply.text += '\n\n' + tr('({how}; edits made so far are kept.)', { how: res.stop === 'aborted' ? tr('Stopped') : tr('Cut off') });
+    if (res.stop === 'max_tokens') reply.text += '\n\n' + tr('(The reply hit the length limit.)');
     reply.touched = [...res.touched];
     reply.undoSnap = (store.undoStack.length > undoLenBefore || store.undoStack.at(-1) !== undoTopBefore)
       ? store.undoStack.at(-1)
@@ -606,12 +660,12 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
     }
     // A refusal is not an error on the wire: the reply simply stops. Say so,
     // with whatever explanation the model gave.
-    if (res.stop === 'refusal') visible.push({ role: 'error', text: errorText(new ProviderError(res.stopDetails?.explanation || 'The model declined this request.', { code: 'refusal' })) });
+    if (res.stop === 'refusal') visible.push({ role: 'error', text: errorText(new ProviderError(res.stopDetails?.explanation || tr('The model declined this request.'), { code: 'refusal' })) });
     for (const k of Object.keys(totals)) totals[k] += res.usage[k] || 0;
     const priced = s.provider === 'anthropic';
     const lastCost = priced ? estimateCost(s.model, res.usage) : null;
     const threadCost = priced ? estimateCost(s.model, totals) : null;
-    setUsage(`last: ${usageText(res.usage, lastCost)} · thread: ${usageText(totals, threadCost)}`);
+    setUsage(tr('last: {last} · thread: {thread}', { last: usageText(res.usage, lastCost), thread: usageText(totals, threadCost) }));
     // A removed part must not linger in the selection.
     const kept = [...store.selection].filter((id) => findItem(store.doc, id));
     if (kept.length !== store.selection.size) store.setSelection(kept);
@@ -623,16 +677,6 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
     }
   }
 
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      send(input.value);
-    }
-  });
-  sendBtn.addEventListener('click', () => send(input.value));
-  stopBtn.addEventListener('click', () => busy?.abort());
-  el('ai-new').addEventListener('click', () => { if (!busy) { clearThread(); showSettings(false); } });
-
   const ACTIONS = {
     build: () => {
       input.value = 'Build a board for: \nMust have: \nPower: \nConnectivity: ';
@@ -642,14 +686,11 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
     },
     fix: () => {
       const findings = checkDoc(store.doc);
-      if (!findings.length) { toast('The board passes every check.'); return; }
+      if (!findings.length) { toast(tr('The board passes every check.')); return; }
       send(`Fix these findings:\n${findings.map((f) => `${f.level} ${f.rule} "${f.message}" ids: ${f.ids.join(' ')}`).join('\n')}`);
     },
     fill: () => send('Fill in blank part numbers, addresses, rails, and notes from the presets. Change nothing else.'),
   };
-  actions.querySelectorAll('button').forEach((b) => {
-    b.addEventListener('click', () => ACTIONS[b.dataset.act]());
-  });
 
   document.addEventListener('schematica:fix-finding', (e) => {
     const f = e.detail;
@@ -660,7 +701,7 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
   loadThread();
   // A restored thread keeps its running total; the last reply's usage is not
   // persisted, so only the thread half comes back.
-  if (totals.input || totals.output) setUsage(`thread: ${usageText(totals, null)}`);
+  if (totals.input || totals.output) setUsage(tr('thread: {thread}', { thread: usageText(totals, null) }));
   renderThread();
   return { open, close, toggle, isOpen, send, settings };
 }

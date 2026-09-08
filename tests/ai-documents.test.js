@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { File } from 'node:buffer';
 import { importDocuments, documentContext, LIMITS, SUPPORTED_ACCEPT } from '../src/ai/documents.js';
+import { initI18n, setLang } from '../src/i18n.js';
 const file = (text, name, path) => { const f = new File([text], name, { lastModified: 123 }); if (path) Object.defineProperty(f, 'webkitRelativePath', {value:path}); return f; };
 test('reads Unicode and preserves relative names, separates duplicate basenames', async () => {
  const out = await importDocuments([file('sensor: IMX219\n电源: 5V','requirements.md','project/a/requirements.md'),file('other','requirements.md','project/b/requirements.md')]);
@@ -50,4 +51,14 @@ test('rejects filenames whose escaped framing would exhaust the context budget',
 test('character caps never split Unicode surrogate pairs', async()=>{
  const out=await importDocuments([file('x'.repeat(99999)+'😀tail','unicode.md')]);
  assert.equal(out.documents[0].text.length,99999); assert.equal(out.documents[0].text.endsWith('x'),true);
+});
+test('document import issues follow the interface language', async () => {
+  initI18n({ storage: null });
+  setLang('zh');
+  try {
+    const res = await importDocuments([new File(['x'], 'a.exe')], { existing: [] });
+    assert.match(res.issues[0].message, /不支持的格式/);
+  } finally {
+    setLang('en');
+  }
 });

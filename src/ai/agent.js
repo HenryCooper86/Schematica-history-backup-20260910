@@ -4,6 +4,7 @@
 // one undo step. Providers speak the internal message format documented in
 // the spec; adapters translate to the wire.
 import { TOOLS, statusLine } from './tools.js';
+import { tr } from '../i18n.js';
 
 // Twelve: a tool-heavy build with a model that fumbles a batch or two still
 // reaches its closing run_checks (acceptance with glm-5.3 hit the old cap of
@@ -152,12 +153,12 @@ export async function runSingleShot({
       }
     }
     if (stop === 'end') {
-      if (!plan) throw new Error('The model did not return a valid plan.');
+      if (!plan) throw new Error(tr('The model did not return a valid plan.'));
       text = String(plan.summary || '').trim();
       if (plan.ops.length) {
         onStatus?.(statusLine('apply_edits', { ops: plan.ops }));
         const r = executor.run('apply_edits', { ops: plan.ops });
-        if (r.isError) text += `\n\nThe edits were rejected:\n${r.text.replace(/^Batch rejected, nothing applied:\n/, '')}`;
+        if (r.isError) text += tr('\n\nThe edits were rejected:\n{list}', { list: r.text.replace(/^Batch rejected, nothing applied:\n/, '') });
         else applied += 1;
       }
     }
