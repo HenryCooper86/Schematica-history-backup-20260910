@@ -9,6 +9,7 @@ import {
 import { BUSES, BUS_ORDER } from './buses.js';
 import { nodePart } from './rdk/profiles.js';
 import { esc } from './render.js';
+import { trd } from './i18n.js';
 
 // requestRender(kind): 'all' (default) rebuilds the diagram, 'view' only moves
 // the camera, 'overlay' only redraws drag feedback. Hover effects (ports,
@@ -566,7 +567,7 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave })
     popover.innerHTML = order.map((id) => {
       const b = BUSES[id];
       return `<button data-bus="${esc(id)}"><span class="bus-chip">${esc(b.short)}</span>`
-        + `${esc(b.name)}${suggested.includes(id) ? ' ★' : ''}</button>`;
+        + `${esc(trd(b.name))}${suggested.includes(id) ? ' ★' : ''}</button>`;
     }).join('');
     popover.style.left = `${Math.min(cx, window.innerWidth - 190)}px`;
     popover.style.top = `${Math.min(cy, window.innerHeight - 320)}px`;

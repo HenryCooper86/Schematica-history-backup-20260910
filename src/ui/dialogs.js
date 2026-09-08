@@ -5,10 +5,11 @@ import { serialize, deserialize } from '../serialize.js';
 import { buildExportSVG, exportBounds, exportPNG, exportPDF, download } from '../export.js';
 import { encodeGIF } from '../gif.js';
 import { LOOP_MS, esc } from '../render.js';
-import { buildBOM, bomCSV, bomMarkdown } from '../bom.js';
+import { buildBOM, bomCSV, bomMarkdown, bomHeaders } from '../bom.js';
 import { checkDoc } from '../drc.js';
 import { encodeShare } from '../share.js';
 import { toast, openModal } from './press.js';
+import { tr, onLanguageChange } from '../i18n.js';
 
 export function initDialogs({ store }) {
   const safeName = (ext) => `${(store.doc.title || 'schematica').replace(/[^\w-]+/g, '_')}${ext}`;
@@ -18,7 +19,7 @@ export function initDialogs({ store }) {
   }
 
   document.getElementById('btn-new').addEventListener('click', () => {
-    if (confirm('Clear the board? Anything not saved to a file is lost.')) {
+    if (confirm(tr('Clear the board? Anything not saved to a file is lost.'))) {
       store.replaceDoc(newDoc());
     }
   });
@@ -60,7 +61,7 @@ export function initDialogs({ store }) {
     exportDialog.close();
     exportPNG(buildExportSVG(store.doc, exportOpts()), (blob) => {
       if (blob) download(safeName('.png'), blob);
-      else toast('PNG export failed in this browser. The SVG export still works.');
+      else toast(tr('PNG export failed in this browser. The SVG export still works.'));
     }, { width, height });
   });
   document.getElementById('export-svg-go').addEventListener('click', () => {
@@ -72,7 +73,7 @@ export function initDialogs({ store }) {
     exportDialog.close();
     exportPDF(buildExportSVG(store.doc), (blob) => {
       if (blob) download(safeName('.pdf'), blob);
-      else toast('PDF export failed in this browser. PNG and SVG still work.');
+      else toast(tr('PDF export failed in this browser. PNG and SVG still work.'));
     }, { width });
   });
 
@@ -83,7 +84,7 @@ export function initDialogs({ store }) {
     if (loopBusy) return;
     loopBusy = true;
     exportDialog.close();
-    toast('Rendering the seamless loop GIF…');
+    toast(tr('Rendering the seamless loop GIF…'));
     try {
       const b = exportBounds(store.doc);
       let width = Math.min(960, Math.max(16, Math.round(Number(exportW.value)) || 960));
@@ -114,9 +115,9 @@ export function initDialogs({ store }) {
       }
       const bytes = encodeGIF(frames, { delayMs: LOOP_MS / FRAMES });
       download(safeName('.loop.gif'), new Blob([bytes], { type: 'image/gif' }), 'image/gif');
-      toast('Seamless loop GIF saved.');
+      toast(tr('Seamless loop GIF saved.'));
     } catch {
-      toast('Loop GIF export failed in this browser.');
+      toast(tr('Loop GIF export failed in this browser.'));
     } finally {
       loopBusy = false;
     }
@@ -130,7 +131,7 @@ export function initDialogs({ store }) {
 
   // ---- BOM dialog ----
   const bomDialog = document.getElementById('bom-dialog');
-  document.getElementById('btn-bom').addEventListener('click', () => {
+  function renderBOM() {
     const bomRows = buildBOM(store.doc);
     const body = bomRows.map((r) => (
       `<tr><td>${esc(r.part)}</td><td>${esc(r.sublabel)}</td><td>${r.qty}</td>`
@@ -138,11 +139,13 @@ export function initDialogs({ store }) {
       + `<td>${esc(r.rails.join(', '))}</td><td>${esc(r.statuses.join(', '))}</td>`
       + `<td>${esc(r.flags.join(', '))}</td><td class="wrap">${esc(r.notes.join('; '))}</td></tr>`
     )).join('');
+    const head = bomHeaders().map((h) => `<th>${esc(h)}</th>`).join('');
     document.getElementById('bom-table').innerHTML = bomRows.length
-      ? '<table><thead><tr><th>Part</th><th>Part number</th><th>Qty</th><th>Refs</th>'
-        + '<th>Addresses</th><th>Rails</th><th>Status</th><th>Flags</th><th>Notes</th></tr></thead>'
-        + `<tbody>${body}</tbody></table>`
-      : '<p style="padding:12px">The board is empty - add some parts first.</p>';
+      ? `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`
+      : `<p style="padding:12px">${esc(tr('The board is empty - add some parts first.'))}</p>`;
+  }
+  document.getElementById('btn-bom').addEventListener('click', () => {
+    renderBOM();
     openModal(bomDialog);
   });
   // Rows are re-derived at click time so exports always match the live board,
@@ -152,8 +155,8 @@ export function initDialogs({ store }) {
   });
   document.getElementById('bom-md').addEventListener('click', () => {
     navigator.clipboard.writeText(bomMarkdown(buildBOM(store.doc)))
-      .then(() => toast('Markdown table copied to clipboard.'))
-      .catch(() => toast('Could not access the clipboard - use Download CSV instead.'));
+      .then(() => toast(tr('Markdown table copied to clipboard.')))
+      .catch(() => toast(tr('Could not access the clipboard - use Download CSV instead.')));
   });
   document.getElementById('bom-close').addEventListener('click', () => {
     bomDialog.close();
@@ -164,32 +167,36 @@ export function initDialogs({ store }) {
 
   // ---- Design rule check ----
   const drcDialog = document.getElementById('drc-dialog');
-  document.getElementById('btn-check').addEventListener('click', () => {
+  const levelLabel = (level) => (level === 'error' ? tr('ERROR') : tr('WARNING'));
+  function renderDRC() {
     const findings = checkDoc(store.doc);
     const list = document.getElementById('drc-list');
     if (!findings.length) {
-      list.innerHTML = '<p class="drc-clean">No issues found - the board passes every check.</p>';
-    } else {
-      list.innerHTML = findings.map((f, i) => (
-        `<div class="drc-row"><span class="drc-level ${f.level}">${f.level.toUpperCase()}</span>`
-        + `<span class="msg">${esc(f.message)}</span>`
-        + `<button data-drc="${i}">Select</button><button data-drc-fix="${i}">Fix</button></div>`
-      )).join('');
-      list.querySelectorAll('[data-drc]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          store.setSelection(findings[Number(btn.dataset.drc)].ids);
-          drcDialog.close();
-        });
-      });
-      // Fix hands the finding to the assistant panel, which owns the request.
-      list.querySelectorAll('[data-drc-fix]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const finding = findings[Number(btn.dataset.drcFix)];
-          drcDialog.close();
-          document.dispatchEvent(new CustomEvent('schematica:fix-finding', { detail: finding }));
-        });
-      });
+      list.innerHTML = `<p class="drc-clean">${esc(tr('No issues found - the board passes every check.'))}</p>`;
+      return;
     }
+    list.innerHTML = findings.map((f, i) => (
+      `<div class="drc-row"><span class="drc-level ${f.level}">${esc(levelLabel(f.level))}</span>`
+      + `<span class="msg">${esc(f.message)}</span>`
+      + `<button data-drc="${i}">${esc(tr('Select'))}</button><button data-drc-fix="${i}">${esc(tr('Fix'))}</button></div>`
+    )).join('');
+    list.querySelectorAll('[data-drc]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        store.setSelection(findings[Number(btn.dataset.drc)].ids);
+        drcDialog.close();
+      });
+    });
+    // Fix hands the finding to the assistant panel, which owns the request.
+    list.querySelectorAll('[data-drc-fix]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const finding = findings[Number(btn.dataset.drcFix)];
+        drcDialog.close();
+        document.dispatchEvent(new CustomEvent('schematica:fix-finding', { detail: finding }));
+      });
+    });
+  }
+  document.getElementById('btn-check').addEventListener('click', () => {
+    renderDRC();
     openModal(drcDialog);
   });
   document.getElementById('drc-close').addEventListener('click', () => {
@@ -199,15 +206,20 @@ export function initDialogs({ store }) {
     if (e.target === drcDialog) drcDialog.close();
   });
 
+  onLanguageChange(() => {
+    if (bomDialog.open) renderBOM();
+    if (drcDialog.open) renderDRC();
+  });
+
   // ---- Share link ----
   document.getElementById('btn-share').addEventListener('click', async () => {
     try {
       const fragment = await encodeShare(store.doc);
       const url = `${location.origin}${location.pathname}#${fragment}`;
       await navigator.clipboard.writeText(url);
-      toast(`Share link copied to clipboard (${url.length.toLocaleString()} characters).`);
+      toast(tr('Share link copied to clipboard ({n} characters).', { n: url.length.toLocaleString() }));
     } catch {
-      toast('Could not copy the share link - your browser blocked clipboard access.');
+      toast(tr('Could not copy the share link - your browser blocked clipboard access.'));
     }
   });
 
@@ -221,7 +233,7 @@ export function initDialogs({ store }) {
     try {
       const { doc, warnings } = deserialize(await file.text());
       store.replaceDoc(doc);
-      if (warnings.length) toast(`Opened with warnings:\n\n${warnings.join('\n')}`);
+      if (warnings.length) toast(tr('Opened with warnings:\n\n{list}', { list: warnings.join('\n') }));
     } catch (err) {
       toast(err.message);
     }

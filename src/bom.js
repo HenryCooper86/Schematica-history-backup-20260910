@@ -1,6 +1,9 @@
 // Bill of materials: pure derivation from a document. Zero dependencies.
 
 import { partOf } from './custom.js';
+import { tr } from './i18n.js';
+
+export const bomHeaders = () => [tr('Part'), tr('Part number'), tr('Qty'), tr('Refs'), tr('Addresses'), tr('Rails'), tr('Status'), tr('Flags'), tr('Notes')];
 
 export function buildBOM(doc) {
   const groups = new Map();
@@ -45,7 +48,7 @@ function csvCell(v) {
 }
 
 export function bomCSV(rows) {
-  const lines = ['Part,Part number,Qty,Refs,Addresses,Rails,Status,Flags,Notes'];
+  const lines = [bomHeaders().map(csvCell).join(',')];
   for (const r of rows) {
     lines.push([
       r.part, r.sublabel, r.qty, r.refs.join('; '), r.addrs.join('; '),
@@ -58,7 +61,7 @@ export function bomCSV(rows) {
 export function bomMarkdown(rows) {
   const cell = (s) => String(s ?? '').replace(/\s*\n\s*/g, ' ').replace(/\|/g, '\\|');
   const lines = [
-    '| Part | Part number | Qty | Refs | Addresses | Rails | Status | Flags | Notes |',
+    `| ${bomHeaders().join(' | ')} |`,
     '|---|---|---|---|---|---|---|---|---|',
   ];
   for (const r of rows) {

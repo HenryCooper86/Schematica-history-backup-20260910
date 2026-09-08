@@ -2,6 +2,7 @@
 import { EXAMPLES, EXAMPLE_GROUPS } from '../examples.js';
 import { serialize, deserialize } from '../serialize.js';
 import { toast, escAttr } from './press.js';
+import { tr, trd } from '../i18n.js';
 
 export function initExamplesMenu({ store }) {
   const menu = document.getElementById('examples-menu');
@@ -22,7 +23,7 @@ export function initExamplesMenu({ store }) {
       close();
       return;
     }
-    menu.innerHTML = EXAMPLE_GROUPS.map((group) => `<div class="menu-group">${escAttr(group)}</div>`
+    menu.innerHTML = EXAMPLE_GROUPS.map((group) => `<div class="menu-group">${escAttr(trd(group))}</div>`
       + EXAMPLES.filter((ex) => ex.group === group).map((ex) => `<button data-example="${escAttr(ex.id)}">${escAttr(ex.name)}</button>`).join('')).join('');
     const r = btn.getBoundingClientRect();
     menu.style.left = `${Math.min(r.left, window.innerWidth - 230)}px`;
@@ -33,10 +34,10 @@ export function initExamplesMenu({ store }) {
         const ex = EXAMPLES.find((e2) => e2.id === b.dataset.example);
         close();
         if (!ex) return;
-        if (!confirm(`Load "${ex.name}"? Anything not saved to a file is lost.`)) return;
+        if (!confirm(tr('Load "{name}"? Anything not saved to a file is lost.', { name: ex.name }))) return;
         const { doc, warnings } = deserialize(serialize(ex.doc));
         store.replaceDoc(doc);
-        if (warnings.length) toast(`Example loaded with warnings:\n\n${warnings.join('\n')}`);
+        if (warnings.length) toast(tr('Example loaded with warnings:\n\n{list}', { list: warnings.join('\n') }));
       });
     });
     setTimeout(() => {

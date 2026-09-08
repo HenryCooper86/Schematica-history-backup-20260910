@@ -17,7 +17,7 @@ import { initExamplesMenu } from './ui/examples-menu.js';
 import { initRecording } from './ui/recording-ui.js';
 import { initLayoutToggles } from './ui/panels.js';
 import { initAssistant } from './ui/assistant-ui.js';
-import { initI18n, onLanguageChange } from './i18n.js';
+import { initI18n, onLanguageChange, tr } from './i18n.js';
 import { translateStatic, initLanguageSwitch } from './ui/i18n-dom.js';
 
 const svg = document.getElementById('canvas');
@@ -155,7 +155,7 @@ store.subscribe(() => {
       autosaveBroken = false;
     } catch {
       if (!autosaveBroken) {
-        toast('Autosave failed: this browser\'s storage is full or blocked. Save the board to a file to keep it.');
+        toast(tr('Autosave failed: this browser\'s storage is full or blocked. Save the board to a file to keep it.'));
       }
       autosaveBroken = true;
     }
@@ -193,7 +193,7 @@ const titleInput = document.getElementById('title');
 titleInput.value = store.doc.title;
 titleInput.addEventListener('change', () => {
   store.apply((doc) => {
-    doc.title = titleInput.value.trim() || 'Untitled Board';
+    doc.title = titleInput.value.trim() || tr('Untitled Board');
   });
   titleInput.value = store.doc.title;
 });
@@ -236,13 +236,13 @@ syncAnimation();
     }
     history.replaceState(null, '', location.pathname + location.search);
     store.replaceDoc(doc);
-    const notes = warnings.length ? `\n\nLoaded with warnings:\n${warnings.join('\n')}` : '';
+    const notes = warnings.length ? tr('\n\nLoaded with warnings:\n{list}', { list: warnings.join('\n') }) : '';
     if (hasWork) {
-      toast(`Loaded the shared board "${doc.title}". Your previous board is kept as a backup.${notes}`, {
-        action: { label: 'Restore my board', run: () => store.replaceDoc(prev) },
+      toast(tr('Loaded the shared board "{title}". Your previous board is kept as a backup.{notes}', { title: doc.title, notes }), {
+        action: { label: tr('Restore my board'), run: () => store.replaceDoc(prev) },
       });
     } else if (warnings.length) {
-      toast(`Shared board loaded with warnings:\n\n${warnings.join('\n')}`);
+      toast(tr('Shared board loaded with warnings:\n\n{list}', { list: warnings.join('\n') }));
     }
   } catch (err) {
     // Not a share link, or one this browser cannot open - leave the board alone.
