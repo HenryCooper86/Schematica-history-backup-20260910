@@ -776,6 +776,36 @@ try {
   const en = await js(`(() => ({ lang: document.documentElement.lang, examples: document.getElementById('btn-examples').textContent.trim(), btn: document.getElementById('btn-lang').textContent, stored: localStorage.getItem('schematica.lang') }))()`);
   check('the switch goes back to English and stores en', en.lang === 'en' && en.examples.startsWith('Examples') && en.btn === '中文' && en.stored === 'en', JSON.stringify(en));
 
+  // ---- Chinese mode across the panels: palette, checker, menu, a placed part ----
+  await loadBoard(EXAMPLES.find((e) => e.id === 'rdk-rover').doc);
+  await js(`document.getElementById('btn-lang').click(); true`);
+  await sleep(150);
+  const palette = await js(`[...document.querySelectorAll('#palette h3')].map((h) => (h.querySelector(':scope > span') || h).textContent.trim())`);
+  check('the palette headings are Chinese', palette.includes('我的部件') && palette.includes('计算') && palette.includes('机器人'), JSON.stringify(palette));
+  await js(`document.getElementById('btn-check').click(); true`);
+  await sleep(150);
+  const drc = await js(`(() => { const rows = [...document.querySelectorAll('#drc-list .drc-row')]; return { n: rows.length, level: rows[0]?.querySelector('.drc-level')?.textContent, msg: rows[0]?.querySelector('.msg')?.textContent, buttons: [...(rows[0]?.querySelectorAll('button') || [])].map((b) => b.textContent) }; })()`);
+  check('the design-rule dialog reports in Chinese', drc.n > 0 && ['错误', '警告'].includes(drc.level) && /[一-鿿]/.test(drc.msg) && JSON.stringify(drc.buttons) === JSON.stringify(['选中', '修复']), JSON.stringify(drc));
+  await js(`document.getElementById('drc-close').click(); true`);
+  await sleep(100);
+  await js(`document.getElementById('btn-examples').click(); true`);
+  await sleep(100);
+  const menuZh = await js(`[...document.querySelectorAll('#examples-menu .menu-group')].map((h) => h.textContent)`);
+  check('the Examples menu groups are Chinese', JSON.stringify(menuZh) === JSON.stringify(['嵌入式', '车辆', '安全']), JSON.stringify(menuZh));
+  await key('Escape', 'Escape', 27);
+  await sleep(100);
+  const nodesBeforeZh = await js(`document.querySelectorAll('#canvas g.node').length`);
+  await js(`document.querySelector('#palette .palette-item[data-kind="mcu"]').click(); true`);
+  await sleep(150);
+  const placed = await js(`(() => { const labels = [...document.querySelectorAll('#canvas g.node text')].map((t) => t.textContent); return { n: document.querySelectorAll('#canvas g.node').length, hasZh: labels.includes('微控制器') }; })()`);
+  check('a part placed in Chinese mode gets a Chinese default label', placed.n === nodesBeforeZh + 1 && placed.hasZh, JSON.stringify(placed));
+  const props = await js(`(() => { const p = document.getElementById('props'); return { hidden: p.hidden, header: p.querySelector('h3')?.textContent.replace(/[▾▸]/g, '').trim(), labels: [...p.querySelectorAll('label')].map((l) => l.textContent) }; })()`);
+  check('the properties panel is Chinese for the new part', props.hidden === false && props.header === '微控制器' && props.labels.includes('型号') && props.labels.includes('电压轨'), JSON.stringify(props));
+  await js(`document.getElementById('btn-lang').click(); true`);
+  await sleep(150);
+  const backToEn = await js(`(() => ({ examples: document.getElementById('btn-examples').textContent.trim(), first: [...document.querySelectorAll('#palette h3')].map((h) => (h.querySelector(':scope > span') || h).textContent.trim()) }))()`);
+  check('switching back re-renders the palette in English', backToEn.examples.startsWith('Examples') && backToEn.first.includes('Compute') && backToEn.first.includes('My parts'), JSON.stringify(backToEn));
+
   // ---- Assistant: build, undo, highlight, Fix button, thread ----
   // An empty board through a share link (loadBoard clears storage, so the
   // settings are seeded afterwards; they are read at send time).
