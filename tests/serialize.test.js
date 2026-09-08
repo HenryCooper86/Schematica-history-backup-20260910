@@ -44,6 +44,17 @@ test('missing collections default to empty; bad title falls back', () => {
   assert.deepEqual(doc.wires, []);
 });
 
+test('a whitespace-only title falls back to the language-appropriate default', () => {
+  const text = '{"schema": 1, "title": "   "}';
+  assert.equal(deserialize(text).doc.title, 'Untitled Board');
+  setLang('zh');
+  try {
+    assert.equal(deserialize(text).doc.title, '未命名板图');
+  } finally {
+    setLang('en');
+  }
+});
+
 test('newer schema warns but loads', () => {
   const { warnings } = deserialize('{"schema": 99}');
   assert.ok(warnings.some((w) => w.includes('newer')));

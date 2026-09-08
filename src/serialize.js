@@ -77,7 +77,7 @@ export function deserialize(text) {
     return v;
   };
 
-  const doc = newDoc(str(raw.title, tr('Untitled Board')));
+  const doc = newDoc(typeof raw.title === 'string' && raw.title.trim() ? str(raw.title) : tr('Untitled Board'));
   const seen = new Set();
   const validId = (v) => typeof v === 'string' && v.length > 0;
   const HEX_COLOR = /^#[0-9a-fA-F]{3,8}$/;
