@@ -5,6 +5,7 @@ import { SCHEMA_VERSION } from '../src/state.js';
 import { PORT_ALIASES } from '../src/palette.js';
 import { Store, addNode, addWire, addZone, addNote } from '../src/state.js';
 import { LIMITS } from '../src/custom.js';
+import { initI18n, setLang } from '../src/i18n.js';
 
 function sampleDoc() {
   const store = new Store();
@@ -490,4 +491,16 @@ test('a custom node keeps its own label and gets the definition name when it has
   const { doc } = deserialize(JSON.stringify({ schema: 2, nodes: [{ id: 'c', kind: 'custom', x: 0, y: 0, part: CUSTOM }] }));
   assert.equal(doc.nodes[0].label, 'Motor driver x4');
   assert.equal(doc.nodes[0].part.name.length <= LIMITS.name, true);
+});
+
+test('deserialize warnings follow the interface language', () => {
+  initI18n({ storage: null });
+  const text = JSON.stringify({ schema: 2, nodes: [{ id: 'a', kind: 'nope', x: 0, y: 0 }], wires: [], zones: [], notes: [], journey: [] });
+  assert.equal(deserialize(text).warnings[0], 'Unknown part "nope" became a custom box.');
+  setLang('zh');
+  try {
+    assert.equal(deserialize(text).warnings[0], '未知部件“nope”已变为自定义框。');
+  } finally {
+    setLang('en');
+  }
 });

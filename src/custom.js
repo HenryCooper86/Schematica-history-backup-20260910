@@ -7,12 +7,17 @@
 // order, so reordering the list is the whole positioning story.
 import { PARTS, CATEGORIES, getPart } from './palette.js';
 import { BUSES } from './buses.js';
+import { tr } from './i18n.js';
 
 export const LIMITS = {
   name: 60, ports: 24, portName: 12, id: 24, fields: 8, fieldLabel: 40,
   options: 20, option: 40, placeholder: 40, path: 2000, text: 3, lib: 40, library: 200,
 };
 export const SIDES = ['left', 'right', 'top', 'bottom'];
+// Display name of a side; the side value itself is data.
+export function sideLabel(side) {
+  return { left: tr('left'), right: tr('right'), top: tr('top'), bottom: tr('bottom') }[side] || String(side);
+}
 // SVG path data: commands, numbers, separators. Nothing that could close an
 // attribute or open a tag survives this.
 export const PATH_RE = /^[MmZzLlHhVvCcSsQqTtAa0-9\s,.eE+-]+$/;
@@ -53,7 +58,7 @@ function normalizeIcon(raw, name, warnings) {
     if (text && text.length <= LIMITS.text) return { text };
     const path = str(raw.path);
     if (path && path.length <= LIMITS.path && /^[Mm]/.test(path) && PATH_RE.test(path)) return { path };
-    warnings.push(`Icon on "${name}" was not usable; using initials.`);
+    warnings.push(tr('Icon on "{name}" was not usable; using initials.', { name }));
   }
   return { text: initials(name) };
 }
@@ -91,15 +96,15 @@ function idAllocator(prefix, ids) {
 
 function normalizePorts(raw, name, warnings) {
   if (raw === undefined) return [];
-  if (!Array.isArray(raw)) { warnings.push(`Ports on "${name}" must be a list; ignored.`); return []; }
+  if (!Array.isArray(raw)) { warnings.push(tr('Ports on "{name}" must be a list; ignored.', { name })); return []; }
   const kept = [];
   const names = new Set();
   for (const p of raw.slice(0, LIMITS.ports)) {
     const pname = str(p?.name).slice(0, LIMITS.portName);
     const side = SIDES.includes(p?.side) ? p.side : null;
-    if (!pname || !side) { warnings.push(`Dropped a port on "${name}" with no name or side.`); continue; }
+    if (!pname || !side) { warnings.push(tr('Dropped a port on "{name}" with no name or side.', { name })); continue; }
     const key = `${side}|${pname.toLowerCase()}`;
-    if (names.has(key)) { warnings.push(`Dropped duplicate port "${pname}" on the ${side} of "${name}".`); continue; }
+    if (names.has(key)) { warnings.push(tr('Dropped duplicate port "{port}" on the {side} of "{name}".', { port: pname, side: sideLabel(side), name })); continue; }
     names.add(key);
     kept.push({ p, pname, side });
   }
@@ -107,22 +112,22 @@ function normalizePorts(raw, name, warnings) {
   const ports = kept.map(({ p, pname, side }) => {
     let bus = typeof p.bus === 'string' ? p.bus : '';
     if (!Object.hasOwn(BUSES, bus)) {
-      warnings.push(`Port "${pname}" on "${name}" has unknown bus "${bus}"; using GPIO.`);
+      warnings.push(tr('Port "{port}" on "{name}" has unknown bus "{bus}"; using GPIO.', { port: pname, name, bus }));
       bus = 'gpio';
     }
     return { id: nextId(p.id), name: pname, side, bus, required: p.required === true };
   });
-  if (raw.length > LIMITS.ports) warnings.push(`"${name}" keeps the first ${LIMITS.ports} ports.`);
+  if (raw.length > LIMITS.ports) warnings.push(tr('"{name}" keeps the first {max} ports.', { name, max: LIMITS.ports }));
   return ports;
 }
 
 function normalizeFields(raw, name, warnings) {
   if (raw === undefined) return [];
-  if (!Array.isArray(raw)) { warnings.push(`Fields on "${name}" must be a list; ignored.`); return []; }
+  if (!Array.isArray(raw)) { warnings.push(tr('Fields on "{name}" must be a list; ignored.', { name })); return []; }
   const kept = [];
   for (const f of raw.slice(0, LIMITS.fields)) {
     const label = str(f?.label).slice(0, LIMITS.fieldLabel);
-    if (!label) { warnings.push(`Dropped a field on "${name}" with no label.`); continue; }
+    if (!label) { warnings.push(tr('Dropped a field on "{name}" with no label.', { name })); continue; }
     kept.push({ f, label });
   }
   const nextId = idAllocator('f', kept.map(({ f }) => f.id));
@@ -133,13 +138,13 @@ function normalizeFields(raw, name, warnings) {
         ? [...new Set(f.options.map((o) => str(o).slice(0, LIMITS.option)).filter(Boolean))].slice(0, LIMITS.options)
         : [];
       if (options.length >= 2) field.options = options;
-      else warnings.push(`Field "${label}" on "${name}" needs at least two choices; it is free text.`);
+      else warnings.push(tr('Field "{label}" on "{name}" needs at least two choices; it is free text.', { label, name }));
     }
     const placeholder = str(f.placeholder).slice(0, LIMITS.placeholder);
     if (placeholder) field.placeholder = placeholder;
     return field;
   });
-  if (raw.length > LIMITS.fields) warnings.push(`"${name}" keeps the first ${LIMITS.fields} fields.`);
+  if (raw.length > LIMITS.fields) warnings.push(tr('"{name}" keeps the first {max} fields.', { name, max: LIMITS.fields }));
   return fields;
 }
 
@@ -148,17 +153,17 @@ function normalizeFields(raw, name, warnings) {
 // usable (no name). Unknown keys are ignored.
 export function normalizePart(raw) {
   const warnings = [];
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { part: null, warnings: ['Custom part definition is missing.'] };
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { part: null, warnings: [tr('Custom part definition is missing.')] };
   const name = str(raw.name).slice(0, LIMITS.name);
-  if (!name) return { part: null, warnings: ['Custom part has no name.'] };
+  if (!name) return { part: null, warnings: [tr('Custom part has no name.')] };
   let category = raw.category;
   if (!CATEGORY_IDS.has(category)) {
-    if (category !== undefined) warnings.push(`Unknown category "${category}" on "${name}"; using Storage / Misc.`);
+    if (category !== undefined) warnings.push(tr('Unknown category "{category}" on "{name}"; using Storage / Misc.', { category, name }));
     category = 'misc';
   }
   let accent = null;
   if (typeof raw.accent === 'string' && HEX_COLOR.test(raw.accent)) accent = raw.accent;
-  else if (raw.accent != null) warnings.push(`Ignored invalid accent on "${name}".`);
+  else if (raw.accent != null) warnings.push(tr('Ignored invalid accent on "{name}".', { name }));
   const lib = str(raw.lib);
   const part = {
     ...(lib && lib.length <= LIMITS.lib && ID_RE.test(lib) ? { lib } : {}),
@@ -330,39 +335,39 @@ export function optionList(v) {
 export function draftProblems(raw) {
   const problems = [];
   const name = str(raw?.name);
-  if (!name) problems.push('Name is required.');
-  else if (name.length > LIMITS.name) problems.push(`Name is too long (${LIMITS.name} max).`);
+  if (!name) problems.push(tr('Name is required.'));
+  else if (name.length > LIMITS.name) problems.push(tr('Name is too long ({max} max).', { max: LIMITS.name }));
   const ports = Array.isArray(raw?.ports) ? raw.ports : [];
-  if (ports.length > LIMITS.ports) problems.push(`Too many ports (${LIMITS.ports} max).`);
+  if (ports.length > LIMITS.ports) problems.push(tr('Too many ports ({max} max).', { max: LIMITS.ports }));
   const seen = new Set();
   ports.forEach((p, i) => {
     const pname = str(p?.name);
-    if (!pname) { problems.push(`Port ${i + 1} needs a name.`); return; }
-    if (pname.length > LIMITS.portName) problems.push(`Port "${pname}" name is too long (${LIMITS.portName} max).`);
+    if (!pname) { problems.push(tr('Port {n} needs a name.', { n: i + 1 })); return; }
+    if (pname.length > LIMITS.portName) problems.push(tr('Port "{port}" name is too long ({max} max).', { port: pname, max: LIMITS.portName }));
     const key = `${p.side}|${pname.toLowerCase()}`;
-    if (seen.has(key)) problems.push(`Two ports named "${pname}" on the ${p.side}.`);
+    if (seen.has(key)) problems.push(tr('Two ports named "{port}" on the {side}.', { port: pname, side: sideLabel(p.side) }));
     seen.add(key);
   });
   const icon = raw?.icon || {};
   if (icon.path !== undefined) {
     const path = str(icon.path);
-    if (!(path && path.length <= LIMITS.path && /^[Mm]/.test(path) && PATH_RE.test(path))) problems.push('Icon path must be SVG path data starting with M.');
+    if (!(path && path.length <= LIMITS.path && /^[Mm]/.test(path) && PATH_RE.test(path))) problems.push(tr('Icon path must be SVG path data starting with M.'));
   }
   if (icon.text !== undefined) {
     const text = str(icon.text);
-    if (!(text.length >= 1 && text.length <= LIMITS.text)) problems.push(`Initials are 1 to ${LIMITS.text} characters.`);
+    if (!(text.length >= 1 && text.length <= LIMITS.text)) problems.push(tr('Initials are 1 to {max} characters.', { max: LIMITS.text }));
   }
   const fields = Array.isArray(raw?.fields) ? raw.fields : [];
-  if (fields.length > LIMITS.fields) problems.push(`Too many fields (${LIMITS.fields} max).`);
+  if (fields.length > LIMITS.fields) problems.push(tr('Too many fields ({max} max).', { max: LIMITS.fields }));
   fields.forEach((f, i) => {
     const label = str(f?.label);
-    if (!label) { problems.push(`Field ${i + 1} needs a label.`); return; }
+    if (!label) { problems.push(tr('Field {n} needs a label.', { n: i + 1 })); return; }
     const typed = f.options !== undefined && f.options !== null && String(f.options).trim() !== '';
     if (typed) {
       const options = optionList(f.options);
-      if (options.length < 2) problems.push(`Field "${label}" needs two or more choices.`);
-      if (options.length > LIMITS.options) problems.push(`Field "${label}" has too many choices (${LIMITS.options} max).`);
-      if (options.some((o) => o.length > LIMITS.option)) problems.push(`Field "${label}" has a choice longer than ${LIMITS.option} characters.`);
+      if (options.length < 2) problems.push(tr('Field "{label}" needs two or more choices.', { label }));
+      if (options.length > LIMITS.options) problems.push(tr('Field "{label}" has too many choices ({max} max).', { label, max: LIMITS.options }));
+      if (options.some((o) => o.length > LIMITS.option)) problems.push(tr('Field "{label}" has a choice longer than {max} characters.', { label, max: LIMITS.option }));
     }
   });
   return problems;

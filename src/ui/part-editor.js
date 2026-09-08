@@ -6,7 +6,7 @@
 import { CATEGORIES, PARTS } from '../palette.js';
 import { BUSES, BUS_ORDER } from '../buses.js';
 import {
-  LIMITS, SIDES, initials, normalizePart, draftProblems, optionList, applyDefinition, siblings,
+  LIMITS, SIDES, initials, normalizePart, draftProblems, optionList, applyDefinition, siblings, sideLabel,
 } from '../custom.js';
 import { addNode, findItem } from '../state.js';
 import { snap, nodeSize } from '../geometry.js';
@@ -14,12 +14,14 @@ import { diagramMarkup, defsMarkup } from '../render.js';
 import { ACCENT_SWATCHES } from './props.js';
 import { badgeHTML } from './badge.js';
 import { escAttr, toast, openModal } from './press.js';
+import { tr, trd, onLanguageChange } from '../i18n.js';
+import { translateStatic } from './i18n-dom.js';
 
 export function initPartEditor({ store, library, svg, tools }) {
   const dialog = document.getElementById('part-dialog');
   const $ = (id) => document.getElementById(id);
   let draft = null; // the definition being edited, in the editor's shape
-  let ctx = null;   // { nodeId, templateId, mode, others }
+  let ctx = null;   // { nodeId, templateId, mode, name, others }
   let nextPort = 0;
   let nextField = 0;
   // The last value typed or picked on each icon tab this dialog has been
@@ -29,13 +31,16 @@ export function initPartEditor({ store, library, svg, tools }) {
   let lastText = null;
   let lastPath = null;
 
-  $('pe-category').innerHTML = CATEGORIES.map((c) => `<option value="${c.id}">${escAttr(c.name)}</option>`).join('');
-  $('pe-icon-kind').innerHTML = Object.values(PARTS).map((p) => (
-    `<button type="button" data-kind="${p.kind}" title="${escAttr(p.name)}">${badgeHTML(p)}</button>`
-  )).join('');
-  $('pe-swatches').innerHTML = ACCENT_SWATCHES.map((c) => (
-    `<button type="button" class="swatch" data-swatch="${c}" style="background:${c}" title="${c}"></button>`
-  )).join('') + '<button type="button" class="swatch swatch-auto" data-swatch="" title="Category color">Auto</button>';
+  function renderStatic() {
+    $('pe-category').innerHTML = CATEGORIES.map((c) => `<option value="${c.id}">${escAttr(trd(c.name))}</option>`).join('');
+    $('pe-icon-kind').innerHTML = Object.values(PARTS).map((p) => (
+      `<button type="button" data-kind="${p.kind}" title="${escAttr(trd(p.name))}">${badgeHTML(p)}</button>`
+    )).join('');
+    $('pe-swatches').innerHTML = ACCENT_SWATCHES.map((c) => (
+      `<button type="button" class="swatch" data-swatch="${c}" style="background:${c}" title="${c}"></button>`
+    )).join('') + `<button type="button" class="swatch swatch-auto" data-swatch="" title="${escAttr(tr('Category color'))}">${escAttr(tr('Auto'))}</button>`;
+  }
+  renderStatic();
   // Limits come from LIMITS, not restated in the markup.
   $('pe-name').maxLength = LIMITS.name;
   $('pe-icon-text').maxLength = LIMITS.text;
@@ -93,19 +98,19 @@ export function initPartEditor({ store, library, svg, tools }) {
   // ---- rows ----
   function portRow(p, i, n) {
     return `<tr data-i="${i}">`
-      + `<td><input type="text" data-pname maxlength="${LIMITS.portName}" value="${escAttr(p.name)}" placeholder="Name" spellcheck="false"></td>`
-      + `<td><select data-pside>${SIDES.map((s) => `<option value="${s}"${s === p.side ? ' selected' : ''}>${s}</option>`).join('')}</select></td>`
-      + `<td><select data-pbus>${BUS_ORDER.map((b) => `<option value="${b}"${b === p.bus ? ' selected' : ''}>${escAttr(BUSES[b].name)}</option>`).join('')}</select></td>`
-      + `<td><label class="dialog-check" title="Check reports this port when it is unwired"><input type="checkbox" data-preq${p.required ? ' checked' : ''}> req</label></td>`
-      + `<td class="pe-move"><button type="button" data-up title="Move up"${i === 0 ? ' disabled' : ''}>&uarr;</button>`
-      + `<button type="button" data-down title="Move down"${i === n - 1 ? ' disabled' : ''}>&darr;</button>`
-      + `<button type="button" data-del title="Remove port">&times;</button></td></tr>`;
+      + `<td><input type="text" data-pname maxlength="${LIMITS.portName}" value="${escAttr(p.name)}" placeholder="${escAttr(tr('Name'))}" spellcheck="false"></td>`
+      + `<td><select data-pside>${SIDES.map((s) => `<option value="${s}"${s === p.side ? ' selected' : ''}>${escAttr(sideLabel(s))}</option>`).join('')}</select></td>`
+      + `<td><select data-pbus>${BUS_ORDER.map((b) => `<option value="${b}"${b === p.bus ? ' selected' : ''}>${escAttr(trd(BUSES[b].name))}</option>`).join('')}</select></td>`
+      + `<td><label class="dialog-check" title="${escAttr(tr('Check reports this port when it is unwired'))}"><input type="checkbox" data-preq${p.required ? ' checked' : ''}> ${escAttr(tr('req'))}</label></td>`
+      + `<td class="pe-move"><button type="button" data-up title="${escAttr(tr('Move up'))}"${i === 0 ? ' disabled' : ''}>&uarr;</button>`
+      + `<button type="button" data-down title="${escAttr(tr('Move down'))}"${i === n - 1 ? ' disabled' : ''}>&darr;</button>`
+      + `<button type="button" data-del title="${escAttr(tr('Remove port'))}">&times;</button></td></tr>`;
   }
   function fieldRow(f, i) {
     return `<tr data-i="${i}">`
-      + `<td><input type="text" data-flabel maxlength="${LIMITS.fieldLabel}" value="${escAttr(f.label)}" placeholder="Label" spellcheck="false"></td>`
-      + `<td colspan="3"><input type="text" data-fopts value="${escAttr(f.options)}" placeholder="Choices, comma separated (blank = free text)" spellcheck="false"></td>`
-      + `<td class="pe-move"><button type="button" data-fdel title="Remove field">&times;</button></td></tr>`;
+      + `<td><input type="text" data-flabel maxlength="${LIMITS.fieldLabel}" value="${escAttr(f.label)}" placeholder="${escAttr(tr('Label'))}" spellcheck="false"></td>`
+      + `<td colspan="3"><input type="text" data-fopts value="${escAttr(f.options)}" placeholder="${escAttr(tr('Choices, comma separated (blank = free text)'))}" spellcheck="false"></td>`
+      + `<td class="pe-move"><button type="button" data-fdel title="${escAttr(tr('Remove field'))}">&times;</button></td></tr>`;
   }
   const renderPorts = () => { $('pe-ports').innerHTML = draft.ports.map((p, i) => portRow(p, i, draft.ports.length)).join(''); };
   const renderFields = () => { $('pe-fields').innerHTML = draft.fields.map((f, i) => fieldRow(f, i)).join(''); };
@@ -139,7 +144,7 @@ export function initPartEditor({ store, library, svg, tools }) {
     $('pe-problems').innerHTML = problems.map((p) => `<li>${escAttr(p)}</li>`).join('');
     $('pe-save').disabled = problems.length > 0;
     // The preview draws even while the name is still blank.
-    const { part } = normalizePart({ ...raw, name: raw.name || 'Part' });
+    const { part } = normalizePart({ ...raw, name: raw.name || tr('Part') });
     if (!part) return;
     const node = { id: 'preview', kind: 'custom', x: 0, y: 0, label: part.name, sublabel: '', color: null, addr: '', rail: '', notes: '', status: null, flags: [], part };
     const { w, h } = nodeSize(node);
@@ -228,7 +233,7 @@ export function initPartEditor({ store, library, svg, tools }) {
     refresh();
   });
   $('pe-port-add').addEventListener('click', () => {
-    if (draft.ports.length >= LIMITS.ports) { toast(`At most ${LIMITS.ports} ports.`); return; }
+    if (draft.ports.length >= LIMITS.ports) { toast(tr('At most {max} ports.', { max: LIMITS.ports })); return; }
     const { id, n } = freshId('p', draft.ports, nextPort);
     nextPort = n;
     draft.ports.push({ id, name: '', side: 'left', bus: 'gpio', required: false });
@@ -251,7 +256,7 @@ export function initPartEditor({ store, library, svg, tools }) {
     refresh();
   });
   $('pe-field-add').addEventListener('click', () => {
-    if (draft.fields.length >= LIMITS.fields) { toast(`At most ${LIMITS.fields} fields.`); return; }
+    if (draft.fields.length >= LIMITS.fields) { toast(tr('At most {max} fields.', { max: LIMITS.fields })); return; }
     const { id, n } = freshId('f', draft.fields, nextField);
     nextField = n;
     draft.fields.push({ id, label: '', options: '' });
@@ -261,6 +266,18 @@ export function initPartEditor({ store, library, svg, tools }) {
   });
 
   // ---- open and save ----
+  function renderTitles() {
+    if (!ctx) return;
+    const {
+      mode, nodeId, others, name,
+    } = ctx;
+    $('pe-title').textContent = mode === 'new' ? tr('New part') : (mode === 'customize' ? tr('Customize {name}', { name }) : tr('Edit {name}', { name }));
+    const n = others.length;
+    $('pe-apply-all-label').textContent = nodeId
+      ? (n === 1 ? tr('Apply to the {n} other part on this board from this template', { n }) : tr('Apply to the {n} other parts on this board from this template', { n }))
+      : (n === 1 ? tr('Apply to the {n} part on this board from this template', { n }) : tr('Apply to the {n} parts on this board from this template', { n }));
+  }
+
   // def: a definition to start from. nodeId: the node being edited or
   // customized. templateId: a library template being edited from the palette.
   // Neither: a new part.
@@ -274,16 +291,14 @@ export function initPartEditor({ store, library, svg, tools }) {
     const others = node
       ? siblings(store.doc, node)
       : (templateId ? store.doc.nodes.filter((n) => n.kind === 'custom' && n.part?.lib === templateId) : []);
-    ctx = { nodeId, templateId, mode, others: others.map((n) => n.id) };
-    $('pe-title').textContent = mode === 'new' ? 'New part' : (mode === 'customize' ? `Customize ${def.name}` : `Edit ${def.name}`);
+    ctx = {
+      nodeId, templateId, mode, name: def.name, others: others.map((n) => n.id),
+    };
     $('pe-save-lib').checked = mode === 'new' || !!templateId || !!draft.lib;
     $('pe-save-lib').disabled = mode === 'new' || !!templateId;
     $('pe-apply-all-row').hidden = !others.length;
     $('pe-apply-all').checked = true;
-    const n = others.length;
-    $('pe-apply-all-label').textContent = nodeId
-      ? `Apply to the ${n} other part${n === 1 ? '' : 's'} on this board from this template`
-      : `Apply to the ${n} part${n === 1 ? '' : 's'} on this board from this template`;
+    renderTitles();
     renderAll();
     refresh();
     openModal(dialog);
@@ -307,9 +322,9 @@ export function initPartEditor({ store, library, svg, tools }) {
       store.apply((doc) => {
         for (const id of targets) dropped += applyDefinition(doc, id, structuredClone(part)).dropped;
       });
-      const where = targets.length > 1 ? ` on ${targets.length} parts` : '';
-      const wires = dropped ? `; ${dropped} wire${dropped === 1 ? '' : 's'} dropped` : '';
-      toast(`${part.name} updated${where}${wires}.`);
+      const where = targets.length > 1 ? tr(' on {n} parts', { n: targets.length }) : '';
+      const wires = dropped ? (dropped === 1 ? tr('; {n} wire dropped', { n: dropped }) : tr('; {n} wires dropped', { n: dropped })) : '';
+      toast(tr('{part} updated{where}{wires}.', { part: part.name, where, wires }));
     } else if (ctx.mode === 'new') {
       // A new part goes to My parts and onto the canvas at the centre of the view.
       const r = svg.getBoundingClientRect();
@@ -318,9 +333,9 @@ export function initPartEditor({ store, library, svg, tools }) {
       const { w, h } = nodeSize({ kind: 'custom', label: part.name, part });
       const id = addNode(store, 'custom', snap(cx - w / 2), snap(cy - h / 2), part);
       store.setSelection([id]);
-      toast(`${part.name} saved to My parts.`);
+      toast(tr('{part} saved to My parts.', { part: part.name }));
     } else {
-      toast(`${part.name} updated in My parts.`);
+      toast(tr('{part} updated in My parts.', { part: part.name }));
     }
     dialog.close();
   }
@@ -330,6 +345,12 @@ export function initPartEditor({ store, library, svg, tools }) {
   dialog.addEventListener('pointerdown', (e) => { if (e.target === dialog) dialog.close(); });
   // Canvas shortcuts listen on window; a keypress inside the form is the form's.
   dialog.addEventListener('keydown', (e) => e.stopPropagation());
+
+  onLanguageChange(() => {
+    renderStatic();
+    translateStatic(dialog);
+    if (dialog.open) { renderTitles(); renderAll(); refresh(); }
+  });
 
   return { open };
 }

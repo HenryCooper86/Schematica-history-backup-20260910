@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LIMITS, SIDES, PATH_RE, initials, portsWithOffsets, normalizePart, partOf, mergePortIds, mergeFieldIds, draftProblems, optionList, definitionFrom, siblings, applyDefinition } from '../src/custom.js';
+import { LIMITS, SIDES, PATH_RE, initials, portsWithOffsets, normalizePart, partOf, mergePortIds, mergeFieldIds, draftProblems, optionList, definitionFrom, siblings, applyDefinition, sideLabel } from '../src/custom.js';
 import { PARTS } from '../src/palette.js';
 import { nodePart } from '../src/rdk/profiles.js';
+import { initI18n, setLang } from '../src/i18n.js';
 
 const DEF = {
   name: 'Motor driver x4', category: 'actuators', accent: null, icon: { kind: 'motor' },
@@ -340,4 +341,25 @@ test('applyDefinition converts the node, drops wires on missing ports, prunes fi
   assert.equal(doc.nodes[0].sublabel, 'ESP32', 'instance values stay');
   assert.deepEqual(doc.nodes[0].flags, ['bug']);
   assert.deepEqual(applyDefinition(doc, 'nope', def), { dropped: 0 });
+});
+
+test('draftProblems and normalizePart warnings come out in Chinese under zh, English otherwise', () => {
+  initI18n({ storage: null });
+  assert.deepEqual(draftProblems({ name: '' }), ['Name is required.']);
+  setLang('zh');
+  try {
+    assert.deepEqual(draftProblems({ name: '' }), ['名称不能为空。']);
+    assert.match(draftProblems({ name: 'x', ports: [{ name: 'A', side: 'left' }, { name: 'a', side: 'left' }] })[0], /左/);
+    const { warnings } = normalizePart({ name: 'x', category: 'nope', ports: [] });
+    assert.match(warnings[0], /未知类别/);
+  } finally {
+    setLang('en');
+  }
+});
+
+test('sideLabel names a side for display and leaves the value alone', () => {
+  assert.equal(sideLabel('left'), 'left');
+  setLang('zh');
+  try { assert.equal(sideLabel('left'), '左'); } finally { setLang('en'); }
+  assert.deepEqual(SIDES, ['left', 'right', 'top', 'bottom']);
 });

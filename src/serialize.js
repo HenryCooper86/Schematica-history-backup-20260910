@@ -4,6 +4,7 @@ import { PARTS, DISPOSITIONS, PORT_ALIASES } from './palette.js';
 import { newDoc, NODE_STATUSES, NODE_FLAGS, SCHEMA_VERSION } from './state.js';
 import { nodeSize } from './geometry.js';
 import { normalizePart, partOf } from './custom.js';
+import { tr } from './i18n.js';
 
 export function serialize(doc) {
   return JSON.stringify(doc, null, 2);
@@ -43,20 +44,20 @@ export function deserialize(text) {
   try {
     raw = JSON.parse(text);
   } catch {
-    throw new Error('Not a valid Schematica file: could not parse JSON.');
+    throw new Error(tr('Not a valid Schematica file: could not parse JSON.'));
   }
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-    throw new Error('Not a valid Schematica file: top level must be an object.');
+    throw new Error(tr('Not a valid Schematica file: top level must be an object.'));
   }
   for (const key of ['nodes', 'wires', 'zones', 'notes', 'journey']) {
     if (raw[key] !== undefined && !Array.isArray(raw[key])) {
-      throw new Error(`Not a valid Schematica file: "${key}" must be an array.`);
+      throw new Error(tr('Not a valid Schematica file: "{key}" must be an array.', { key }));
     }
   }
 
   const warnings = [];
   if (typeof raw.schema === 'number' && raw.schema > SCHEMA_VERSION) {
-    warnings.push(`File schema ${raw.schema} is newer than this app understands (${SCHEMA_VERSION}); loading best-effort.`);
+    warnings.push(tr('File schema {found} is newer than this app understands ({known}); loading best-effort.', { found: raw.schema, known: SCHEMA_VERSION }));
   }
   raw = migrateRaw(raw);
 
@@ -76,7 +77,7 @@ export function deserialize(text) {
     return v;
   };
 
-  const doc = newDoc(typeof raw.title === 'string' && raw.title.trim() ? str(raw.title) : 'Untitled Board');
+  const doc = newDoc(str(raw.title, tr('Untitled Board')));
   const seen = new Set();
   const validId = (v) => typeof v === 'string' && v.length > 0;
   const HEX_COLOR = /^#[0-9a-fA-F]{3,8}$/;
@@ -84,11 +85,11 @@ export function deserialize(text) {
 
   for (const n of raw.nodes ?? []) {
     if (!n || !validId(n.id) || !Number.isFinite(n.x) || !Number.isFinite(n.y)) {
-      warnings.push('Dropped a node with a missing id or position.');
+      warnings.push(tr('Dropped a node with a missing id or position.'));
       continue;
     }
     if (seen.has(n.id)) {
-      warnings.push(`Dropped duplicate id "${n.id}".`);
+      warnings.push(tr('Dropped duplicate id "{id}".', { id: n.id }));
       continue;
     }
     seen.add(n.id);
@@ -99,32 +100,32 @@ export function deserialize(text) {
       coerced.add(n.id);
     } else if (kind === 'custom') {
       const res = normalizePart(n.part);
-      for (const w of res.warnings) warnings.push(`Node "${n.id}": ${w}`);
+      for (const w of res.warnings) warnings.push(tr('Node "{id}": {warning}', { id: n.id, warning: w }));
       if (res.part) def = res.part;
       else {
-        warnings.push(`Custom part "${n.id}" had no usable definition and became a custom box.`);
+        warnings.push(tr('Custom part "{id}" had no usable definition and became a custom box.', { id: n.id }));
         kind = 'generic';
         coerced.add(n.id);
       }
     } else if (!PARTS[kind]) {
-      warnings.push(`Unknown part "${kind}" became a custom box.`);
+      warnings.push(tr('Unknown part "{kind}" became a custom box.', { kind }));
       kind = 'generic';
       coerced.add(n.id);
     }
     const part = def ? partOf({ kind: 'custom', part: def }) : PARTS[kind];
     let color = typeof n.color === 'string' ? n.color : null;
     if (color !== null && !HEX_COLOR.test(color)) {
-      warnings.push(`Ignored invalid color on node "${n.id}".`);
+      warnings.push(tr('Ignored invalid color on node "{id}".', { id: n.id }));
       color = null;
     }
     let status = typeof n.status === 'string' ? n.status : null;
     if (status !== null && !NODE_STATUSES.includes(status)) {
-      warnings.push(`Ignored unknown status "${status}" on node "${n.id}".`);
+      warnings.push(tr('Ignored unknown status "{status}" on node "{id}".', { status, id: n.id }));
       status = null;
     }
     let flags = Array.isArray(n.flags) ? n.flags.filter((f) => NODE_FLAGS.includes(f)) : [];
     if (Array.isArray(n.flags) && flags.length !== n.flags.length) {
-      warnings.push(`Dropped unknown flags on node "${n.id}".`);
+      warnings.push(tr('Dropped unknown flags on node "{id}".', { id: n.id }));
     }
     const node = {
       id: n.id, kind, x: coord(n.x), y: coord(n.y),
@@ -143,14 +144,14 @@ export function deserialize(text) {
     if (n.fields && typeof n.fields === 'object' && !Array.isArray(n.fields)) {
       if (!part.fields) {
         if (Object.values(n.fields).some((x) => typeof x === 'string' && x.trim())) {
-          warnings.push(`Dropped fields on node "${n.id}": ${part.name} has none.`);
+          warnings.push(tr('Dropped fields on node "{id}": {part} has none.', { id: n.id, part: part.name }));
         }
       } else {
         const known = new Set(part.fields.map((fd) => fd.id));
         const fields = {};
         for (const [k, v] of Object.entries(n.fields)) {
           if (!known.has(k)) {
-            warnings.push(`Dropped unknown field "${k}" on node "${n.id}".`);
+            warnings.push(tr('Dropped unknown field "{field}" on node "{id}".', { field: k, id: n.id }));
             continue;
           }
           if (typeof v === 'string' && v.trim()) fields[k] = str(v);
@@ -160,7 +161,7 @@ export function deserialize(text) {
     }
     if (n.disposition != null) {
       if (typeof n.disposition === 'string' && DISPOSITIONS[n.disposition]) node.disposition = n.disposition;
-      else warnings.push(`Ignored unknown disposition "${n.disposition}" on node "${n.id}".`);
+      else warnings.push(tr('Ignored unknown disposition "{value}" on node "{id}".', { value: n.disposition, id: n.id }));
     }
     // Older files stored a fixed card size. Cards now size to their content,
     // so shift the top-left corner to keep the card centered where it was.
@@ -192,16 +193,16 @@ export function deserialize(text) {
     const from = w ? resolvePort(w.from, 'right') : null;
     const to = w ? resolvePort(w.to, 'left') : null;
     if (!w || !validId(w.id) || seen.has(w.id) || !from || !to) {
-      warnings.push('Dropped a wire with a bad id or missing endpoint.');
+      warnings.push(tr('Dropped a wire with a bad id or missing endpoint.'));
       continue;
     }
     seen.add(w.id);
     if (from.remapped || to.remapped) {
-      warnings.push(`Wire "${w.id}" was moved onto the custom box's generic ports.`);
+      warnings.push(tr('Wire "{id}" was moved onto the custom box\'s generic ports.', { id: w.id }));
     }
     let bus = typeof w.bus === 'string' ? w.bus : DEFAULT_BUS;
     if (!BUSES[bus]) {
-      warnings.push(`Unknown bus "${bus}" became ${BUSES[DEFAULT_BUS].short}.`);
+      warnings.push(tr('Unknown bus "{bus}" became {code}.', { bus, code: BUSES[DEFAULT_BUS].short }));
       bus = DEFAULT_BUS;
     }
     doc.wires.push({
@@ -218,17 +219,17 @@ export function deserialize(text) {
   for (const z of raw.zones ?? []) {
     if (!z || !validId(z.id) || seen.has(z.id) || !Number.isFinite(z.x) || !Number.isFinite(z.y)
       || !(Number.isFinite(z.w) && z.w > 0) || !(Number.isFinite(z.h) && z.h > 0)) {
-      warnings.push('Dropped a zone with a bad id or geometry.');
+      warnings.push(tr('Dropped a zone with a bad id or geometry.'));
       continue;
     }
     seen.add(z.id);
     let zColor = typeof z.color === 'string' && HEX_COLOR.test(z.color) ? z.color : '#4a90d9';
     if (typeof z.color === 'string' && !HEX_COLOR.test(z.color)) {
-      warnings.push(`Replaced invalid color on zone "${z.id}".`);
+      warnings.push(tr('Replaced invalid color on zone "{id}".', { id: z.id }));
     }
     const zone = {
       id: z.id, x: coord(z.x), y: coord(z.y), w: coord(z.w), h: coord(z.h),
-      label: str(z.label, 'Zone'),
+      label: str(z.label, tr('Zone')),
       color: zColor,
     };
     // Swimlanes carry extra fields; plain zones keep their exact old shape.
@@ -238,16 +239,16 @@ export function deserialize(text) {
       const lanes = Array.isArray(z.lanes)
         ? z.lanes.filter((l) => typeof l === 'string' && l.length > 0).map((l) => str(l)) : [];
       if (Array.isArray(z.lanes) && lanes.length !== z.lanes.length) {
-        warnings.push(`Dropped invalid lanes on swimlane "${z.id}".`);
+        warnings.push(tr('Dropped invalid lanes on swimlane "{id}".', { id: z.id }));
       }
-      zone.lanes = lanes.length ? lanes : ['Lane 1'];
+      zone.lanes = lanes.length ? lanes : [tr('Lane 1')];
     }
     doc.zones.push(zone);
   }
 
   for (const t of raw.notes ?? []) {
     if (!t || !validId(t.id) || seen.has(t.id) || !Number.isFinite(t.x) || !Number.isFinite(t.y)) {
-      warnings.push('Dropped a note with a bad id or position.');
+      warnings.push(tr('Dropped a note with a bad id or position.'));
       continue;
     }
     seen.add(t.id);
@@ -260,7 +261,7 @@ export function deserialize(text) {
     const legacy = v && Number.isFinite(v.x) && Number.isFinite(v.y);
     if (!s || !validId(s.id) || seen.has(s.id) || !v
       || !Number.isFinite(v.zoom) || (!modern && !legacy)) {
-      warnings.push('Dropped a journey step with a bad id or view.');
+      warnings.push(tr('Dropped a journey step with a bad id or view.'));
       continue;
     }
     seen.add(s.id);
@@ -272,13 +273,13 @@ export function deserialize(text) {
       : { cx: coord((640 - v.x) / zoom), cy: coord((400 - v.y) / zoom), zoom };
     doc.journey.push({
       id: s.id,
-      label: str(s.label, 'Step'),
+      label: str(s.label, tr('Step')),
       view,
       caption: str(s.caption),
     });
   }
 
-  if (clampedText) warnings.push(`Clamped ${clampedText} over-long text field(s) to ${MAX_TEXT} characters.`);
-  if (clampedCoord) warnings.push(`Clamped ${clampedCoord} out-of-range position(s) or size(s).`);
+  if (clampedText) warnings.push(tr('Clamped {n} over-long text field(s) to {max} characters.', { n: clampedText, max: MAX_TEXT }));
+  if (clampedCoord) warnings.push(tr('Clamped {n} out-of-range position(s) or size(s).', { n: clampedCoord }));
   return { doc, warnings };
 }
