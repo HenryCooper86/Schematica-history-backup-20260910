@@ -97,6 +97,7 @@ test('setLang survives a storage that throws', () => {
     setLang('zh');
     assert.equal(getLang(), 'zh');
   } finally {
+    setLang('en');
     initI18n({ storage: fakeStorage() });
   }
 });
