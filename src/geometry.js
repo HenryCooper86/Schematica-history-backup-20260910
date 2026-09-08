@@ -21,6 +21,16 @@ const META_LINE_H = 12.5;
 const PORT_GAP_Y = 15;
 const PORT_GAP_X = 22;
 
+// Width units of a string for card sizing. The card formulas were tuned for
+// Latin text at 5.9–7px per character; a CJK glyph is about 1.9 times that.
+// Pure ASCII returns `.length`, so every English board keeps its geometry.
+const WIDE = /[　-〿぀-ヿ㐀-䶿一-鿿가-힯＀-￯]/u;
+export function textUnits(s) {
+  let n = 0;
+  for (const ch of String(s ?? '')) n += WIDE.test(ch) ? 1.9 : 1;
+  return n;
+}
+
 export function nodeMeta(node) {
   const part = partOf(node);
   // Mono lines under the label: the part number (threats have none), then a
@@ -46,7 +56,7 @@ export function nodeMeta(node) {
 // 96–290 (decisions and slanted shapes get extra room), heights are fixed per
 // shape, and a connector is a circle just big enough for its letter.
 function shapeSize(shape, label) {
-  const L = label.length;
+  const L = textUnits(label);
   if (shape === 'connector') {
     const r = Math.min(60, Math.max(23, L * 3.6 + 16));
     return { w: r * 2, h: r * 2 };
@@ -65,8 +75,8 @@ export function nodeSize(node) {
   const meta = nodeMeta(node);
   const need = Math.max(
     NODE_W,
-    String(node.label ?? '').length * 6.8 + 24,
-    ...meta.map((m) => m.text.length * 5.9 + 26),
+    textUnits(node.label) * 6.8 + 24,
+    ...meta.map((m) => textUnits(m.text) * 5.9 + 26),
   );
   let w = Math.min(NODE_MAX_W, need);
   let h = NODE_H + meta.length * META_LINE_H;

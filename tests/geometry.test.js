@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   snap, nodeRect, nodeSize, nodeMeta, portPosition, wireGeom, wireGeomToPoint, curvePoint, wireLanes, WIRE_FAN,
-  rectContains, rectsIntersect, normRect, wrapText, noteHeight, NOTE_W, contentBounds,
+  rectContains, rectsIntersect, normRect, wrapText, noteHeight, NOTE_W, contentBounds, textUnits,
 } from '../src/geometry.js';
 
 const node = { x: 100, y: 200, w: 160, h: 100 };
@@ -234,4 +234,43 @@ test('custom meta lines: part number, address, rail, then field values, three at
   assert.deepEqual(nodeMeta(node), [
     { field: 'sublabel', text: 'MD-4' }, { field: 'rail', text: '12V' }, { field: 'fields.f1', text: '4' },
   ]);
+});
+
+const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} ≈ ${b}`);
+
+test('textUnits counts CJK, fullwidth and kana as 1.9 and everything else as 1', () => {
+  assert.equal(textUnits('MCU'), 3);
+  assert.equal(textUnits(''), 0);
+  near(textUnits('电池'), 3.8);
+  near(textUnits('（PWR）'), 1.9 * 2 + 3);
+  near(textUnits('カメラ'), 5.7);
+  near(textUnits('한글'), 3.8);
+  near(textUnits('X5 主控'), 3 + 3.8);
+  assert.equal(textUnits(null), 0);
+});
+
+test('a Chinese label makes a wider card than a Latin label of similar length', () => {
+  const base = { kind: 'mcu', sublabel: '', addr: '', rail: '' };
+  const latin = nodeSize({ ...base, label: 'Motor driver' });
+  const cjk = nodeSize({ ...base, label: '机器人主控制器驱动模块' });
+  assert.equal(latin.w, 105.6, 'twelve Latin characters: 12 * 6.8 + 24, unchanged by this task');
+  assert.ok(cjk.w > latin.w, `${cjk.w} > ${latin.w}`);
+  assert.ok(cjk.w <= 240);
+  assert.equal(cjk.h, latin.h, 'height does not depend on script');
+});
+
+test('Chinese meta lines widen the card too', () => {
+  const base = { kind: 'mcu', label: 'M', addr: '', rail: '' };
+  const latin = nodeSize({ ...base, sublabel: 'Cortex-M4 driver' });
+  const cjk = nodeSize({ ...base, sublabel: '驱动微控制器型号说明' });
+  assert.equal(latin.w, 120.4, 'sixteen Latin characters: 16 * 5.9 + 26');
+  assert.ok(cjk.w > latin.w, `${cjk.w} > ${latin.w}`);
+});
+
+test('Chinese flow-shape labels widen the shape', () => {
+  const latin = nodeSize({ kind: 'process', label: 'Verify signature' });
+  const cjk = nodeSize({ kind: 'process', label: '验证签名并记录结果' });
+  assert.equal(latin.w, 156, 'sixteen Latin characters: 16 * 7 + 44');
+  assert.ok(cjk.w > latin.w, `${cjk.w} > ${latin.w}`);
+  assert.equal(cjk.h, latin.h);
 });
