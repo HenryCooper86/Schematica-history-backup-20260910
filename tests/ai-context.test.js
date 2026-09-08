@@ -5,7 +5,7 @@ import { EXAMPLES } from '../src/examples.js';
 import { checkDoc } from '../src/drc.js';
 import { PARTS } from '../src/palette.js';
 import { BUSES } from '../src/buses.js';
-import { stableSystem, perRequestSystem, ROLE_RULES, SINGLE_SHOT_RULES } from '../src/ai/prompt.js';
+import { stableSystem, perRequestSystem, ROLE_RULES, SINGLE_SHOT_RULES, LANGUAGE_RULES } from '../src/ai/prompt.js';
 
 const example = (id) => structuredClone(EXAMPLES.find((e) => e.id === id).doc);
 
@@ -114,4 +114,14 @@ test('the rules cover custom parts and the single-shot schema names them', () =>
   assert.match(ROLE_RULES, /say in your reply that you made a custom part/);
   assert.match(ROLE_RULES, /custom-ports/);
   assert.match(SINGLE_SHOT_RULES, /kind custom/);
+});
+
+test('the per-request block asks for Chinese only when the interface is Chinese', () => {
+  const en = perRequestSystem({ date: '2026-09-08', effort: 'medium', singleShot: false, language: 'en' });
+  assert.ok(!/Simplified Chinese/.test(en));
+  const zh = perRequestSystem({ date: '2026-09-08', effort: 'medium', singleShot: false, language: 'zh' });
+  assert.match(zh, /Reply in Simplified Chinese \(简体中文\)\. Keep ids, part kinds, bus names, tool names, and field values exactly as they are\./);
+  assert.ok(zh.startsWith('Today is 2026-09-08. Effort: medium.'));
+  assert.equal(perRequestSystem({ date: '2026-09-08', effort: 'low', singleShot: true, language: 'zh' }).includes(SINGLE_SHOT_RULES), true);
+  assert.equal(stableSystem(), stableSystem(), 'the stable block is unchanged by language');
 });

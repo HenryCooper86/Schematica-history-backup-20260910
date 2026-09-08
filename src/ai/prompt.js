@@ -23,12 +23,17 @@ export const SINGLE_SHOT_RULES = `This model cannot call tools. Reply with exact
 {"summary": "<one or two sentences for the user>", "ops": [ ...apply_edits operations... ]}
 The operations are the apply_edits schema: each has "op" (add_part, update_part, replace_part, remove, connect, update_wire, add_zone, update_zone, add_note, update_note, set_title) and the fields that op needs. New items carry a "ref" you choose. Use only catalogue kinds and buses, or kind custom with a custom definition when no kind fits. If the request needs no change, send an empty ops array.`;
 
+export const LANGUAGE_RULES = {
+  zh: 'Reply in Simplified Chinese (简体中文). Keep ids, part kinds, bus names, tool names, and field values exactly as they are.',
+};
+
 export function stableSystem() {
   return `${ROLE_RULES}\n\n# Catalogue\n${catalogueText()}`;
 }
 
-export function perRequestSystem({ date, effort, singleShot }) {
+export function perRequestSystem({ date, effort, singleShot, language = 'en' }) {
   let s = `Today is ${date}. Effort: ${effort}.`;
+  if (LANGUAGE_RULES[language]) s += `\n${LANGUAGE_RULES[language]}`;
   if (singleShot) s += `\n\n${SINGLE_SHOT_RULES}`;
   return s;
 }

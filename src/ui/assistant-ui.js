@@ -624,7 +624,7 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
       library,
     });
     const board = boardText(store.doc, { selection: [...store.selection], findings: checkDoc(store.doc) });
-    const system = [stable, perRequestSystem({ date: new Date().toISOString().slice(0, 10), effort: s.effort, singleShot: s.tools === false })];
+    const system = [stable, perRequestSystem({ date: new Date().toISOString().slice(0, 10), effort: s.effort, singleShot: s.tools === false, language: getLang() })];
     const sources = attachments.context();
     const sourceSummary = sources.entries.length
       ? '\n\n' + tr('Sources: {list}', { list: sources.entries.map((e) => tr('{name} ({used}/{total} chars{partial})', { name: e.name, used: e.used.toLocaleString(), total: e.total.toLocaleString(), partial: e.partial ? tr(', partial') : '' })).join('; ') })
