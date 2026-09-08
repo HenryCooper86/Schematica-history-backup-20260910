@@ -17,8 +17,16 @@ import { initExamplesMenu } from './ui/examples-menu.js';
 import { initRecording } from './ui/recording-ui.js';
 import { initLayoutToggles } from './ui/panels.js';
 import { initAssistant } from './ui/assistant-ui.js';
+import { initI18n, onLanguageChange } from './i18n.js';
+import { translateStatic, initLanguageSwitch } from './ui/i18n-dom.js';
 
 const svg = document.getElementById('canvas');
+
+// Bind the language before anything renders; storage may be blocked.
+let langStorage = null;
+try { langStorage = window.localStorage; } catch { langStorage = null; }
+initI18n({ storage: langStorage });
+translateStatic();
 
 function loadAutosave() {
   try {
@@ -202,6 +210,10 @@ initJourney({ svg, store, tools, render, recorder, propsPanel });
 initExamplesMenu({ store });
 initLayoutToggles();
 initAssistant({ store, tools, render, svg, library });
+
+initLanguageSwitch(document.getElementById('btn-lang'));
+// Flag tooltips are drawn into the SVG, so the canvas redraws on a switch.
+onLanguageChange(() => render());
 
 render();
 syncAnimation();

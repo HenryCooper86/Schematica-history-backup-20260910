@@ -32,6 +32,13 @@ function findChrome() {
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const waitFor = async (expr, tries = 60) => {
+  for (let i = 0; i < tries; i++) {
+    if (await js(expr).catch(() => false)) return;
+    await sleep(100);
+  }
+  throw new Error(`timed out waiting for ${expr}`);
+};
 
 // A scripted Anthropic look-alike so the assistant runs in CI without a key.
 // It answers the first call of a request with one tool call, and any call
@@ -753,6 +760,21 @@ try {
   await key('Escape', 'Escape', 27);
   await sleep(100);
   check('Escape closes the Examples menu', (await js(`document.getElementById('examples-menu').hidden`)) === true);
+
+  // ---- Interface language: the switch translates, persists, and reverts ----
+  await js(`document.getElementById('btn-lang').click(); true`);
+  await sleep(100);
+  const zh = await js(`(() => ({ lang: document.documentElement.lang, examples: document.getElementById('btn-examples').textContent.trim(), btn: document.getElementById('btn-lang').textContent, search: document.getElementById('palette-search').placeholder, hint: document.querySelector('#hintbar span').textContent, stored: localStorage.getItem('schematica.lang') }))()`);
+  check('the language switch turns the toolbar Chinese and remembers it', zh.lang === 'zh-CN' && zh.examples.startsWith('示例') && zh.btn === 'EN' && zh.search === '搜索部件、总线、厂商' && zh.hint === '选择' && zh.stored === 'zh', JSON.stringify(zh));
+  await send('Page.reload', { ignoreCache: true });
+  await waitFor(`document.readyState === 'complete' && !!document.getElementById('btn-lang')`);
+  await sleep(300);
+  const afterLangReload = await js(`(() => ({ lang: document.documentElement.lang, examples: document.getElementById('btn-examples').textContent.trim() }))()`);
+  check('Chinese survives a reload', afterLangReload.lang === 'zh-CN' && afterLangReload.examples.startsWith('示例'), JSON.stringify(afterLangReload));
+  await js(`document.getElementById('btn-lang').click(); true`);
+  await sleep(100);
+  const en = await js(`(() => ({ lang: document.documentElement.lang, examples: document.getElementById('btn-examples').textContent.trim(), btn: document.getElementById('btn-lang').textContent, stored: localStorage.getItem('schematica.lang') }))()`);
+  check('the switch goes back to English and stores en', en.lang === 'en' && en.examples.startsWith('Examples') && en.btn === '中文' && en.stored === 'en', JSON.stringify(en));
 
   // ---- Assistant: build, undo, highlight, Fix button, thread ----
   // An empty board through a share link (loadBoard clears storage, so the

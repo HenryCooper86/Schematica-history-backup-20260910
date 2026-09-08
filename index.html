@@ -82,10 +82,11 @@
           <svg viewBox="0 0 18 18" aria-hidden="true"><path d="M9 2.5v8 M5.5 7.5 9 11l3.5-3.5 M3 14.5h12"/></svg></button>
         <button id="btn-open" title="Open a .schematica.json file">
           <svg viewBox="0 0 18 18" aria-hidden="true"><path d="M9 11V3 M5.5 6.5 9 3l3.5 3.5 M3 14.5h12"/></svg></button>
-        <button id="btn-examples" title="Load an example board">Examples &#9662;</button>
+        <button id="btn-examples" title="Load an example board">Examples <span aria-hidden="true">&#9662;</span></button>
         <button id="btn-check" title="Run design rule checks">
           <svg viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="6.5"/><path d="M6.2 9.3l2 2 3.6-4.2"/></svg></button>
         <button id="btn-bom" title="Bill of materials">BOM</button>
+        <button id="btn-lang" data-i18n="off" title="Switch language" aria-label="Switch language">中文</button>
         <button id="btn-share" title="Copy a share link">
           <svg viewBox="0 0 18 18" aria-hidden="true"><path d="M13.5 5m-2 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M4.5 9m-2 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M13.5 13.5m-2 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M6.3 8.1l5.4-2.3 M6.3 9.9l5.4 2.7"/></svg></button>
         <button id="btn-new" title="New — clear the board">
@@ -100,10 +101,10 @@
     <main id="canvas-wrap">
       <svg id="canvas"></svg>
       <div id="hintbar" aria-hidden="true">
-        <kbd>V</kbd> select &middot; <kbd>C</kbd> wire &middot; <kbd>Z</kbd> zone &middot; <kbd>L</kbd> lane
-        &middot; <kbd>N</kbd> note &middot; <kbd>H</kbd> pan &middot; <kbd>F</kbd> fit &middot; <kbd>B</kbd> palette &middot; <kbd>P</kbd> panels &middot; <kbd>A</kbd> assistant
-        &middot; drag ports to link &middot; double-click rename
-        &middot; <kbd>Del</kbd> delete &middot; <kbd>Space</kbd>+drag pan
+        <kbd>V</kbd> <span>select</span> &middot; <kbd>C</kbd> <span>wire</span> &middot; <kbd>Z</kbd> <span>zone</span> &middot; <kbd>L</kbd> <span>lane</span>
+        &middot; <kbd>N</kbd> <span>note</span> &middot; <kbd>H</kbd> <span>pan</span> &middot; <kbd>F</kbd> <span>fit</span> &middot; <kbd>B</kbd> <span>palette</span> &middot; <kbd>P</kbd> <span>panels</span> &middot; <kbd>A</kbd> <span>assistant</span>
+        &middot; <span>drag ports to link</span> &middot; <span>double-click rename</span>
+        &middot; <kbd>Del</kbd> <span>delete</span> &middot; <kbd>Space</kbd><span>+drag pan</span>
       </div>
       <div id="present-overlay" hidden>
         <div id="present-caption"></div>
