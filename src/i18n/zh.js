@@ -538,6 +538,7 @@ export default {
   'Clamped {n} out-of-range position(s) or size(s).': '已修正 {n} 个超出范围的位置或尺寸。',
   // ---- journey, recording, defaults ----
   'Journey': '导览',
+  'Step {n}': '步骤 {n}',
   'Caption shown while presenting': '演示时显示的字幕',
   'Go': '前往',
   'Set': '设定',

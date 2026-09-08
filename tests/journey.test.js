@@ -4,6 +4,7 @@ import { Store } from '../src/state.js';
 import {
   addStep, updateStep, removeStep, moveStep, easeInOutCubic, tweenView,
 } from '../src/journey.js';
+import { initI18n, setLang } from '../src/i18n.js';
 
 const view = (cx, cy, zoom = 1) => ({ cx, cy, zoom });
 
@@ -19,6 +20,21 @@ test('addStep appends a step with copied center view, default label and empty ca
   assert.deepEqual(step.view, { cx: 10, cy: 20, zoom: 2 });
   addStep(store, view(0, 0));
   assert.equal(store.doc.journey[1].label, 'Step 2');
+});
+
+test('the default step label follows the interface language', () => {
+  initI18n({ storage: null });
+  setLang('zh');
+  try {
+    const store = new Store();
+    addStep(store, view(0, 0));
+    assert.equal(store.doc.journey[0].label, '步骤 1');
+  } finally {
+    setLang('en');
+  }
+  const store = new Store();
+  addStep(store, view(0, 0));
+  assert.equal(store.doc.journey[0].label, 'Step 1');
 });
 
 test('updateStep changes label, caption, and view independently', () => {
