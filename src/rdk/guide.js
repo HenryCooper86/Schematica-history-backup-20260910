@@ -7,11 +7,13 @@ import { tr, trd } from '../i18n.js';
 // Placeholder fill with no dictionary lookup: the untranslated path for
 // profileFacts, used only by referenceText (the copilot's rdk_reference
 // tool, which always reads English regardless of interface language).
-function fillVars(text, vars) {
-  const key = text == null ? '' : String(text);
-  if (!vars) return key;
-  return key.replace(/\{(\w+)\}/g, (m, name) => (name in vars ? String(vars[name]) : m));
-}
+// Also used bare as an Array.prototype.map callback (profileFacts passes
+// `td` to `.map`), so a non-object second argument (index, array) must be
+// treated as "no vars" rather than fed to the `in` operator.
+const fillVars = (text, vars) => {
+  const s = String(text ?? '');
+  return vars && typeof vars === 'object' ? s.replace(/\{(\w+)\}/g, (m, name) => (name in vars ? String(vars[name]) : m)) : s;
+};
 
 export function rdkProfile(node) {
   return profileFor(

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { newDoc } from '../src/state.js';
-import { rdkGuide, safeSources } from '../src/rdk/guide.js';
+import { rdkGuide, safeSources, referenceText } from '../src/rdk/guide.js';
 import { rdkDetails, targetOptions } from '../src/ui/rdk-details.js';
 import { initI18n, setLang } from '../src/i18n.js';
 import { EXAMPLES } from '../src/examples.js';
@@ -158,4 +158,28 @@ test('the setup guide headings follow the interface language while ids and URLs 
     setLang('en');
   }
   assert.match(rdkGuide(rover), /^## Bill of materials$/m);
+});
+
+test('referenceText stays safe when a requirement contains literal braces, in any language', () => {
+  initI18n({ storage: null });
+  const profile = {
+    kind: 'aisbc',
+    name: 'Synthetic board',
+    notes: '',
+    checkedOn: '2026-09-08',
+    ports: null,
+    power: null,
+    compatibility: { boardIds: null, unsupportedBoardIds: [] },
+    sources: [],
+    requirements: ['first', 'keep {brace} literal'],
+  };
+  assert.doesNotThrow(() => referenceText(profile));
+  assert.match(referenceText(profile), /keep \{brace\} literal/);
+  setLang('zh');
+  try {
+    assert.doesNotThrow(() => referenceText(profile));
+    assert.match(referenceText(profile), /keep \{brace\} literal/);
+  } finally {
+    setLang('en');
+  }
 });
