@@ -326,6 +326,7 @@ export default {
   'Thermal': '发热',
   'Power hungry': '高功耗',
   'Long lead': '交期长',
+  'Long lead time': '交期长',
   'Safety critical': '安全关键',
   'EOL part': '停产部件',
   'Color': '颜色',
