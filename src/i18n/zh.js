@@ -608,6 +608,7 @@ export default {
   ' · single-shot': ' · 单次模式',
   '{meta} · {state}. Click for settings.': '{meta} · {state}。点击进入设置。',
   'Assistant settings saved.': '助手设置已保存。',
+  'Add a provider and key first.': '请先添加服务商和密钥。',
   'Add a model and, for this provider, a key.': '请填写模型，并为该服务商填写密钥。',
   'Key forgotten.': '已忘记密钥。',
   'Connecting to {model}…': '正在连接 {model}…',

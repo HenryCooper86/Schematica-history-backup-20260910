@@ -373,6 +373,7 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
 
   onLanguageChange(() => {
     renderChrome();
+    repaintUsage();
     attachments.relabel();
     refreshMeta();
     if (settingsOpen) fillForm();
@@ -383,6 +384,9 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
   let history = [];          // provider-facing messages
   let visible = [];          // what the thread shows: { role, text, undoSnap?, touched? }
   let generation = store.generation;
+  // What the usage line last said, as arguments rather than text, so a
+  // language change can render the same numbers in the new language.
+  let lastUsage = null;
   const totals = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
   const stable = stableSystem();
   // Initialization calls onChange before the controller is assigned.
@@ -437,7 +441,8 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
     for (const k of Object.keys(totals)) totals[k] = 0;
     try { localStorage.removeItem(THREAD_KEY); } catch { /* fine */ }
     renderThread();
-    usageEl.textContent = '';
+    lastUsage = null;
+    repaintUsage();
   }
 
   function chipRow(m, index) {
@@ -594,11 +599,21 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
     usageEl.textContent = text;
     usageEl.title = text;
   }
+  // The one place the usage line is written: nothing before the first reply,
+  // the thread total alone for a restored thread, both halves after a reply.
+  function repaintUsage() {
+    if (!lastUsage) { setUsage(''); return; }
+    if (!lastUsage.usage) { setUsage(tr('thread: {thread}', { thread: usageText(totals, null) })); return; }
+    setUsage(tr('last: {last} · thread: {thread}', {
+      last: usageText(lastUsage.usage, lastUsage.lastCost),
+      thread: usageText(totals, lastUsage.threadCost),
+    }));
+  }
 
   async function send(text) {
     const userText = String(text ?? '').trim();
     if (!userText || busy || attachments.isImporting()) return;
-    if (!settings.configured()) { open(); showSettings(true); toast('Add a provider and key first.'); return; }
+    if (!settings.configured()) { open(); showSettings(true); toast(tr('Add a provider and key first.')); return; }
     const gen = store.generation;
     const s = settings.get();
     const wasEmpty = !store.doc.nodes.length && !store.doc.zones.length && !store.doc.notes.length;
@@ -665,7 +680,8 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
     const priced = s.provider === 'anthropic';
     const lastCost = priced ? estimateCost(s.model, res.usage) : null;
     const threadCost = priced ? estimateCost(s.model, totals) : null;
-    setUsage(tr('last: {last} · thread: {thread}', { last: usageText(res.usage, lastCost), thread: usageText(totals, threadCost) }));
+    lastUsage = { usage: res.usage, lastCost, threadCost };
+    repaintUsage();
     // A removed part must not linger in the selection.
     const kept = [...store.selection].filter((id) => findItem(store.doc, id));
     if (kept.length !== store.selection.size) store.setSelection(kept);
@@ -701,7 +717,7 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
   loadThread();
   // A restored thread keeps its running total; the last reply's usage is not
   // persisted, so only the thread half comes back.
-  if (totals.input || totals.output) setUsage(tr('thread: {thread}', { thread: usageText(totals, null) }));
+  if (totals.input || totals.output) { lastUsage = { usage: null, lastCost: null, threadCost: null }; repaintUsage(); }
   renderThread();
   return { open, close, toggle, isOpen, send, settings };
 }
