@@ -167,7 +167,8 @@ export function addNode(store, kind, x, y, part = null) {
   store.apply((doc) => {
     const node = {
       id, kind: spec.kind, x, y,
-      label: trd(spec.defaultLabel || spec.name), sublabel: '', color: null,
+      // A custom part's name is the user's own text: it is never translated.
+      label: def ? spec.name : trd(spec.defaultLabel || spec.name), sublabel: '', color: null,
       addr: '', rail: '', notes: '', status: null, flags: [],
     };
     if (def) node.part = def;

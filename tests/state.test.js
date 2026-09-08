@@ -360,6 +360,22 @@ test('a part placed in Chinese gets a Chinese default label; in English the Engl
   }
 });
 
+test('a custom part keeps the name its author typed, whatever the language', () => {
+  initI18n({ storage: null });
+  const store = new Store(newDoc());
+  setLang('zh');
+  try {
+    // "Battery" is a catalogue name with a Chinese entry: a built-in battery
+    // is labelled in Chinese, a custom part called Battery is not.
+    const custom = addNode(store, 'custom', 0, 0, { name: 'Battery', category: 'power', ports: [] });
+    assert.equal(store.doc.nodes.find((n) => n.id === custom).label, 'Battery');
+    const builtin = addNode(store, 'battery', 0, 0);
+    assert.equal(store.doc.nodes.find((n) => n.id === builtin).label, '电池');
+  } finally {
+    setLang('en');
+  }
+});
+
 test('a new board is titled in the interface language', () => {
   initI18n({ storage: null });
   assert.equal(newDoc().title, 'Untitled Board');

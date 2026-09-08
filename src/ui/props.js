@@ -261,8 +261,11 @@ export function createPropsPanel({ store, editor }) {
     }
     const { type, item } = found;
     let html;
-    if (type === 'node') html = panelHeader(trd(partOf(item).name), 'props') + nodeFields(item, store.doc);
-    else if (type === 'wire') html = panelHeader(tr('Wire'), 'props') + wireFields(item);
+    if (type === 'node') {
+      // A custom part's name is the user's own text; only catalogue names translate.
+      const part = partOf(item);
+      html = panelHeader(part.custom ? part.name : trd(part.name), 'props') + nodeFields(item, store.doc);
+    } else if (type === 'wire') html = panelHeader(tr('Wire'), 'props') + wireFields(item);
     else if (type === 'zone' && item.kind === 'swimlane') html = panelHeader(tr('Swimlane'), 'props') + swimlaneFields(item);
     else if (type === 'zone') {
       html = panelHeader(tr('Zone'), 'props') + propField(tr('Label'), `<input type="text" data-prop="label" value="${escAttr(item.label)}">`)
