@@ -20,7 +20,7 @@ export function uid(prefix = 'id') {
 // src/serialize.js so older files are upgraded on load.
 export const SCHEMA_VERSION = 2;
 
-export function newDoc(title = 'Untitled Board') {
+export function newDoc(title = tr('Untitled Board')) {
   return { schema: SCHEMA_VERSION, title, nodes: [], wires: [], zones: [], notes: [], journey: [] };
 }
 

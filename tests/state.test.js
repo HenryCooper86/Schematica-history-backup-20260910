@@ -360,6 +360,18 @@ test('a part placed in Chinese gets a Chinese default label; in English the Engl
   }
 });
 
+test('a new board is titled in the interface language', () => {
+  initI18n({ storage: null });
+  assert.equal(newDoc().title, 'Untitled Board');
+  setLang('zh');
+  try {
+    assert.equal(newDoc().title, '未命名板图');
+  } finally {
+    setLang('en');
+  }
+  assert.equal(newDoc().title, 'Untitled Board');
+});
+
 test('zones, swimlanes and notes get language-aware default text', () => {
   initI18n({ storage: null });
   const store = new Store(newDoc());
