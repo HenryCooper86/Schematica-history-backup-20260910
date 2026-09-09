@@ -50,7 +50,7 @@ then Settings → Pages → deploy from branch `main`, root folder.
 | Save / open | Toolbar — downloads/reads `*.schematica.json` |
 | Export | Export button — PNG at any pixel size, SVG, single-page PDF, or a seamless loop GIF, cropped to content |
 | Record | Rec button — WebM/MP4 video (optional mic or music audio) or animated GIF |
-| Journey | Journey button — save camera steps with captions; Present plays the tour (arrow keys, Esc) |
+| Journey | Save chapters and ordered part stops with captions; Present has chapter navigation, play/pause, speed, restart, show all, and exact moment links (arrow keys, Space, Esc) |
 | Examples | Examples menu — twenty-one built-in boards from sensor nodes to edge-to-cloud, including D-Robotics RDK X3, X5 and S100 robots and perception nodes, Horizon Mono 2, Journey 6 and SuperDrive HSD 600 ADAS stacks, a sensor node that passes every design rule, vehicle OTA and ADAS security boards that mix threat actors, controls, and response flowcharts with the hardware, an EV battery management system, a plant network segmented by Purdue level on a swimlane, and a secure boot chain, journeys included |
 | Language | 中文 / EN button in the toolbar — switches the interface, palette, checker messages, the copilot's replies, and the built-in example boards between English and Simplified Chinese; English by default; remembered on this device; your own boards' text is never translated |
 | Presets | Part number field — on AI SBCs, automotive SoCs, ADAS controllers, cameras, depth cameras, LiDARs, and serial servos, pick a vendor part (D-Robotics RDK boards and camera modules, Horizon Journey chips and Mono / SuperDrive tiers, and more) to fill the rail and a spec note |
@@ -132,6 +132,31 @@ and use **Link selection** on a step to make its camera follow those items.
 **Camera only** removes the link. Missing targets are reported, and a step with
 no remaining targets falls back to its saved camera. Recording during
 Present captures the animated tour with captions burned into the frames.
+
+Use **Add selected parts as stops** to give a chapter an ordered sequence. Select
+parts in the desired order, then edit stop captions or use the up/down buttons.
+Without a linked selection, the chapter overview frames all its stops. Present
+visits each chapter overview and its stops, with manual navigation or timed
+playback at 0.5×, 1×, or 2× speed. Playback stops at the end and pauses when the
+tab is hidden. Reduced-motion preferences disable camera tweening.
+
+Between stops, Schematica highlights only directly connecting wires and names
+the actual endpoint ports and buses. Multiple wires stay visible; saved arrows
+retain their direction. An absent arrow is reported as unspecified, and a pair
+without a direct wire is identified explicitly. Story order never invents
+signal direction or a transitive route.
+
+**Copy moment** creates a board share link with stable chapter and stop IDs.
+Opening it restores that position with playback paused. HTML exports include
+the same navigation, playback, connection explanations, and moment fragments.
+When sharing an offline export, send the HTML file along with its fragment;
+local file paths are not portable links. The copy dialog keeps a selectable
+link available if the browser blocks clipboard access.
+
+Try the **Guided story** examples: Weather Station (power, sensing, uplink),
+EV Battery Management (monitoring, control, vehicle communication), and Secure
+Boot Chain (trust, provisioning, rejected signatures, and recovery slots).
+The authored stops and captions are available in English and Chinese.
 
 ## RDK architecture references
 

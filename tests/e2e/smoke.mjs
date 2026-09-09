@@ -881,7 +881,7 @@ try {
   await sleep(150);
   await js(`document.getElementById('btn-examples').click(); true`);
   await sleep(100);
-  const menuNames = await js(`[...document.querySelectorAll('#examples-menu button')].map((b) => b.textContent)`);
+  const menuNames = await js(`[...document.querySelectorAll('#examples-menu .example-name')].map((b) => b.textContent)`);
   check('the Examples menu lists boards by Chinese name', menuNames.includes('气象站') && !menuNames.includes('Weather Station'), JSON.stringify(menuNames.slice(0, 4)));
   await js(`(() => { window.__exampleConfirm = window.confirm; window.confirm = () => true; try { document.querySelector('#examples-menu [data-example="weather-station"]').click(); } finally { window.confirm = window.__exampleConfirm; } return true; })()`);
   await sleep(300);

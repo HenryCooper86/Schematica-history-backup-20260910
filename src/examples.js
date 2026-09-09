@@ -1,3 +1,4 @@
+import { attachExampleStories, localizeExampleStories } from './example-stories.js';
 import { RDK_EXAMPLES } from './rdk/examples.js';
 import EXAMPLE_OVERLAYS_ZH from './i18n/examples.zh.js';
 export { EXAMPLE_OVERLAYS_ZH };
@@ -1034,10 +1035,14 @@ export const EXAMPLES = [
         { id: 'j2', label: 'Roots', view: { cx: 1080, cy: 270, zoom: 1.0 }, caption: 'The ROM trusts an OTP hash, the secure element holds the device key and the anti-rollback counter, the flash carries two image slots.' },
         { id: 'j3', label: 'Provisioning', view: { cx: 1080, cy: 650, zoom: 1.05 }, caption: 'An offline HSM signs every image and each device certificate; the DFU station only relays them.' },
         { id: 'j4', label: 'Threats', view: { cx: 1500, cy: 320, zoom: 1.0 }, caption: 'A probed debug port meets RDP level 2, a tampered image fails the signature, a rollback meets the counter.' },
+        { id: 'j5', label: 'Rejected bootloader', view: { cx: 390, cy: 400, zoom: 0.85 }, caption: 'A failed bootloader signature follows the explicit halt branch.' },
+        { id: 'j6', label: 'Recovery slot', view: { cx: 390, cy: 400, zoom: 0.85 }, caption: 'A failed application check selects the other slot and returns to verification.' },
       ],
     },
   },
 ];
+
+attachExampleStories(EXAMPLES);
 
 // The example as the interface language shows it. English (or any language
 // without an overlay) is the example itself; Chinese is a deep copy with the
@@ -1076,5 +1081,6 @@ export function localizedExample(example, lang = 'en') {
     if (o.label !== undefined) j.label = o.label;
     if (o.caption !== undefined) j.caption = o.caption;
   }
+  localizeExampleStories(example.id, doc);
   return { ...example, name: overlay.name ?? example.name, doc };
 }

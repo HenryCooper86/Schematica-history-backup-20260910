@@ -20,3 +20,8 @@ jobs:
         run: npm run e2e
         env:
           CHROME_PATH: /usr/bin/google-chrome
+      - name: Presentation and offline story flows
+        run: npm run e2e
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+          PRESENTATION_E2E_ONLY: '1'

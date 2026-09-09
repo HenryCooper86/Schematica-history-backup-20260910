@@ -2,6 +2,8 @@
 // their English names. Grouped by the surface that shows them. Identity
 // entries mark Latin terms that stay Latin on purpose.
 export default {
+  "Use stops for overview": "使用停靠点生成概览",
+  "Guided story": "导览故事",
   "Copy moment": "复制当前时刻",
   "Story moment link": "故事时刻链接",
   "Copy this link to open this chapter and stop.": "复制此链接以打开当前章节和停靠点。",

@@ -25,7 +25,7 @@ export function initExamplesMenu({ store }) {
     }
     const shown = EXAMPLES.map((ex) => localizedExample(ex, getLang()));
     menu.innerHTML = EXAMPLE_GROUPS.map((group) => `<div class="menu-group">${escAttr(trd(group))}</div>`
-      + shown.filter((ex) => ex.group === group).map((ex) => `<button data-example="${escAttr(ex.id)}">${escAttr(ex.name)}</button>`).join('')).join('');
+      + shown.filter((ex) => ex.group === group).map((ex) => `<button data-example="${escAttr(ex.id)}"><span class="example-name">${escAttr(ex.name)}</span>${ex.doc.journey.some(s => s.stops?.length) ? ` <small>${escAttr(tr('Guided story'))}</small>` : ''}</button>`).join('')).join('');
     const r = btn.getBoundingClientRect();
     menu.style.left = `${Math.min(r.left, window.innerWidth - 230)}px`;
     menu.style.top = `${r.bottom + 6}px`;

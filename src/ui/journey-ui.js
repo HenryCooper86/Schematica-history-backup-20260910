@@ -97,7 +97,7 @@ export function initJourney({ svg, store, tools, render, recorder, propsPanel })
         + `<button data-jact="go">${escAttr(tr('Go'))}</button>`
         + `<button data-jact="set" title="${escAttr(tr('Update this step to the current view'))}">${escAttr(tr('Set'))}</button>`
         + `<button data-jact="link"${selectedTargets(store.doc, store.selection) ? '' : ' disabled'}>${escAttr(tr('Link selection'))}</button>`
-        + (s.targets ? `<button data-jact="unlink">${escAttr(tr('Camera only'))}</button>` : '')
+        + (s.targets ? `<button data-jact="unlink">${escAttr((s.stops?.length ? tr('Use stops for overview') : tr('Camera only')))}</button>` : '')
         + '<button data-jact="up">&uarr;</button>'
         + '<button data-jact="down">&darr;</button>'
         + '<button data-jact="del">&times;</button>'
@@ -168,14 +168,17 @@ export function initJourney({ svg, store, tools, render, recorder, propsPanel })
 
   // ---- Present mode ----
   function presentShow() {
+    presentState.showingAll = false;
     document.getElementById('present-copy').disabled = false;
     const steps = store.doc.journey || [];
     if (!steps.length) { presentExit(); return; }
     presentedJourney = JSON.stringify(steps);
     presentState.index = Math.min(presentState.index, steps.length - 1);
     const step = steps[presentState.index];
+    presentState.chapterId = step.id;
     presentState.stop = Math.min(presentState.stop, (step.stops?.length || 0) - 1);
     const stop = step.stops?.[presentState.stop];
+    presentState.stopId = stop?.id;
     const node = stop && store.doc.nodes.find(n => n.id === stop.node);
     document.getElementById('present-relationship').textContent = stop ? storyRelationshipText(store.doc, step, presentState.stop) : '';
     presentState.caption = stop ? (stop.caption || step.caption || '') : (step.caption || '');
@@ -200,6 +203,7 @@ export function initJourney({ svg, store, tools, render, recorder, propsPanel })
       button.onclick = () => { playback.pause(); presentState.index = i; presentState.stop = -1; presentShow(); };
       return button;
     }));
+    for (const nav of [rail, stopsRail]) nav.querySelector('[aria-current="true"]')?.scrollIntoView({block:'nearest', inline:'nearest'});
     document.getElementById('present-prev').disabled = !nextStoryPosition(steps, presentState.index, presentState.stop, -1);
     document.getElementById('present-next').disabled = !nextStoryPosition(steps, presentState.index, presentState.stop, 1);
     goToStep(step, presentState.stop);
@@ -217,13 +221,14 @@ export function initJourney({ svg, store, tools, render, recorder, propsPanel })
   }
 
   function presentKeys(e) {
+    if (document.querySelector('dialog[open]')) return;
     if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
     if (!presentState.active) return;
     if (e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); playback.pause(); presentGo(1); }
     else if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); playback.pause(); presentGo(-1); }
-    else if (e.code === 'Space' && e.target?.tagName !== 'BUTTON') { e.preventDefault(); e.stopPropagation(); togglePlay(); }
+    else if (e.code === 'Space') { e.stopPropagation(); if (e.target?.tagName !== 'BUTTON') { e.preventDefault(); togglePlay(); } }
     else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); presentExit(); }
-    else if (/^[a-z]$/i.test(e.key) && !e.metaKey && !e.ctrlKey) {
+    else if (!e.metaKey && !e.ctrlKey) {
       // Tool switches and F (fit) would silently move the presented camera.
       // Modifier shortcuts (undo/redo) stay live — presenting re-syncs to them.
       e.stopPropagation();
@@ -260,18 +265,24 @@ export function initJourney({ svg, store, tools, render, recorder, propsPanel })
   document.getElementById('present-prev').addEventListener('click', () => { playback.pause(); presentGo(-1); });
   document.getElementById('present-next').addEventListener('click', () => { playback.pause(); presentGo(1); });
   document.getElementById('present-exit').addEventListener('click', presentExit);
-  function togglePlay() { if (playback.playing) playback.pause(); else playback.play(); }
+  function togglePlay() { if (playback.playing) playback.pause(); else { if (presentState.showingAll) presentShow(); playback.play(); } }
   document.getElementById('present-play').addEventListener('click', togglePlay);
   document.getElementById('present-speed').addEventListener('change', () => playback.reschedule());
   document.getElementById('present-restart').addEventListener('click', () => { playback.pause(); presentState.index = 0; presentState.stop = -1; presentShow(); });
-  document.getElementById('present-all').addEventListener('click', () => {
+  function showAll() {
     playback.pause();
     goToStep({ view: currentCenter(), targets: { nodes: store.doc.nodes.map(n => n.id), wires: store.doc.wires.map(w => w.id) } });
     tools.ui.story = null; render();
+    presentState.showingAll = true;
+    document.getElementById('present-title').textContent = store.doc.title;
+    for (const id of ['present-caption','present-relationship','present-counter']) document.getElementById(id).textContent = '';
+    overlay.querySelectorAll('[aria-current]').forEach(b => b.setAttribute('aria-current', 'false'));
+    recorder.setOverlay('', '');
     document.getElementById('present-copy').disabled = true;
-  });
+  }
+  document.getElementById('present-all').addEventListener('click', showAll);
   document.addEventListener('visibilitychange', () => { if (document.hidden) playback.pause(); });
-  window.addEventListener('resize', () => { if (presentState.active) { playback.pause(); presentShow(); } });
+  window.addEventListener('resize', () => { if (presentState.active) { playback.pause(); if (presentState.showingAll) showAll(); else presentShow(); } });
   const linkDialog = document.getElementById('story-link-dialog');
   document.getElementById('story-link-close').onclick = () => linkDialog.close();
   document.getElementById('present-copy').addEventListener('click', async () => {
@@ -296,7 +307,16 @@ export function initJourney({ svg, store, tools, render, recorder, propsPanel })
   // stay baked into recorded frames).
   store.subscribe(() => {
     if (!presentState.active) return;
-    const j = JSON.stringify(store.doc.journey || []);
+    if (presentState.showingAll) { showAll(); return; }
+    const steps = store.doc.journey || [];
+    const j = JSON.stringify(steps);
+    if (j !== presentedJourney) {
+      playback.pause();
+      const i = steps.findIndex(s => s.id === presentState.chapterId);
+      if (i < 0) { presentExit(); return; }
+      presentState.index = i;
+      presentState.stop = (steps[i].stops || []).findIndex(s => s.id === presentState.stopId);
+    }
     if (store.doc.journey?.[presentState.index]?.targets || store.doc.journey?.[presentState.index]?.stops) { presentShow(); return; }
     if (j !== presentedJourney) presentShow();
   });

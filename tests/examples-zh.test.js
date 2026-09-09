@@ -43,7 +43,7 @@ test('a Chinese copy keeps every non-text field and round-trips through the seri
     nodes: doc.nodes.map((n) => ({ ...n, label: '', notes: '' })),
     zones: doc.zones.map((z) => ({ ...z, label: '', lanes: undefined })),
     notes: doc.notes.map((t) => ({ ...t, text: '' })),
-    journey: doc.journey.map((j) => ({ ...j, label: '', caption: '' })),
+    journey: doc.journey.map((j) => ({ ...j, label: '', caption: '', ...(j.stops ? {stops: j.stops.map(s => ({...s,caption:''}))} : {}) })),
     wires: doc.wires.map((w) => ({ ...w, label: '' })),
   });
   assert.deepEqual(strip(zh.doc), strip(ex.doc));
@@ -154,4 +154,18 @@ test('every word-like wire label on every board has a Chinese entry, and code-li
   }
   assert.deepEqual(missing, []);
   assert.deepEqual(stray, []);
+});
+
+test('guided examples keep stable stops and translate every stop caption', () => {
+  for (const id of ['weather-station','ev-bms','secure-boot']) {
+    const ex = byId(id), zh = localizedExample(ex, 'zh');
+    for (const [i, step] of ex.doc.journey.entries()) {
+      assert.ok(step.stops?.length >= 2, `${id}/${step.id} has an authored story`);
+      const nodes = new Set(ex.doc.nodes.map(n=>n.id));
+      assert.ok(step.stops.every(s=>nodes.has(s.node)), 'every stop resolves');
+      assert.deepEqual(zh.doc.journey[i].stops.map(s=>[s.id,s.node]),step.stops.map(s=>[s.id,s.node]));
+      for (const stop of zh.doc.journey[i].stops) assert.match(stop.caption,CJK);
+    }
+    assert.deepEqual(deserialize(serialize(zh.doc)).doc,zh.doc);
+  }
 });

@@ -60,6 +60,9 @@ function offlineViewer(data, focusGraph, makePlayback, nextPosition, readMoment)
     document.getElementById('relationship').textContent = '';
     document.getElementById('progress').textContent = '';
     document.getElementById('copy-moment').disabled = true;
+    document.getElementById('previous').disabled = true;
+    document.getElementById('next').disabled = !data.steps.length;
+    document.getElementById('play').disabled = !data.steps.length;
     document.querySelectorAll('#chapter-rail button').forEach(b => b.setAttribute('aria-current', 'false'));
     history.replaceState(null, '', location.href.split('#')[0]);
   }
@@ -90,6 +93,7 @@ function offlineViewer(data, focusGraph, makePlayback, nextPosition, readMoment)
       b.onclick = () => { playback.pause(); stopIndex = i; chapter(); }; return b;
     }));
     document.querySelectorAll('#chapter-rail button').forEach((b,i) => b.setAttribute('aria-current', String(i === ci)));
+    for (const id of ['chapter-rail','stop-rail']) document.getElementById(id).querySelector('[aria-current="true"]')?.scrollIntoView({block:'nearest', inline:'nearest'});
     document.getElementById('previous').disabled = !nextPosition(data.steps, ci, stopIndex, -1);
     document.getElementById('next').disabled = !nextPosition(data.steps, ci, stopIndex, 1);
     document.getElementById('copy-moment').disabled = false;
@@ -117,6 +121,7 @@ function offlineViewer(data, focusGraph, makePlayback, nextPosition, readMoment)
     chapters.value = data.steps[pos.chapter].id; stopIndex = pos.stop; chapter(); return true;
   }
   function toggleStage() {
+    playback.pause();
     document.body.classList.toggle('presenting');
     document.getElementById('present').setAttribute('aria-pressed',String(document.body.classList.contains('presenting')));
     if (chapters.value) chapter(); else view(data.bounds);

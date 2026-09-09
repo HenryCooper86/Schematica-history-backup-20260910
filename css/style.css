@@ -1459,3 +1459,5 @@ html[data-theme="light"] .ai-result.warn { color: #92400e; }
 #present-chapters button, #present-stops button, #present-speed { background: var(--bg); color: var(--muted); border: 1px solid var(--line2); border-radius: 6px; padding: 5px 8px; font: inherit; font-size: 12px; cursor: pointer; }
 #present-chapters button:hover, #present-stops button:hover { color: var(--text); background: var(--bg3); }
 #canvas .ports.story-ports .portg:not(.story-port) { opacity: 0; }
+#present-overlay { max-height: 48dvh; overflow-y: auto; }
+#examples-menu button small { color: var(--muted); font-size: 10px; margin-left: 6px; }
