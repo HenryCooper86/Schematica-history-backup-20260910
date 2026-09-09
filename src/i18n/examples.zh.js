@@ -70,6 +70,7 @@ export default {
       j2: { label: '无线传输', caption: '读数经 868 MHz LoRa 跳到边缘网关，再上传至 MQTT 代理。' },
       j3: { label: '送达种植者', caption: '接入 API 存储时序数据；移动应用订阅实时告警。' },
     },
+    wires: { w11: '推送' },
   },
   'robot-arm': {
     name: '机械臂控制器',
@@ -174,6 +175,7 @@ export default {
       j2: { label: '主干', caption: '两个 ECU 通过 TJA1050 收发器在同一对差分线上通信；OBD-II 接口搭接在同一总线上。' },
       j3: { label: '车身控制', caption: '车身 ECU 通过 H 桥驱动雨刮；网关将 CAN 桥接到 LIN，连接车门模块。' },
     },
+    wires: { w10: '诊断分接' },
   },
   'ota-pipeline': {
     name: 'OTA 升级流水线（泳道图）',
@@ -194,6 +196,7 @@ export default {
       j2: { label: '云端泳道', caption: 'CI 将构建产物存入发布数据库，并发布到 MQTT 代理。' },
       j3: { label: '直达设备', caption: '网关通过无线推送镜像；微控制器校验签名后写入 SPI 闪存。' },
     },
+    wires: { w1: '构建产物', w2: '发布', w3: 'TLS 上行', w4: 'OTA 推送', w5: 'AT 链路', w6: '镜像' },
   },
   'ev-bms': {
     name: '电动汽车电池管理（高压 + CAN）',
@@ -222,6 +225,7 @@ export default {
       j3: { label: '控制', caption: '锁步微控制器由 12 V 辅助电压轨供电，驱动两个接触器，并通过 500 kbit/s CAN 与整车通信。' },
       j4: { label: '车辆', caption: '荷电状态、电流限值和故障送达网关；网关从不触及高压侧。' },
     },
+    wires: { w3: '预充', w9: '菊花链', w18: '状态', w21: '电芯采样线', w23: '电芯采样线', w29: '线圈回路', w30: '线圈回路' },
   },
   'journey-adas': {
     name: '征程 6 ADAS 方案（地平线）',
@@ -248,6 +252,7 @@ export default {
       j2: { label: '计算', caption: '征程 6M 域控制器（80 TOPS，BPU Nash）融合摄像头与雷达，实现高速与城区通勤 NOA。' },
       j3: { label: '车载网络', caption: 'T1 以太网交换机连接控制器、网关和座舱 SoC；网关将 CAN FD 桥接到 OBD-II 接口。' },
     },
+    wires: { w8: '雷达', w12: '整车 CAN FD' },
   },
   'mono2-adas': {
     name: 'Mono 2 前视摄像头 ADAS（地平线）',
@@ -270,6 +275,7 @@ export default {
       j2: { label: '接入整车', caption: '摄像头 ECU 通过 CAN FD 与车载网关通信，网关桥接到底盘 CAN，并在 OBD-II 接口上提供诊断。' },
       j3: { label: '执行', caption: '制动和转向 ECU 通过底盘 CAN 接收 AEB 和车道保持请求；仪表盘显示告警。ECU 供电仍作为通用检查结果保留。' },
     },
+    wires: { w4: '成像器', w6: '底盘 CAN' },
   },
   'hsd600-adas': {
     name: 'SuperDrive HSD 600 城区 NOA（地平线）',
@@ -296,6 +302,7 @@ export default {
       j2: { label: '计算', caption: '征程 6P（560 TOPS 等效，BPU Nash）端到端运行地平线 SuperDrive，覆盖城区、高速和泊车场景。前雷达经 CAN FD 接入，角雷达经 T1 接入。' },
       j3: { label: '车载网络', caption: '1000BASE-T1 交换机连接控制器和角雷达；网关将 CAN FD 桥接到车身 CAN 和 OBD-II 接口。摄像头、雷达和交换机的供电仍作为通用检查结果保留。' },
     },
+    wires: { w8: '前雷达', w10: '角雷达', w11: '角雷达', w12: '整车 CAN FD' },
   },
   'rdk-rover': {
     name: 'RDK X5 漫游车（地瓜机器人）',
@@ -326,6 +333,7 @@ export default {
       j3: { label: '运动概念', caption: '一个概念性的 CAN FD 控制器驱动两个轮子。控制器电气接口、功率参数和实际 CAN 布线需另行验证。' },
       j4: { label: '描述性流水线', caption: '传感器采集、推理、编解码和可视化阶段以 X5 为目标。流程描述的是预期的数据处理，而非启动配置；未选择运行时。' },
     },
+    wires: { sw1: '逻辑流', sw2: '逻辑流', sw3: '逻辑流' },
   },
   'rdk-perception': {
     name: 'RDK X5 双目感知',
@@ -350,6 +358,7 @@ export default {
       j2: { label: '双目采集', caption: 'GS130W 左右两路 CSI 排线占用 X5 的 CSI1 和 CSI2。未绘制额外的 MIPI 摄像头或未经验证的串行舵机捷径。' },
       j4: { label: '描述性流水线', caption: '传感器采集、推理、编解码和可视化阶段以 X5 为目标。流程描述的是预期的数据处理，而非启动配置；未选择运行时。' },
     },
+    wires: { sw1: '逻辑流', sw2: '逻辑流', sw3: '逻辑流' },
   },
   'rdk-x3-robot': {
     name: 'RDK X3 视觉机器人（地瓜机器人）',
@@ -379,6 +388,7 @@ export default {
       j3: { label: '经 UART 的运动控制', caption: 'X3 没有 CAN FD，因此由 Cortex-M4 驱动微控制器通过 UART 接收速度指令并以 PWM 驱动两个轮子。驱动电路和回路需另行验证。' },
       j4: { label: '描述性流水线', caption: '传感器采集、推理和可视化阶段以 X3 为目标。流程描述的是预期的数据处理，而非启动配置；未选择运行时。' },
     },
+    wires: { sw1: '逻辑流', sw2: '逻辑流' },
   },
   'rdk-s100-node': {
     name: 'RDK S100 感知节点（地瓜机器人）',
@@ -407,6 +417,7 @@ export default {
       j3: { label: '测距与定位', caption: 'UART 上的 2D 激光雷达和第二路 UART 上的 RTK GNSS 接收机提供距离和位置；天线馈线也已绘出，以免遗漏射频路径。' },
       j4: { label: '上行与流水线', caption: '以太网将结果送往 ROS 2 工作站。采集、推理、编解码和可视化阶段以 S100 为目标；流程为描述性，未选择运行时。' },
     },
+    wires: { sw1: '逻辑流', sw2: '逻辑流', sw3: '逻辑流' },
   },
   'ota-security': {
     name: '车辆 OTA 安全（威胁与流程）',
@@ -440,6 +451,7 @@ export default {
       j3: { label: '威胁', caption: '恶意工程师、路径中间攻击者和木马镜像各针对一个环节；签名校验将三者一并挫败。' },
       j4: { label: '车辆', caption: 'TCU 经 T1 到网关，网关经 CAN FD 到微控制器，微控制器到 SPI 闪存：升级在设备内完成。' },
     },
+    wires: { w4: '签名镜像', w11: '是', w12: '否', w16: '投毒', w17: '篡改', w18: '注入' },
   },
   'adas-security': {
     name: 'ADAS 安全（威胁与响应）',
@@ -475,6 +487,7 @@ export default {
       j3: { label: '控制措施', caption: 'CAN 入侵检测镜像安全网段并丢弃意外的控制帧；ADAS 控制器丢弃与雷达不一致的摄像头帧。' },
       j4: { label: '响应', caption: '出现异常即隔离其所在域；安全关键情形降级至安全模式，其余记录并上报 SOC。' },
     },
+    wires: { w2: '雷达', w8: '诊断 CAN', w9: '镜像流量', w10: '欺骗', w11: 'GNSS 欺骗', w12: '注入', w13: '感染', w14: '回连', w21: '暴露', w17: '是', w18: '否' },
   },
   'ot-purdue': {
     name: 'OT 网络分区（普渡模型泳道图）',
@@ -508,6 +521,7 @@ export default {
       j3: { label: '单元', caption: 'PLC 通过 PROFINET 与单元交换机通信，读取光幕，并经安全转矩关断链保持接触器。' },
       j4: { label: '威胁', caption: '勒索软件团伙钓鱼工程工作站并复用供应商 VPN 密码；扁平 VLAN 会把他们直接送到 PLC。' },
     },
+    wires: { w1: 'ERP 客户端', w4: 'IDMZ 通道', w5: '管理访问', w6: '单向复制', w7: 'L3 通道', w9: '历史数据', w13: '受控 400 V', w14: '经跳板机 RDP', w15: '诱饵邮件', w16: 'VPN 登录', w17: '运行', w18: '购买', w19: 'VLAN 间无 ACL' },
   },
   'secure-boot': {
     name: '安全启动链（流程 + 硬件）',
@@ -541,5 +555,6 @@ export default {
       j3: { label: '产线配置', caption: '离线 HSM 为每个镜像和每台设备的证书签名；DFU 工站只负责转发。' },
       j4: { label: '威胁', caption: '调试口探测遇到 RDP 2 级，被篡改的镜像通不过签名，回滚遇到计数器。' },
     },
+    wires: { w1: '证明 + 密钥', w2: 'QSPI 镜像', w3: 'SWD（已锁定）', w5: '签名镜像 + 证书', w8: '是', w9: '否', w11: '是', w12: '否', w13: '重试', w14: '探测', w15: '在工站被替换', w16: '计数器阻止' },
   },
 };

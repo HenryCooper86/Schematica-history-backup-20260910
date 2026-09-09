@@ -44,6 +44,7 @@ test('a Chinese copy keeps every non-text field and round-trips through the seri
     zones: doc.zones.map((z) => ({ ...z, label: '', lanes: undefined })),
     notes: doc.notes.map((t) => ({ ...t, text: '' })),
     journey: doc.journey.map((j) => ({ ...j, label: '', caption: '' })),
+    wires: doc.wires.map((w) => ({ ...w, label: '' })),
   });
   assert.deepEqual(strip(zh.doc), strip(ex.doc));
   const { doc, warnings } = deserialize(serialize(zh.doc));
@@ -105,7 +106,7 @@ for (const [id, overlay] of Object.entries(EXAMPLE_OVERLAYS_ZH)) {
       assert.ok(stepIds.has(jid), `${id}.journey.${jid} is not on the board`);
       for (const k of Object.keys(o)) assert.ok(['label', 'caption'].includes(k), `${id}.journey.${jid}.${k} is not translatable`);
     }
-    for (const k of Object.keys(overlay)) assert.ok(['name', 'title', 'nodes', 'zones', 'notes', 'journey'].includes(k), `${id}.${k} is not an overlay field`);
+    for (const k of Object.keys(overlay)) assert.ok(['name', 'title', 'nodes', 'zones', 'notes', 'journey', 'wires'].includes(k), `${id}.${k} is not an overlay field`);
     // Applying it reaches every translated field.
     const zh = localizedExample(ex, 'zh');
     assert.equal(zh.name, overlay.name);
@@ -121,4 +122,36 @@ test('every built-in board has a Chinese overlay and localizes to a distinct Chi
   for (const name of names) assert.match(name, CJK);
   const stray = Object.keys(EXAMPLE_OVERLAYS_ZH).filter((id) => !EXAMPLES.some((ex) => ex.id === id));
   assert.deepEqual(stray, [], 'no overlay without a board');
+});
+
+const WORDY = /[a-z]{3,}/;
+const CODE_LIKE = new Set(['isoSPI', '500 kbit/s']);
+
+test('a wire label in the overlay replaces the English label and leaves the wire otherwise untouched', () => {
+  const ex = byId('rdk-rover');
+  const zh = localizedExample(ex, 'zh');
+  const sw1 = zh.doc.wires.find((w) => w.id === 'sw1');
+  assert.equal(sw1.label, '逻辑流');
+  const { label, ...rest } = sw1;
+  const { label: enLabel, ...enRest } = ex.doc.wires.find((w) => w.id === 'sw1');
+  assert.deepEqual(rest, enRest);
+  assert.equal(enLabel, 'logical flow');
+  assert.equal(zh.doc.wires.find((w) => w.id === 'w6').label, 'CSI-2', 'code-like labels stay');
+});
+
+test('every word-like wire label on every board has a Chinese entry, and code-like labels have none', () => {
+  const missing = [];
+  const stray = [];
+  for (const ex of EXAMPLES) {
+    const wires = EXAMPLE_OVERLAYS_ZH[ex.id]?.wires || {};
+    for (const w of ex.doc.wires) {
+      const wordy = (WORDY.test(w.label) && !CODE_LIKE.has(w.label)) || w.label === 'yes' || w.label === 'no';
+      if (wordy && wires[w.id] === undefined) missing.push(`${ex.id}.${w.id} ${JSON.stringify(w.label)}`);
+      if (!wordy && wires[w.id] !== undefined) stray.push(`${ex.id}.${w.id} ${JSON.stringify(w.label)}`);
+      if (wires[w.id] !== undefined) assert.match(wires[w.id], CJK, `${ex.id}.${w.id}`);
+    }
+    for (const id of Object.keys(wires)) assert.ok(ex.doc.wires.some((w) => w.id === id), `${ex.id}.wires.${id} is not on the board`);
+  }
+  assert.deepEqual(missing, []);
+  assert.deepEqual(stray, []);
 });

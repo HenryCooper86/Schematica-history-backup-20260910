@@ -1060,6 +1060,10 @@ export function localizedExample(example, lang = 'en') {
     if (o.label !== undefined) z.label = o.label;
     if (o.lanes !== undefined) z.lanes = [...o.lanes];
   }
+  for (const w of doc.wires) {
+    const label = overlay.wires?.[w.id];
+    if (label !== undefined) w.label = label;
+  }
   for (const t of doc.notes) {
     const text = overlay.notes?.[t.id];
     if (text !== undefined) t.text = text;

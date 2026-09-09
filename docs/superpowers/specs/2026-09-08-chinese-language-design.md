@@ -260,6 +260,7 @@ export default {
     notes: { t1: '...' },
     zones: { z1: { label: '电源' }, zs: { label: 'X5 上的软件 · 未选择运行时' } },
     journey: { j1: { label: '供电与计算', caption: '...' } },
+    wires: { sw1: '逻辑流' },
   },
 };
 ```
@@ -267,8 +268,11 @@ export default {
 `localizedExample(example, lang)` in `src/examples.js` (pure) returns the
 example unchanged for English and, for Chinese, a copy with the overlay
 applied to `name`, `doc.title`, node `label` and `notes`, note `text`, zone
-`label` and (for swimlanes) `lanes`, journey `label` and `caption`. Sublabels, fields, ids, positions and
-wires are never touched. The examples menu and its loader use
+`label` and (for swimlanes) `lanes`, journey `label` and `caption`, and wire
+`label` (via `wires: { id: label }`). Sublabels, fields, ids, positions,
+endpoints, `arrow`, `style` and `flow` are never touched. Word-like wire
+labels translate; code-like labels (bus codes, voltages, pin names) never
+do, and the test enforces the split. The examples menu and its loader use
 `localizedExample`. The English `EXAMPLES` array and every existing test are
 byte-identical. Roughly 500 strings.
 
