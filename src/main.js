@@ -1,3 +1,4 @@
+import { initAppearance } from './ui/theme-ui.js';
 import { initCompare } from './ui/compare-ui.js';
 // Boot: the store, renderer, and tools, the toolbar, autosave, and the
 // animation ticker. Every panel and dialog lives in src/ui/.
@@ -29,6 +30,7 @@ let langStorage = null;
 try { langStorage = window.localStorage; } catch { langStorage = null; }
 initI18n({ storage: langStorage });
 translateStatic();
+initAppearance(langStorage);
 
 function loadAutosave() {
   try {
@@ -78,7 +80,7 @@ function updateZoomLabel() {
 function render(kind = 'all') {
   if (kind === 'view') {
     renderer.setView(tools.view, tools.ui.grid);
-    renderer.setReadingDepth(explorer?.state().depth, tools.view.zoom);
+    renderer.setReadingDepth(tools.ui.presenting ? 'full' : explorer?.state().depth, tools.view.zoom);
     updateZoomLabel();
     return;
   }
@@ -87,9 +89,9 @@ function render(kind = 'all') {
     return;
   }
   renderer.render(store.doc, tools.view, uiState());
-  renderer.setExploration(store.doc, tools.ui.story ? {} : explorer?.state(), store.selection);
+  renderer.setExploration(store.doc, tools.ui.story || tools.ui.presenting ? {} : explorer?.state(), store.selection);
   renderer.setStory(tools.ui.story);
-  renderer.setReadingDepth(explorer?.state().depth, tools.view.zoom);
+  renderer.setReadingDepth(tools.ui.presenting ? 'full' : explorer?.state().depth, tools.view.zoom);
   updateZoomLabel();
   document.getElementById('undo').disabled = !store.canUndo();
   document.getElementById('redo').disabled = !store.canRedo();

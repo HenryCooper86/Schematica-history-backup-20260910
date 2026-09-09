@@ -1,3 +1,4 @@
+import { getTheme } from './theme.js';
 import { buildExportSVG, exportBounds } from './export.js';
 import { esc } from './render.js';
 import { nodeRect } from './geometry.js';
@@ -108,13 +109,14 @@ function offlineViewer(data, focusGraph) {
 export function buildHTML(doc, options = {}) {
   const json = (value) => JSON.stringify(value).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
   const option = (value, label) => `<option value="${esc(value)}">${esc(label)}</option>`;
+  const light = (options.theme || getTheme()) === 'light';
   const data = { doc, bounds: exportBounds(doc), labels: { results: tr('Choose a matching part') },
     nodes: doc.nodes.map(n => ({ id: n.id, label: [n.label, n.sublabel].filter(Boolean).join(' — '), rect: nodeRect(n),
       search: [n.label, n.sublabel, n.addr, n.rail, n.notes, ...Object.values(n.fields || {})].filter(Boolean).join(' ').toLowerCase() })),
     steps: (doc.journey || []).map(s => { const r = resolveStep(doc, s); return { ...s, view: r.view, ids: [...r.ids] }; }) };
   return `<!doctype html><html lang="${getLang()}"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(doc.title)}</title><style>
-*{box-sizing:border-box}body{margin:0;background:#0a0e17;color:#e6ebf4;font:14px system-ui}header{padding:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:#131a2b}h1{font-size:16px;margin:0 12px 0 0}label{font-size:12px;display:flex;gap:5px;align-items:center}input,select,button{font:inherit;max-width:240px;background:#0d1220;color:inherit;border:1px solid #2c3a5c;border-radius:6px;padding:6px}button{cursor:pointer}:focus-visible{outline:2px solid #38bdf8}main{height:calc(100dvh - 150px);min-height:280px}svg{width:100%;height:100%;touch-action:none;user-select:none}.muted{opacity:.2}.wire.focused:not(.invalid) .vis{stroke:#38bdf8;stroke-width:3}.node.focused .card{stroke:#38bdf8;stroke-width:2}.node{cursor:pointer}#caption{padding:12px;white-space:pre-wrap;max-height:120px;overflow:auto}
+*{box-sizing:border-box}body{margin:0;background:${light ? '#f8fafc' : '#0a0e17'};color:${light ? '#1e293b' : '#e6ebf4'};font:14px system-ui}header{padding:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:${light ? '#e8eef6' : '#131a2b'}}h1{font-size:16px;margin:0 12px 0 0}label{font-size:12px;display:flex;gap:5px;align-items:center}input,select,button{font:inherit;max-width:240px;background:${light ? '#fff' : '#0d1220'};color:inherit;border:1px solid ${light ? '#b5c1d2' : '#2c3a5c'};border-radius:6px;padding:6px}button{cursor:pointer}:focus-visible{outline:2px solid #38bdf8}main{height:calc(100dvh - 150px);min-height:280px}svg{width:100%;height:100%;touch-action:none;user-select:none}.muted{opacity:.2}.wire.focused:not(.invalid) .vis{stroke:#38bdf8;stroke-width:3}.node.focused .card{stroke:#38bdf8;stroke-width:2}.node{cursor:pointer}#caption{padding:12px;white-space:pre-wrap;max-height:120px;overflow:auto}
 </style><header><h1>${esc(doc.title)}</h1>
 <label>${esc(tr('Search this board'))}<input id="search" type="search"></label><select id="results" aria-label="${esc(tr('Choose a matching part'))}"></select>
 <label>${esc(tr('Bus filter'))}<select id="bus">${option('', tr('All buses'))}${BUS_ORDER.map(id => option(id, BUSES[id].short + ' — ' + trd(BUSES[id].name))).join('')}</select></label>

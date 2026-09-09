@@ -1,10 +1,11 @@
+import { getTheme, themeBackground } from '../theme.js';
 import { checkLayout } from '../layout-checks.js';
 import { buildHTML } from '../html-export.js';
 // File and export actions: new/save/open, the export dialog (PNG, SVG, PDF,
 // seamless loop GIF), the BOM and design-rule dialogs, and share links.
 import { newDoc, deleteItems } from '../state.js';
 import { serialize, deserialize } from '../serialize.js';
-import { buildExportSVG, exportBounds, exportPNG, exportPDF, download } from '../export.js';
+import { buildExportSVG, exportBounds, exportPNG, exportPDF, download, copyPNG } from '../export.js';
 import { encodeGIF } from '../gif.js';
 import { LOOP_MS, esc } from '../render.js';
 import { buildBOM, bomCSV, bomMarkdown, bomHeaders } from '../bom.js';
@@ -54,9 +55,21 @@ export function initDialogs({ store }) {
     }
   });
 
-  const exportOpts = () => ({ transparent: document.getElementById('export-transparent').checked });
+  const exportOpts = (format = '') => {
+    const chosen = document.getElementById('export-theme').value;
+    const theme = chosen === 'current' || (chosen === 'auto' && format !== 'svg') ? getTheme() : chosen;
+    return { transparent: document.getElementById('export-transparent').checked, theme };
+  };
   const clampPx = (v) => Math.min(16384, Math.max(16, Math.round(Number(v)) || 16));
 
+  document.getElementById('export-png-copy').addEventListener('click', async (event) => {
+    const button = event.currentTarget; button.disabled = true;
+    try {
+      await copyPNG(buildExportSVG(store.doc, exportOpts()), { width: clampPx(exportW.value), height: clampPx(exportH.value) });
+      exportDialog.close(); toast(tr('PNG copied to clipboard.'));
+    } catch { toast(tr('Could not copy the image. Use PNG download instead.')); }
+    finally { button.disabled = false; }
+  });
   document.getElementById('export-png-go').addEventListener('click', () => {
     const width = clampPx(exportW.value);
     const height = clampPx(exportH.value);
@@ -68,19 +81,19 @@ export function initDialogs({ store }) {
   });
   document.getElementById('export-html-go').addEventListener('click', () => {
     exportDialog.close();
-    download(safeName('.html'), buildHTML(store.doc), 'text/html');
+    download(safeName('.html'), buildHTML(store.doc, { theme: exportOpts().theme }), 'text/html');
   });
   document.getElementById('export-svg-go').addEventListener('click', () => {
     exportDialog.close();
-    download(safeName('.svg'), buildExportSVG(store.doc, exportOpts()), 'image/svg+xml');
+    download(safeName('.svg'), buildExportSVG(store.doc, exportOpts('svg')), 'image/svg+xml');
   });
   document.getElementById('export-pdf-go').addEventListener('click', () => {
     const width = clampPx(exportW.value);
     exportDialog.close();
-    exportPDF(buildExportSVG(store.doc), (blob) => {
+    exportPDF(buildExportSVG(store.doc, { ...exportOpts(), transparent: false }), (blob) => {
       if (blob) download(safeName('.pdf'), blob);
       else toast(tr('PDF export failed in this browser. PNG and SVG still work.'));
-    }, { width });
+    }, { width, background: themeBackground(exportOpts().theme) });
   });
 
   // A seamless loop: LOOP_MS returns every animated attribute to its start, so
@@ -107,7 +120,7 @@ export function initDialogs({ store }) {
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
       const frames = [];
       for (let i = 0; i < FRAMES; i++) {
-        const svgStr = buildExportSVG(store.doc, { now: (i * LOOP_MS) / FRAMES });
+        const svgStr = buildExportSVG(store.doc, { theme: exportOpts().theme, now: (i * LOOP_MS) / FRAMES });
         const url = URL.createObjectURL(new Blob([svgStr], { type: 'image/svg+xml' }));
         try {
           const img = new Image();

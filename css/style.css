@@ -1045,6 +1045,7 @@ g.node:hover .ports,
 #export-dialog,
 #bom-dialog,
 #drc-dialog,
+#compare-dialog,
 #part-dialog {
   position: fixed;
   inset: 0;
@@ -1066,11 +1067,13 @@ g.node:hover .ports,
 #export-dialog[open],
 #bom-dialog[open],
 #drc-dialog[open],
+#compare-dialog[open],
 #part-dialog[open] { display: flex; }
 #rec-dialog::backdrop,
 #export-dialog::backdrop,
 #bom-dialog::backdrop,
 #drc-dialog::backdrop,
+#compare-dialog::backdrop,
 #part-dialog::backdrop { background: transparent; }
 .rec-card {
   width: 380px;
@@ -1135,6 +1138,7 @@ g.node:hover .ports,
 #export-dialog .rec-buttons button,
 #bom-dialog .rec-buttons button,
 #drc-dialog .rec-buttons button,
+#compare-dialog .rec-buttons button,
 #part-dialog .rec-buttons button {
   background: var(--bg2);
   border: 1px solid var(--line);
@@ -1148,6 +1152,7 @@ g.node:hover .ports,
 #export-dialog .rec-buttons button:hover,
 #bom-dialog .rec-buttons button:hover,
 #drc-dialog .rec-buttons button:hover,
+#compare-dialog .rec-buttons button:hover,
 #part-dialog .rec-buttons button:hover { border-color: var(--accent); }
 #export-cancel, #bom-close { color: var(--muted); }
 
@@ -1409,3 +1414,19 @@ html {
 .check-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
 .check-tabs button[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
 .drc-row .msg small { display: block; color: var(--muted); margin-top: 5px; }
+
+html[data-theme="dark"] { color-scheme: dark; }
+html[data-theme="light"] {
+  color-scheme: light; --bg0: #f8fafc; --bg1: #fff; --bg2: #eef2f7; --bg3: #e2e8f0;
+  --line: #d8e0ec; --line2: #b5c1d2; --text: #1e293b; --muted: #52617a; --faint: #64748b;
+  --accent: #0284c7; --accent-dim: #e0f2fe;
+}
+html[data-theme="light"] :is(#props, #journey-panel, #assistant, #legend, #bus-popover, #examples-menu, #hintbar, #toast) { background: rgba(255,255,255,.97); }
+html[data-theme="light"] .bus-chip { background: #f1f5f9; border-color: #cbd5e1; color: #334155; }
+html[data-theme="light"] :is(#toolbar button.active, #props h3, #journey-panel h3, #ai-save, #ai-send) { color: #0369a1; }
+html[data-theme="light"] .swatches .swatch.active { border-color: #334155; }
+html[data-theme="light"] :is(.ai-msg.error, .ai-result.err) { color: #b91c1c; }
+html[data-theme="light"] .ai-result.ok { color: #166534; }
+html[data-theme="light"] .ai-result.warn { color: #92400e; }
+
+.review-card { border: 1px solid var(--line2); border-radius: 14px; box-shadow: 0 20px 70px #0004; }

@@ -33,6 +33,7 @@ export function initExplore({ store, tools, svg, render }) {
   function focusNode(id) {
     const node = store.doc.nodes.find((n) => n.id === id);
     if (!node) return;
+    tools.ui.story = null;
     store.setSelection([id]);
     const { w, h } = nodeSize(node);
     const canvas = svg.getBoundingClientRect();
@@ -93,6 +94,7 @@ export function initExplore({ store, tools, svg, render }) {
   button.addEventListener('click', () => open(panel.hidden));
   document.getElementById('explore-close').addEventListener('click', () => { open(false); button.focus(); });
   document.getElementById('explore-reset').addEventListener('click', () => {
+    tools.ui.story = null;
     query.value = ''; bus.value = ''; connections.value = 'all'; depth.value = 'full';
     refresh(); render();
   });
@@ -101,7 +103,7 @@ export function initExplore({ store, tools, svg, render }) {
     if (e.key === 'Enter') { results.querySelector('button')?.click(); e.preventDefault(); }
     if (e.key === 'ArrowDown') { results.querySelector('button')?.focus(); e.preventDefault(); }
   });
-  for (const el of [bus, connections, depth]) el.addEventListener('change', () => { refresh(); render(); });
+  for (const el of [bus, connections, depth]) el.addEventListener('change', () => { tools.ui.story = null; refresh(); render(); });
   panel.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { open(false); button.focus(); }
     // Editor shortcuts must not act on the board while using this panel.

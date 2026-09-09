@@ -1,4 +1,5 @@
-import { CANVAS_BG, bakeFrame } from './render.js';
+import { getTheme, exportThemeStyles, themeBackground } from './theme.js';
+import { bakeFrame } from './render.js';
 import { wrapText } from './geometry.js';
 import { encodeGIF } from './gif.js';
 import { download } from './export.js';
@@ -123,13 +124,17 @@ export function createRecorder(svg, { notify: notifyUser = (m) => alert(m) } = {
       clone.setAttribute('width', rect.width);
       clone.setAttribute('height', rect.height);
       clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      clone.setAttribute('data-export-theme', getTheme());
+      const themeStyle = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+      themeStyle.textContent = exportThemeStyles(getTheme());
+      clone.append(themeStyle);
       clone.setAttribute('font-family', "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif");
       const blob = new Blob([new XMLSerializer().serializeToString(clone)], { type: 'image/svg+xml' });
       const url = URL.createObjectURL(blob);
       const img = new Image();
       img.src = url;
       await img.decode();
-      ctx.fillStyle = CANVAS_BG;
+      ctx.fillStyle = themeBackground();
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, box.x, box.y, box.w, box.h);
       URL.revokeObjectURL(url);

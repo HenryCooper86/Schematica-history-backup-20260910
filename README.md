@@ -8,7 +8,7 @@ typed ports and buses, design-rule checks, a bill of materials, vendor
 presets, and example boards from a weather station to an ADAS security
 review.
 
-The UI is a dark, high-contrast canvas: shaded cards with tinted icon badges, slate wires that leave each card toward the other, and a label pill on every wire naming its bus. Cards size themselves to their content: the part number, interface address, and voltage rail appear as mono lines under the name. Beyond hardware, the palette carries Network, Security & Edge, Process Flow (real flowchart shapes), and Threats parts, from threat actors, malware, and C2 servers to vulnerabilities, misconfigurations, exploits, supply-chain compromise, DDoS, on-path attackers, sensor spoofing, stolen credentials, data exfiltration, and physical tampering, so a board can put a firewall, a decision diamond, and a threat actor next to an MCU.
+The UI defaults to a dark, high-contrast canvas (Explore → Appearance also offers light and system themes): shaded cards with tinted icon badges, slate wires that leave each card toward the other, and a label pill on every wire naming its bus. Cards size themselves to their content: the part number, interface address, and voltage rail appear as mono lines under the name. Beyond hardware, the palette carries Network, Security & Edge, Process Flow (real flowchart shapes), and Threats parts, from threat actors, malware, and C2 servers to vulnerabilities, misconfigurations, exploits, supply-chain compromise, DDoS, on-path attackers, sensor spoofing, stolen credentials, data exfiltration, and physical tampering, so a board can put a firewall, a decision diamond, and a threat actor next to an MCU.
 
 No build step or application server: static HTML + ES modules + SVG. PDF.js
 and Mammoth are pinned and bundled for local document extraction, then loaded
@@ -88,6 +88,14 @@ to the assistant. Moving cards remains manual unless you explicitly ask the
 assistant to rearrange the whole board. The assistant can request the same
 measured findings using `run_checks` with `include_layout: true`. The display
 is capped at 200 findings per check; curve checks use a half-pixel tolerance.
+
+**Explore → Appearance** selects a dark, light, or system theme, remembered on
+this device. **Export theme** can override it for downloads; Automatic (SVG)
+creates one SVG that follows the reader’s system appearance. Other formats
+use the current appearance when Automatic is selected. **Copy PNG** copies at
+the chosen dimensions and transparency, with PNG download available if the
+browser denies image clipboard access. Offline HTML and recordings also
+retain the chosen/current theme.
 
 Custom parts carry their definition inside the board file, so share links and
 saved files are self-contained. The library of templates lives in this

@@ -173,6 +173,7 @@ export function initJourney({ svg, store, tools, render, recorder, propsPanel })
   function presentEnter() {
     if (!(store.doc.journey || []).length) return;
     presentState.active = true;
+    tools.ui.presenting = true;
     presentState.index = 0;
     document.getElementById('app').classList.add('presenting');
     overlay.hidden = false;
@@ -183,6 +184,7 @@ export function initJourney({ svg, store, tools, render, recorder, propsPanel })
   function presentExit() {
     if (tweenRaf) { cancelAnimationFrame(tweenRaf); tweenRaf = null; }
     presentState.active = false;
+    tools.ui.presenting = false;
     presentState.caption = '';
     presentState.counter = '';
     document.getElementById('app').classList.remove('presenting');

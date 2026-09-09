@@ -117,6 +117,7 @@
             <option value="overview">Overview</option>
             <option value="auto">Automatic with zoom</option>
           </select></label>
+          <label><span>Appearance</span><select id="appearance"><option value="dark">Dark</option><option value="light">Light</option><option value="system">System</option></select></label>
         </div>
         <p id="explore-summary" role="status"></p>
         <button id="explore-reset">Reset exploration</button>
@@ -242,7 +243,9 @@
       <div class="dialog-row">
         <label class="dialog-check"><input id="export-transparent" type="checkbox"> Transparent background <span class="dialog-unit">(PNG/SVG only)</span></label>
       </div>
+      <div class="dialog-row"><label for="export-theme">Export theme</label><select id="export-theme"><option value="current">Current appearance</option><option value="dark">Dark</option><option value="light">Light</option><option value="auto">Automatic (SVG)</option></select></div>
       <div class="rec-buttons">
+        <button id="export-png-copy">Copy PNG</button>
         <button id="export-png-go">PNG</button>
         <button id="export-svg-go">SVG</button>
         <button id="export-html-go">Interactive HTML</button>

@@ -77,6 +77,7 @@ export function initCompare({ store }) {
   });
   document.getElementById('explore-compare').addEventListener('click', () => { openModal(dialog); paint(); });
   document.getElementById('compare-close').addEventListener('click', () => dialog.close());
+  dialog.addEventListener('pointerdown', event => { if (event.target === dialog) dialog.close(); });
   receipt.addEventListener('click', () => { if (report) download('board-comparison.json', JSON.stringify(report, null, 2), 'application/json'); });
   store.subscribe(() => { if (dialog.open && baseline && JSON.stringify(store.doc) !== last) paint(); });
   onLanguageChange(() => { if (dialog.open) paint(); });

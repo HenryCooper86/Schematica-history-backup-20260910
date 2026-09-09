@@ -102,6 +102,10 @@ export function stepFootsteps(root, nowMs) {
 // dots go, and every CSS-animated value becomes a plain attribute.
 export function bakeFrame(root, nowMs) {
   root.querySelectorAll('.ports').forEach((el) => el.remove());
+  root.querySelectorAll('.explore-muted, .story-muted').forEach(el => el.setAttribute('opacity', '0.2'));
+  root.querySelectorAll('.wire.explore-match:not(.invalid) .vis, .wire.story-match:not(.invalid) .vis').forEach(el => { el.setAttribute('stroke', '#38bdf8'); el.setAttribute('stroke-width', '3'); });
+  root.querySelectorAll('.node.explore-match .card, .node.story-match .card').forEach(el => el.setAttribute('stroke', '#38bdf8'));
+  root.querySelectorAll('[data-depth="overview"] .node:not([data-reading-focus]) [data-detail], [data-depth="overview"] .wire:not([data-reading-focus]) [data-detail], [data-depth="normal"] .node:not([data-reading-focus]) [data-detail="fine"]').forEach(el => el.setAttribute('visibility', 'hidden'));
   const off = flowOffset(nowMs);
   root.querySelectorAll('.vis.anim').forEach((el) => el.setAttribute('stroke-dashoffset', off));
   const halo = pulseOpacity(nowMs);

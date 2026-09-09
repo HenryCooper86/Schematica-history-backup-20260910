@@ -2,6 +2,17 @@
 // their English names. Grouped by the surface that shows them. Identity
 // entries mark Latin terms that stay Latin on purpose.
 export default {
+  "Appearance": "外观",
+  "Dark": "深色",
+  "Light": "浅色",
+  "System": "跟随系统",
+  "Export theme": "导出主题",
+  "Current appearance": "当前外观",
+  "Automatic (SVG)": "自动（SVG）",
+  "Copy PNG": "复制 PNG",
+  "PNG copied to clipboard.": "PNG 已复制到剪贴板。",
+  "Could not copy the image. Use PNG download instead.": "无法复制图像，请改用 PNG 下载。",
+
   "Design rules": "设计规则",
   "Layout quality": "布局质量",
   "No layout issues found.": "没有发现布局问题。",

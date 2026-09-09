@@ -1293,6 +1293,8 @@ try {
   await sleep(100);
   const outsideClickDialog = await js(`({ open: document.getElementById('part-dialog').open, nodes: document.querySelectorAll('#canvas g.node').length })`);
   check('a pointerdown on the dialog backdrop closes the part editor and adds no node', outsideClickDialog.open === false && outsideClickDialog.nodes === nodesBeforeDialogChecks, JSON.stringify(outsideClickDialog));
+  await loadBoard(weather);
+  await runAdoptionChecks({ js, key, check, sleep });
   }
 } catch (err) {
   failed += 1;
