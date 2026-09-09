@@ -4,7 +4,7 @@ import { BUSES } from './buses.js';
 import { CATEGORY_COLORS, DISPOSITIONS, SEVERITY_COLORS } from './palette.js';
 import {
   portPosition, wireGeom, wireGeomToPoint, wireLanes, curvePoint, wrapText, noteHeight,
-  nodeRect, nodeSize, nodeMeta, NOTE_W, LANE_TITLE_H, WIRE_FAN,
+  nodeRect, nodeSize, nodeMeta, NOTE_W, LANE_TITLE_H, WIRE_FAN, textUnits,
 } from './geometry.js';
 
 // The canvas mirrors net_draw's look one to one: gradient cards with a drop
@@ -372,7 +372,7 @@ function wireMarkup(byId, wire, lane, selected, ui, animating, now) {
     }
   }
   const label = wire.label || (sneak ? '\u{1F45F} air gap' : (bus.silent ? '' : bus.short));
-  const w = Math.round((label.length * 6.4 + 18) * 100) / 100;
+  const w = Math.round((textUnits(label) * 6.4 + 18) * 100) / 100;
   // Fanned wires stagger their pills along the curve: side by side the 22px
   // fan is narrower than a pill, so parallel vertical runs would collide.
   const t = Math.min(0.8, Math.max(0.2, 0.5 + (lane / WIRE_FAN) * 0.15));
@@ -487,7 +487,7 @@ function zoneMarkup(zone, selected) {
   s += `<rect x="${zone.x}" y="${zone.y}" width="${zone.w}" height="${zone.h}" rx="14"`
     + ` fill="none" stroke="transparent" stroke-width="12" pointer-events="stroke"/>`;
   const label = zone.label || 'Zone';
-  const w = label.length * 6.2 + 18;
+  const w = textUnits(label) * 6.2 + 18;
   s += `<rect x="${zone.x + 12}" y="${zone.y - 9}" width="${w}" height="18" rx="9"`
     + ` fill="${CHIP_BG}" stroke="${esc(color)}" stroke-opacity="0.8"/>`;
   s += `<text x="${zone.x + 12 + w / 2}" y="${zone.y}" text-anchor="middle" dominant-baseline="central"`

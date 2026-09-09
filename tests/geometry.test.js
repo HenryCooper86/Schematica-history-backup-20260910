@@ -112,6 +112,39 @@ test('wrapText wraps at maxChars and never returns empty', () => {
   assert.deepEqual(wrapText(''), ['']);
 });
 
+test('wrapText breaks CJK text per character, ASCII output unchanged', () => {
+  // An English sentence must wrap into exactly the lines the old,
+  // whitespace-only-split algorithm produced.
+  assert.deepEqual(
+    wrapText('Every crossing between levels passes a firewall.'),
+    ['Every crossing between', 'levels passes a', 'firewall.'],
+  );
+
+  // A Chinese sentence has no spaces between most characters, so the old
+  // algorithm (splitting only on whitespace) treated a long run as one
+  // unbreakable "word" and never wrapped it. The new tokenizer gives every
+  // CJK character its own token, so it still wraps.
+  const cjk = '仅为设计：双目占用两个 CSI 接口。软件流程为描述性，未选择运行时。';
+  const lines = wrapText(cjk);
+  assert.ok(lines.length > 1, 'a long CJK sentence still wraps into multiple lines');
+  for (const line of lines) {
+    assert.ok(textUnits(line) <= 22, `"${line}" exceeds the 22-unit width budget`);
+    assert.ok(!line.startsWith(' ') && !line.endsWith(' '), `"${line}" has a stray edge space`);
+  }
+  // No character is dropped: with whitespace normalized away on both sides,
+  // rejoining the lines reproduces the source exactly. The one space that
+  // lands mid-line (between "CSI" and "接口", both ending up in the same
+  // line) survives verbatim; the other original space sits exactly on a
+  // line break and is consumed there — the same way a wrapped English
+  // sentence never renders the space it broke on.
+  assert.equal(lines.join('').replace(/\s+/g, ''), cjk.replace(/\s+/g, ''), 'no character is lost');
+  assert.ok(lines.some((l) => l.includes('CSI 接口')), 'a space that lands mid-line is preserved verbatim');
+
+  // A Latin run immediately followed by CJK characters with no whitespace
+  // between them in the source never gains a space at that boundary.
+  assert.deepEqual(wrapText('ESP32-S3轮询'), ['ESP32-S3轮询']);
+});
+
 test('noteHeight grows with lines', () => {
   assert.equal(noteHeight('short'), 32);
   assert.ok(noteHeight('a very long note that definitely wraps onto multiple lines for sure') > 32);

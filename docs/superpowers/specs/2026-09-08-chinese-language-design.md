@@ -241,7 +241,11 @@ so every English board keeps its exact geometry; the existing example
 zone-containment tests are the regression guard. Fonts are not changed: the
 `lang` attribute lets the browser choose its CJK face; the monospace meta
 lines fall back per glyph. If screenshots show a problem, a CJK face is added
-to the two font stacks in `css/style.css`.
+to the two font stacks in `css/style.css`. Note wrapping (`wrapText`) breaks
+CJK text per character and measures each line in text units rather than
+splitting only on whitespace, and zone label pills size by text units rather
+than character count, so English output is unchanged and Chinese notes and
+pills fit their boxes.
 
 ## Example boards (phase 2): `src/i18n/examples.zh.js`
 

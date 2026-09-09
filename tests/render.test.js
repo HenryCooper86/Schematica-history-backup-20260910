@@ -43,6 +43,16 @@ function nodeGroup(markup, id) {
   return markup.slice(at, next < 0 ? markup.indexOf('<g class="layer-notes"') : next);
 }
 
+// The markup of one (unselected, so unnested) zone group.
+function zoneGroup(markup, id) {
+  const at = markup.indexOf(`<g class="zone" data-id="${id}"`);
+  assert.ok(at >= 0, `zone ${id} rendered`);
+  return markup.slice(at, markup.indexOf('</g>', at) + 4);
+}
+
+// The zone's name-pill rect width (the only rect with height="18" rx="9").
+const zonePillWidth = (group) => Number(group.match(/width="([\d.]+)" height="18" rx="9"/)[1]);
+
 const visPath = (group) => group.match(/<path class="vis[^"]*"[^>]*>/)[0];
 
 test('static markup has no animation artifacts', () => {
@@ -455,4 +465,14 @@ test('an icon path is escaped in the badge, even one that bypassed validation', 
   const g = nodeGroup(diagramMarkup(doc), 'x');
   assert.ok(g.includes('d="M1 1&quot;&lt;"'), 'the path is escaped');
   assert.ok(!g.includes('d="M1 1"<'), 'the raw path never lands in the markup');
+});
+
+test('a zone name pill sizes by text units, not character count, so a Chinese label gets a wider pill', () => {
+  const zone = (label) => ({ id: 'z', x: 0, y: 100, w: 200, h: 200, label, color: '#4a90d9' });
+  const zh = zoneGroup(diagramMarkup({ ...sampleDoc(), zones: [zone('按普渡层级划分的工厂网络')] }), 'z');
+  const en = zoneGroup(diagramMarkup({ ...sampleDoc(), zones: [zone('Plant network')] }), 'z');
+  assert.ok(
+    zonePillWidth(zh) > zonePillWidth(en),
+    `a 12-character Chinese label (${zonePillWidth(zh)}) should size wider than a 13-character Latin one (${zonePillWidth(en)})`,
+  );
 });

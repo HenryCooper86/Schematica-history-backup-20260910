@@ -219,16 +219,47 @@ export function normRect(x1, y1, x2, y2) {
   return { x: Math.min(x1, x2), y: Math.min(y1, y2), w: Math.abs(x2 - x1), h: Math.abs(y2 - y1) };
 }
 
+// Tokenizes for wrapText: a run of non-whitespace, non-CJK characters is one
+// token (a Latin word stays whole), but every CJK character (the same
+// code-point classes `textUnits` counts) is its own token, so a Chinese
+// sentence with no spaces can still wrap. Each token remembers whether
+// whitespace preceded it in the source, so a token adjacent to a CJK
+// character with no whitespace between them (`ESP32-S3轮询`) never gains
+// one on reassembly.
+function tokenizeForWrap(s) {
+  const tokens = [];
+  let i = 0;
+  let spacePending = false;
+  let first = true;
+  while (i < s.length) {
+    const ch = s[i];
+    if (/\s/.test(ch)) { spacePending = true; i++; continue; }
+    if (WIDE.test(ch)) {
+      tokens.push({ text: ch, space: !first && spacePending });
+      spacePending = false; first = false; i++;
+      continue;
+    }
+    let j = i;
+    while (j < s.length && !/\s/.test(s[j]) && !WIDE.test(s[j])) j++;
+    tokens.push({ text: s.slice(i, j), space: !first && spacePending });
+    spacePending = false; first = false;
+    i = j;
+  }
+  return tokens;
+}
+
 export function wrapText(text, maxChars = 22) {
-  const words = String(text).split(/\s+/).filter(Boolean);
+  const tokens = tokenizeForWrap(String(text));
+  if (!tokens.length) return [''];
   const lines = [];
   let line = '';
-  for (const w of words) {
-    if (line && (line + ' ' + w).length > maxChars) {
+  for (const tok of tokens) {
+    const candidate = line ? line + (tok.space ? ' ' : '') + tok.text : tok.text;
+    if (line && textUnits(candidate) > maxChars) {
       lines.push(line);
-      line = w;
+      line = tok.text;
     } else {
-      line = line ? line + ' ' + w : w;
+      line = candidate;
     }
   }
   if (line) lines.push(line);
