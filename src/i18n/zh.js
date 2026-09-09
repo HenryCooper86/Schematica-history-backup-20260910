@@ -2,6 +2,19 @@
 // their English names. Grouped by the surface that shows them. Identity
 // entries mark Latin terms that stay Latin on purpose.
 export default {
+  "Design rules": "设计规则",
+  "Layout quality": "布局质量",
+  "No layout issues found.": "没有发现布局问题。",
+  "Showing the first 200 layout findings. Resolve some and check again.": "仅显示前 200 个布局问题。修复部分问题后请再次检查。",
+  "{a} overlaps {b}.": "{a} 与 {b} 重叠。",
+  "Move one of these parts until their cards no longer overlap.": "移动其中一个部件，使卡片不再重叠。",
+  "A wire label overlaps {name}.": "连线标签与 {name} 重叠。",
+  "Move the part or shorten the wire label while keeping its meaning.": "移动部件，或在保留含义的前提下缩短连线标签。",
+  "A wire crosses the card for {name}.": "一条连线穿过 {name} 的卡片。",
+  "Move the crossed part or a connected endpoint to give the wire a clear path.": "移动被穿过的部件或连接端点，使连线路径畅通。",
+  "Two wire labels overlap.": "两个连线标签重叠。",
+  "Shorten a wire label or move an endpoint to separate the labels.": "缩短连线标签或移动端点，使标签分离。",
+
   "Compare saved board": "比较已保存的板图",
   "Choose an earlier version of this board. Items are matched by their saved IDs.": "选择此板图的较早版本。按保存的对象 ID 匹配。",
   "Before": "之前",

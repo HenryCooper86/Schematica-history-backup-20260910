@@ -1,3 +1,4 @@
+import { BUSES } from './buses.js';
 import { partOf } from './custom.js';
 
 export function snap(v, grid = 8) {
@@ -389,4 +390,14 @@ export function contentBounds(doc) {
   const x2 = Math.max(...rects.map((r) => r.x + r.w));
   const y2 = Math.max(...rects.map((r) => r.y + r.h));
   return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+}
+
+// Shared by rendering and layout checks: a label's geometry must have one owner.
+export function wireLabelRect(wire, geo, lane = 0) {
+  const bus = BUSES[wire.bus] || BUSES.gpio;
+  const label = wire.label || (wire.style === 'sneakernet' ? '\u{1F45F} air gap' : (bus.silent ? '' : bus.short));
+  const w = Math.round((textUnits(label) * 6.4 + 18) * 100) / 100;
+  const t = Math.min(0.8, Math.max(0.2, 0.5 + (lane / WIRE_FAN) * 0.15));
+  const at = lane ? curvePoint(geo, t) : geo.mid;
+  return { label, at, x: Math.round((at.x - w / 2) * 100) / 100, y: Math.round((at.y - 10) * 100) / 100, w, h: 20 };
 }

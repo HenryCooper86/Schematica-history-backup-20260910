@@ -1,3 +1,4 @@
+import { checkLayout } from '../layout-checks.js';
 // The tools the model may call, and an executor that runs them over a
 // two-method interface: getDoc() reads the document, commit(fn) mutates it.
 // The browser passes the store (commit = store.mutate inside a batch); tests
@@ -32,8 +33,8 @@ export const TOOLS = [
   },
   {
     name: 'run_checks',
-    description: 'Run the design-rule checks on the current board: I2C address conflicts, unconnected power pins and required ports, floating parts, bus mismatches, lifecycle risks. Returns findings with the ids involved.',
-    input_schema: EMPTY,
+    description: 'Run the design-rule checks on the current board: I2C address conflicts, unconnected power pins and required ports, floating parts, bus mismatches, lifecycle risks. Returns findings with the ids involved. Set include_layout to true to also receive layout findings with measured evidence and supported repairs.',
+    input_schema: { type: 'object', properties: { include_layout: { type: 'boolean' } }, additionalProperties: false },
     strict: true,
   },
   {
@@ -92,8 +93,9 @@ export function createExecutor({ getDoc, commit, selection = () => [], library =
       const doc = getDoc();
       return ok(boardText(doc, { selection: selection(), findings: checkDoc(doc) }));
     },
-    run_checks() {
+    run_checks(input) {
       const findings = checkDoc(getDoc());
+      if (input.include_layout === true) return ok(JSON.stringify({ design: findings, layout: checkLayout(getDoc()) }));
       if (!findings.length) return ok('No findings: the board passes every check.');
       return ok(findings.map(findingLine).join('\n'));
     },

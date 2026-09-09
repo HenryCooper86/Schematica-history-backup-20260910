@@ -711,7 +711,7 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
   document.addEventListener('schematica:fix-finding', (e) => {
     const f = e.detail;
     open();
-    send(`Fix this finding: ${f.level} ${f.rule} "${f.message}" ids: ${f.ids.join(' ')}. Change only what this finding needs; leave the rest of the board as it is.`);
+    send(`Fix this finding: ${f.level} ${f.rule} "${f.message}" ids: ${f.ids.join(' ')}.${f.evidence ? ' Evidence: ' + JSON.stringify(f.evidence) + '. Supported repairs: ' + JSON.stringify(f.supportedFixes || []) + '.' : ''} Change only what this finding needs; leave the rest of the board as it is.`);
   });
 
   loadThread();

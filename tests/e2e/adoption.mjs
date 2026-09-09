@@ -21,6 +21,13 @@ export async function runAdoptionChecks({ js, key, check, sleep }) {
   check('comparison shows before/after previews and distinguishes movement', await js(`document.querySelectorAll('.compare-previews svg').length === 2 && document.getElementById('compare-status').textContent.includes('Layout changed: 1') && document.getElementById('compare-status').textContent.includes('Changed: 1')`));
   check('comparison receipt is available and details show actual changes', await js(`!document.getElementById('compare-download').disabled && document.getElementById('compare-changes').textContent.includes('Previous label')`));
   await js(`document.getElementById('compare-close').click(); true`);
+
+  await js(`(async () => { const {EXAMPLES} = await import('/src/examples.js'); const board = structuredClone(EXAMPLES.find(e => e.id === 'weather-station').doc); board.nodes[0].x = board.nodes[1].x; board.nodes[0].y = board.nodes[1].y; const transfer = new DataTransfer(); transfer.items.add(new File([JSON.stringify(board)], 'overlap.json', {type:'application/json'})); const input = document.getElementById('file-input'); input.files = transfer.files; input.dispatchEvent(new Event('change')); return true; })()`);
+  await sleep(150);
+  await js(`document.getElementById('btn-check').click(); document.querySelector('[data-check-mode="layout"]').click(); true`);
+  check('layout quality tab reports collisions with repair suggestions', await js(`document.getElementById('drc-list').textContent.includes('overlaps') && !!document.querySelector('#drc-list .msg small') && document.querySelector('[data-check-mode="layout"]').getAttribute('aria-pressed') === 'true'`));
+  await js(`document.querySelector('#drc-list [data-drc]').click(); true`);
+  check('layout finding selects the involved items on the board', await js(`!document.getElementById('drc-dialog').open && document.querySelectorAll('#canvas .node[data-reading-focus]').length === 2`));
   await js(`(async () => { const {buildHTML} = await import('/src/html-export.js'); const {EXAMPLES} = await import('/src/examples.js'); const html = buildHTML(EXAMPLES.find(e => e.id === 'weather-station').doc); location.href = URL.createObjectURL(new Blob([html], {type:'text/html'})); return true; })()`);
   await sleep(450);
   check('offline HTML viewer loads its embedded board', await js(`document.querySelectorAll('svg .node').length === 8 && !!document.getElementById('chapters')`));

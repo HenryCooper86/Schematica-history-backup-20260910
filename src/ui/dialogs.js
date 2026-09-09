@@ -1,3 +1,4 @@
+import { checkLayout } from '../layout-checks.js';
 import { buildHTML } from '../html-export.js';
 // File and export actions: new/save/open, the export dialog (PNG, SVG, PDF,
 // seamless loop GIF), the BOM and design-rule dialogs, and share links.
@@ -175,17 +176,23 @@ export function initDialogs({ store }) {
   // ---- Design rule check ----
   const drcDialog = document.getElementById('drc-dialog');
   const levelLabel = (level) => (level === 'error' ? tr('ERROR') : tr('WARNING'));
+  let drcMode = 'design';
+  for (const btn of document.querySelectorAll('[data-check-mode]')) btn.addEventListener('click', () => {
+    drcMode = btn.dataset.checkMode;
+    for (const tab of document.querySelectorAll('[data-check-mode]')) tab.setAttribute('aria-pressed', String(tab === btn));
+    renderDRC();
+  });
   function renderDRC() {
-    const findings = checkDoc(store.doc);
+    const findings = drcMode === 'layout' ? checkLayout(store.doc) : checkDoc(store.doc);
     const list = document.getElementById('drc-list');
     if (!findings.length) {
-      list.innerHTML = `<p class="drc-clean">${esc(tr('No issues found - the board passes every check.'))}</p>`;
+      list.innerHTML = `<p class="drc-clean">${esc(drcMode === 'layout' ? tr('No layout issues found.') : tr('No issues found - the board passes every check.'))}</p>`;
       return;
     }
-    list.innerHTML = findings.map((f, i) => (
+    list.innerHTML = (drcMode === 'layout' && findings.length === 200 ? `<p>${esc(tr('Showing the first 200 layout findings. Resolve some and check again.'))}</p>` : '') + findings.map((f, i) => (
       `<div class="drc-row"><span class="drc-level ${f.level}">${esc(levelLabel(f.level))}</span>`
-      + `<span class="msg">${esc(f.message)}</span>`
-      + `<button data-drc="${i}">${esc(tr('Select'))}</button><button data-drc-fix="${i}">${esc(tr('Fix'))}</button></div>`
+      + `<span class="msg">${esc(f.message)}${f.suggestion ? `<small>${esc(f.suggestion)}</small>` : ''}</span>`
+      + `<button data-drc="${i}">${esc(tr('Select'))}</button>${drcMode === 'design' || f.supportedFixes?.length ? `<button data-drc-fix="${i}">${esc(tr('Fix'))}</button>` : ''}</div>`
     )).join('');
     list.querySelectorAll('[data-drc]').forEach((btn) => {
       btn.addEventListener('click', () => {

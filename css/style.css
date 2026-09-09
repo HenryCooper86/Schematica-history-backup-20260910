@@ -1405,3 +1405,7 @@ html {
 .compare-previews .delta-moved { filter: drop-shadow(0 0 5px #a78bfa); }
 .compare-previews .delta-focus { filter: drop-shadow(0 0 8px #38bdf8); }
 @media (max-width: 650px) { .compare-previews { grid-template-columns: 1fr; } }
+
+.check-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+.check-tabs button[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
+.drc-row .msg small { display: block; color: var(--muted); margin-top: 5px; }

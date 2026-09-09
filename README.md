@@ -81,6 +81,14 @@ the current board by stable item IDs. Before/after previews and an expandable
 field report separate additions, removals, configuration edits, rewiring, and
 layout changes. Download comparison saves the change report as JSON.
 
+**Check → Layout quality** reports overlapping cards, labels obscured by cards,
+wires crossing unrelated cards, and overlapping wire labels. Findings include
+a selection action and a repair suggestion; available label repairs can be sent
+to the assistant. Moving cards remains manual unless you explicitly ask the
+assistant to rearrange the whole board. The assistant can request the same
+measured findings using `run_checks` with `include_layout: true`. The display
+is capped at 200 findings per check; curve checks use a half-pixel tolerance.
+
 Custom parts carry their definition inside the board file, so share links and
 saved files are self-contained. The library of templates lives in this
 browser only; export it to a `.schematica-parts.json` file to move or share
