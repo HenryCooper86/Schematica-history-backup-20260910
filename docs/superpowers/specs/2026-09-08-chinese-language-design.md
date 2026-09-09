@@ -146,7 +146,7 @@ Terminology, fixed here so every surface agrees:
 
 ## Static markup: `src/ui/i18n-dom.js`
 
-`translateStatic(root = document)` walks the toolbar (`#toolbar`), the palette
+`translateStatic()` walks the toolbar (`#toolbar`), the palette
 search input, the hint bar, the present overlay's nav, and every `<dialog>`
 (`part-dialog`, and the recording, export, DRC and BOM dialogs). For each text
 node whose trimmed text contains an ASCII letter it remembers the original English
@@ -157,9 +157,8 @@ palette body and the self-rendering containers (`#props`, `#journey-panel`,
 `#assistant`, `#legend`, `#examples-menu`, `#bus-popover`, `#toast`) are never
 touched; input values are never touched; text nodes under a
 `[data-i18n="off"]` element are left alone while its attributes still
-translate. It runs once before the panels initialise and
-again on every language change; because originals are remembered, switching
-back and forth is lossless.
+translate. The walker records what it translated on the first pass and
+replays that list on every change; the part editor rebuilds its own lists.
 
 Markup touch-ups so keys are clean phrases: each hint-bar word becomes its own
 `<span>` (`<kbd>V</kbd> <span>select</span>`), separators stay bare text; the
@@ -195,15 +194,15 @@ change (flag labels are drawn there).
 | `src/ui/legend.js` | bus names (codes stay) | rebuild |
 | `src/ui/props.js` | field labels, placeholders, status and flag names, section titles, guide download button | re-render from the store |
 | `src/ui/rdk-details.js` | headings, requirement lines via `tr`, facts | re-render |
-| `src/ui/part-editor.js` | dialog headings, tabs, validation messages, side names | re-render its static text via `translateStatic(dialog)` and re-render lists |
+| `src/ui/part-editor.js` | dialog headings, tabs, validation messages, side names | rebuilds its own lists |
 | `src/ui/journey-ui.js` | panel headings, buttons, counters, default step label | re-render |
 | `src/ui/recording-ui.js` | dialog text, states, toasts | re-render |
 | `src/ui/panels.js`, `src/ui/collapsible.js` | fold/hide button titles | re-render titles |
 | `src/ui/assistant-ui.js`, `src/ui/assistant-documents.js` | header, states, settings labels, composer placeholder, quick actions, source summaries, error toasts | re-render chrome; the thread's stored messages are left as they were written |
 | `src/render.js` | node flag labels (`Power hungry`, `Long lead time`, `Safety critical`) | SVG re-render from `main.js` |
-| `src/state.js` | default labels: `newDoc(t('Untitled Board'))`, `addNode` uses `tr(defaultLabel or name)`, zone `tr('Zone')`, note `tr('Note')`, swimlane and flow-shape defaults | — (defaults are read at creation) |
+| `src/state.js` | default labels: `newDoc(t('Untitled Board'))`, `addNode` uses `tr(defaultLabel or name)` for built-in kinds; custom-part names are never translated, zone `tr('Zone')`, note `tr('Note')`, swimlane and flow-shape defaults | — (defaults are read at creation) |
 | `src/search.js` | haystack adds `tr(name)` for part, category, bus names and preset notes, so Chinese queries match while English still does | — |
-| `src/bom.js`, BOM dialog | column headers | dialog re-render |
+| `src/bom.js`, BOM dialog | column headers and built-in part names translate in the dialog and the CSV/Markdown exports; custom-part names stay as typed | dialog re-render |
 | `src/drc.js` | every message through `tr` with placeholders; rule ids unchanged | findings are recomputed on open |
 | `src/rdk/checks.js` | messages and reason strings through `tr`; catalogue requirements through `tr`; source URLs untouched | recomputed |
 | `src/rdk/guide.js` | headings, fixed sentences, checklist through `tr`; content and URLs untouched | export is on demand |
@@ -255,7 +254,7 @@ export default {
     title: 'RDK X5 漫游车',
     nodes: { n1: { label: '电池' }, n3: { label: '机器人主控', notes: '...' } },
     notes: { t1: '...' },
-    zones: { z1: '电源' },
+    zones: { z1: { label: '电源' }, zs: { label: 'X5 上的软件 · 未选择运行时' } },
     journey: { j1: { label: '供电与计算', caption: '...' } },
   },
 };
@@ -264,7 +263,7 @@ export default {
 `localizedExample(example, lang)` in `src/examples.js` (pure) returns the
 example unchanged for English and, for Chinese, a copy with the overlay
 applied to `name`, `doc.title`, node `label` and `notes`, note `text`, zone
-`label`, journey `label` and `caption`. Sublabels, fields, ids, positions and
+`label` and (for swimlanes) `lanes`, journey `label` and `caption`. Sublabels, fields, ids, positions and
 wires are never touched. The examples menu and its loader use
 `localizedExample`. The English `EXAMPLES` array and every existing test are
 byte-identical. Roughly 500 strings.

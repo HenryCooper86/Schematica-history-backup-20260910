@@ -112,3 +112,13 @@ for (const [id, overlay] of Object.entries(EXAMPLE_OVERLAYS_ZH)) {
     assert.equal(zh.doc.title, overlay.title);
   });
 }
+
+test('every built-in board has a Chinese overlay and localizes to a distinct Chinese name', () => {
+  const missing = EXAMPLES.filter((ex) => !EXAMPLE_OVERLAYS_ZH[ex.id]).map((ex) => ex.id);
+  assert.deepEqual(missing, []);
+  const names = EXAMPLES.map((ex) => localizedExample(ex, 'zh').name);
+  assert.equal(new Set(names).size, names.length, 'Chinese menu names are unique');
+  for (const name of names) assert.match(name, CJK);
+  const stray = Object.keys(EXAMPLE_OVERLAYS_ZH).filter((id) => !EXAMPLES.some((ex) => ex.id === id));
+  assert.deepEqual(stray, [], 'no overlay without a board');
+});
