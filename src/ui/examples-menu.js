@@ -1,8 +1,8 @@
 // The Examples dropdown: loads a built-in board after confirming.
-import { EXAMPLES, EXAMPLE_GROUPS } from '../examples.js';
+import { EXAMPLES, EXAMPLE_GROUPS, localizedExample } from '../examples.js';
 import { serialize, deserialize } from '../serialize.js';
 import { toast, escAttr } from './press.js';
-import { tr, trd } from '../i18n.js';
+import { tr, trd, getLang } from '../i18n.js';
 
 export function initExamplesMenu({ store }) {
   const menu = document.getElementById('examples-menu');
@@ -23,15 +23,16 @@ export function initExamplesMenu({ store }) {
       close();
       return;
     }
+    const shown = EXAMPLES.map((ex) => localizedExample(ex, getLang()));
     menu.innerHTML = EXAMPLE_GROUPS.map((group) => `<div class="menu-group">${escAttr(trd(group))}</div>`
-      + EXAMPLES.filter((ex) => ex.group === group).map((ex) => `<button data-example="${escAttr(ex.id)}">${escAttr(ex.name)}</button>`).join('')).join('');
+      + shown.filter((ex) => ex.group === group).map((ex) => `<button data-example="${escAttr(ex.id)}">${escAttr(ex.name)}</button>`).join('')).join('');
     const r = btn.getBoundingClientRect();
     menu.style.left = `${Math.min(r.left, window.innerWidth - 230)}px`;
     menu.style.top = `${r.bottom + 6}px`;
     menu.hidden = false;
     menu.querySelectorAll('button').forEach((b) => {
       b.addEventListener('click', () => {
-        const ex = EXAMPLES.find((e2) => e2.id === b.dataset.example);
+        const ex = shown.find((e2) => e2.id === b.dataset.example);
         close();
         if (!ex) return;
         if (!confirm(tr('Load "{name}"? Anything not saved to a file is lost.', { name: ex.name }))) return;

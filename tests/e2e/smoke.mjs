@@ -866,6 +866,22 @@ try {
   await js(`document.getElementById('ai-close').click(); true`);
   await sleep(100);
 
+  // ---- An example loaded in Chinese is a Chinese document; switching back does not rewrite it ----
+  await js(`document.getElementById('btn-lang').click(); true`);
+  await sleep(150);
+  await js(`document.getElementById('btn-examples').click(); true`);
+  await sleep(100);
+  const menuNames = await js(`[...document.querySelectorAll('#examples-menu button')].map((b) => b.textContent)`);
+  check('the Examples menu lists boards by Chinese name', menuNames.includes('气象站') && !menuNames.includes('Weather Station'), JSON.stringify(menuNames.slice(0, 4)));
+  await js(`(() => { window.__exampleConfirm = window.confirm; window.confirm = () => true; try { document.querySelector('#examples-menu [data-example="weather-station"]').click(); } finally { window.confirm = window.__exampleConfirm; } return true; })()`);
+  await sleep(300);
+  const zhBoard = await js(`(() => { const labels = [...document.querySelectorAll('#canvas g.node text')].map((t) => t.textContent); return { title: document.getElementById('title').value, hasZh: labels.includes('微控制器'), hasPart: labels.includes('ESP32-S3'), hasEn: labels.includes('MCU') }; })()`);
+  check('a board loaded in Chinese has Chinese labels and untouched part numbers', zhBoard.title === '气象站' && zhBoard.hasZh && zhBoard.hasPart && !zhBoard.hasEn, JSON.stringify(zhBoard));
+  await js(`document.getElementById('btn-lang').click(); true`);
+  await sleep(150);
+  const afterBack = await js(`(() => ({ title: document.getElementById('title').value, lang: document.documentElement.lang, stillZh: [...document.querySelectorAll('#canvas g.node text')].map((t) => t.textContent).includes('微控制器') }))()`);
+  check('switching back to English leaves the loaded Chinese board as it is', afterBack.lang === 'en' && afterBack.title === '气象站' && afterBack.stillZh, JSON.stringify(afterBack));
+
   // ---- Assistant: build, undo, highlight, Fix button, thread ----
   // An empty board through a share link (loadBoard clears storage, so the
   // settings are seeded afterwards; they are read at send time).
