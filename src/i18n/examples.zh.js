@@ -1,8 +1,10 @@
 // Simplified Chinese overlays for the built-in example boards, keyed by
-// example id, then by node / zone / note / journey id. Only text translates:
-// labels, notes, zone labels and lane names, note text, journey labels and
-// captions. Part numbers (sublabels), fields, ids and geometry never appear
-// here. localizedExample() in src/examples.js applies an overlay to a copy.
+// example id, then by node / zone / wire / note / journey id. Only text
+// translates: card labels and notes, zone labels and lane names, the
+// word-like wire labels (a bus code such as "I2C" or "CAN H/L" stays as it
+// is and simply has no entry), note text, journey labels and captions. Part
+// numbers (sublabels), fields, ids and geometry never appear here.
+// localizedExample() in src/examples.js applies an overlay to a copy.
 // The RDK software-stage cards share this note on every board.
 const RDK_STAGE_NOTE = '描述性处理阶段；流程箭头不会部署或执行软件包。运行时及具体示例集成需要验证。';
 export default {

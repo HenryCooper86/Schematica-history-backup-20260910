@@ -53,6 +53,9 @@ function zoneGroup(markup, id) {
 // The zone's name-pill rect width (the only rect with height="18" rx="9").
 const zonePillWidth = (group) => Number(group.match(/width="([\d.]+)" height="18" rx="9"/)[1]);
 
+// The wire's label-pill rect width (the only rect inside a wire group).
+const wirePillWidth = (group) => Number(group.match(/width="([\d.]+)" height="20" rx="9"/)[1]);
+
 const visPath = (group) => group.match(/<path class="vis[^"]*"[^>]*>/)[0];
 
 test('static markup has no animation artifacts', () => {
@@ -465,6 +468,23 @@ test('an icon path is escaped in the badge, even one that bypassed validation', 
   const g = nodeGroup(diagramMarkup(doc), 'x');
   assert.ok(g.includes('d="M1 1&quot;&lt;"'), 'the path is escaped');
   assert.ok(!g.includes('d="M1 1"<'), 'the raw path never lands in the markup');
+});
+
+test('a wire label pill sizes by text units, not character count, so a Chinese label gets a wider pill', () => {
+  const pill = (label) => {
+    const doc = sampleDoc();
+    doc.wires.pop();
+    doc.wires[0].label = label;
+    return wirePillWidth(wireGroup(diagramMarkup(doc), 'w1'));
+  };
+  // Both labels are eight characters; the Chinese one is four wide glyphs
+  // plus " RDP", so its pill has to be wider or the text spills out of it.
+  const zh = pill('经跳板机 RDP');
+  const en = pill('RDP jump');
+  assert.ok(zh > en, `an eight-character Chinese label (${zh}) should size wider than a Latin one (${en})`);
+  // Fullwidth brackets count as wide too, so a parenthesized label grows.
+  const brackets = pill('SWD（已锁定）');
+  assert.ok(brackets > pill('SWD (locked)'), `${brackets} should exceed the Latin equivalent`);
 });
 
 test('a zone name pill sizes by text units, not character count, so a Chinese label gets a wider pill', () => {

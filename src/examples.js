@@ -1041,8 +1041,10 @@ export const EXAMPLES = [
 
 // The example as the interface language shows it. English (or any language
 // without an overlay) is the example itself; Chinese is a deep copy with the
-// overlay's text applied. Part numbers, fields, ids, geometry and wires are
-// never touched, so the copy round-trips like the original.
+// overlay's text applied — including wire labels, of which the overlay
+// translates the word-like ones and leaves bus codes alone. Part numbers,
+// fields, ids and geometry are never touched, so the copy round-trips like
+// the original.
 export function localizedExample(example, lang = 'en') {
   const overlay = lang === 'zh' ? EXAMPLE_OVERLAYS_ZH[example.id] : undefined;
   if (!overlay) return example;

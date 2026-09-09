@@ -227,6 +227,9 @@ function tagsMarkup(node, animating, now) {
   let s = '';
   let x = 10;
   for (const t of tags) {
+    // Tag labels are Latin codes (PROTO, ADVERSARY, HIGH) that never
+    // localize, so this pill is deliberately sized by `.length` rather than
+    // by textUnits() the way the label and note pills are.
     const pw = Math.round((t.label.length * 5.4 + 14) * 100) / 100;
     const blink = animating && t.blink
       ? ` class="blink"${now != null ? ` opacity="${blinkOpacity(now)}"` : ''}`
