@@ -1,3 +1,4 @@
+import { connectionFocus, readingDepth } from './explore.js';
 import { displayPart, nodePart } from './rdk/profiles.js';
 import { trd } from './i18n.js';
 import { BUSES } from './buses.js';
@@ -324,7 +325,7 @@ function nodeMarkup(node, selected, ui, animating, now, wires) {
     s += `<text x="${W / 2}" y="62" text-anchor="middle" font-size="11.5" font-weight="600"`
       + ` fill="${TEXT}" data-edit="label">${esc(node.label)}</text>`;
     nodeMeta(node).forEach((m, i) => {
-      s += `<text x="${W / 2}" y="${75 + i * 12.5}" text-anchor="middle" font-size="9.5" fill="${META}"`
+      s += `<text data-detail="${m.field === 'sublabel' ? 'context' : 'fine'}" x="${W / 2}" y="${75 + i * 12.5}" text-anchor="middle" font-size="9.5" fill="${META}"`
         + ` font-family="${MONO}" data-edit="${m.field}">${esc(m.text)}</text>`;
     });
   }
@@ -381,9 +382,9 @@ function wireMarkup(byId, wire, lane, selected, ui, animating, now) {
   const t = Math.min(0.8, Math.max(0.2, 0.5 + (lane / WIRE_FAN) * 0.15));
   const at = lane ? curvePoint(geo, t) : geo.mid;
   if (label) {
-    s += `<rect x="${Math.round((at.x - w / 2) * 100) / 100}" y="${Math.round((at.y - 10) * 100) / 100}" width="${w}" height="20" rx="9"`
+    s += `<rect data-detail="context" x="${Math.round((at.x - w / 2) * 100) / 100}" y="${Math.round((at.y - 10) * 100) / 100}" width="${w}" height="20" rx="9"`
       + ` fill="${LABEL_BG}" stroke="${LABEL_LINE}" stroke-width="1"/>`;
-    s += `<text x="${at.x}" y="${Math.round((at.y + 3.6) * 100) / 100}" text-anchor="middle" font-size="10.5" fill="${LABEL_TEXT}"`
+    s += `<text x="${at.x}" y="${Math.round((at.y + 3.6) * 100) / 100}" text-anchor="middle" font-size="10.5" fill="${LABEL_TEXT}" data-detail="context"`
       + ` data-edit="label">${esc(label)}</text>`;
   }
   // A selected wire grows a handle at each end; dragging one onto another
@@ -599,6 +600,19 @@ export function createRenderer(svg) {
     setView(view, showGrid = true) {
       root.setAttribute('transform', `translate(${view.x} ${view.y}) scale(${view.zoom})`);
       grid.setAttribute('display', showGrid ? 'inline' : 'none');
+    },
+    setReadingDepth(mode, zoom) {
+      diagram.setAttribute('data-depth', readingDepth(mode, zoom));
+    },
+    setExploration(doc, options = {}, selection = new Set()) {
+      const focus = connectionFocus(doc, options, selection);
+      for (const el of diagram.querySelectorAll('.node, .wire')) {
+        const id = el.dataset.id;
+        const matches = (el.dataset.type === 'node' ? focus.nodes : focus.wires).has(id);
+        el.classList.toggle('explore-muted', focus.active && !matches && !selection.has(id));
+        el.classList.toggle('explore-match', focus.active && matches);
+        el.toggleAttribute('data-reading-focus', selection.has(id) || (focus.active && matches));
+      }
     },
     renderDiagram(doc, ui = {}) {
       diagram.innerHTML = diagramMarkup(doc, ui);

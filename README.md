@@ -35,6 +35,8 @@ then Settings → Pages → deploy from branch `main`, root folder.
 | Select / move | `V`, click or drag; marquee on empty canvas; shift-click adds |
 | Zone | `Z`, drag a rectangle (select it by its border or title); drag a corner handle to resize; dragging a zone carries the cards inside it |
 | Find a part | Type in the palette search — names, categories, buses, or vendors (RDK, Journey) |
+| Explore the board | **Explore** or `/` searches placed parts by name, part number, address, fields, or supported bus. Enter focuses the first result; Arrow Down moves to results. Filter drawn connections by bus, then select a part to highlight immediate neighbors or its connected network. Unrelated items are dimmed and remain editable. |
+| Reading detail | In Explore, choose Overview, Normal, Detailed, or Automatic with zoom. Overview hides secondary card text and wire labels; Normal keeps part numbers and wire labels; Detailed shows everything. Selection and highlighted connections reveal their details at every zoom. Geometry, ports, status tags, and warning badges stay in place. Reset exploration restores the full view. |
 | Nudge | Arrow keys move the selection 1px; `Shift` + arrow moves a grid step |
 | Fold a panel | The ▾ in the properties or journey panel header folds it to a bar; remembered across reloads |
 | Hide the panels | `P` or the panels button hides the properties and journey panels entirely; press again (or open Journey) to bring them back; remembered across reloads |
@@ -65,6 +67,13 @@ then Settings → Pages → deploy from branch `main`, root folder.
 | Custom parts | **+ New** under My parts in the palette defines a part: name, category, accent, an icon (a built-in one, initials, or an SVG path), typed ports on any side, and extra fields. It is saved to My parts (this browser) and placed on the board. **Customize…** on any built-in card starts from its definition, so an MCU with a second CAN port keeps its wires. **Edit part…** on a custom card changes it and, when it came from a template, offers to update its siblings. Export and Import move My parts between machines as a JSON file. Custom parts in a board file travel with it; an older build of the app opens them as custom boxes |
 
 Work is autosaved to the browser's localStorage and restored on reload.
+
+Exploration is temporary view state: search, filters, and reading detail do not
+change the board, create undo steps, or enter saved files and share links.
+Exports retain full detail. Connection highlighting follows the wires drawn
+on the board in either direction; it does not simulate signal flow or prove
+hardware compatibility. Opening another board clears the search and connection
+filters.
 
 Custom parts carry their definition inside the board file, so share links and
 saved files are self-contained. The library of templates lives in this

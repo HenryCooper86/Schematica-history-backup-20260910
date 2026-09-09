@@ -1,3 +1,4 @@
+import { runExploreChecks } from './explore.mjs';
 // Browser smoke test: serves the repo, drives a headless Chrome over the
 // DevTools Protocol, and checks the interactions unit tests cannot reach
 // (hover-revealed ports, dragging a wire, panning, renaming, zone resizing,
@@ -239,7 +240,9 @@ function check(name, ok, detail = '') {
 }
 
 try {
-  if (process.env.DOCUMENT_E2E_ONLY) {
+  if (process.env.EXPLORE_E2E_ONLY) {
+    await runExploreChecks({ js, key, check, sleep });
+  } else if (process.env.DOCUMENT_E2E_ONLY) {
     const seedDocumentsFake = () => js(`localStorage.setItem('schematica.ai.settings', JSON.stringify({ provider: 'anthropic', model: 'test-model', baseUrl: location.origin + '/fake', effort: 'low', remember: true, tools: true })); localStorage.setItem('schematica.ai.key.anthropic', 'sk-fake'); true`);
     const captureDocuments = async (path) => {
       const shot = await send('Page.captureScreenshot', { format: 'png' });
@@ -249,6 +252,7 @@ try {
     await js(`document.getElementById('btn-assistant').click(); true`);
     await runDocumentChecks({ ROOT, origin, send, js, sleep, check, fakeSeen, seedFake: seedDocumentsFake, screenshot: captureDocuments });
   } else {
+  await runExploreChecks({ js, key, check, sleep });
   // Ports hidden at rest, revealed by CSS on hover without a DOM rebuild.
   const rest = await js(`(() => { const p = document.querySelectorAll('#canvas .ports'); return { count: p.length, opacity: getComputedStyle(p[0]).opacity }; })()`);
   check('ports exist for every card and are hidden at rest', rest.count === 8 && rest.opacity === '0', JSON.stringify(rest));

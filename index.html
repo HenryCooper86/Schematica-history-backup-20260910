@@ -59,6 +59,7 @@
         <button id="btn-animate" title="Signal-flow animation">
           <svg viewBox="0 0 18 18" aria-hidden="true"><path d="M2 9h3l2.5-5 3 10L13 9h3"/></svg>
         </button>
+        <button id="btn-explore" title="Explore this board (/)" aria-expanded="false" aria-controls="explore-panel" aria-label="Explore this board (/)"><svg viewBox="0 0 18 18" aria-hidden="true"><circle cx="7.5" cy="7.5" r="4.5"/><path d="M11 11l4 4"/></svg></button>
         <button id="btn-legend" title="Bus legend">
           <svg viewBox="0 0 18 18" aria-hidden="true"><path d="M7 4.5h8 M7 9h8 M7 13.5h8"/><g fill="currentColor" stroke="none"><circle cx="3.5" cy="4.5" r="1.2"/><circle cx="3.5" cy="9" r="1.2"/><circle cx="3.5" cy="13.5" r="1.2"/></g></svg>
         </button>
@@ -99,7 +100,29 @@
       <input id="palette-search" type="search" placeholder="Search parts, buses, vendors" spellcheck="false" aria-label="Search parts">
     </aside>
     <main id="canvas-wrap">
-      <svg id="canvas"></svg>
+      <svg id="canvas" tabindex="-1" aria-label="Board canvas"></svg>
+      <section id="explore-panel" aria-labelledby="explore-heading" hidden>
+        <header><h3 id="explore-heading">Explore board</h3><button id="explore-close">Close</button></header>
+        <input id="board-search" type="search" placeholder="Name, part number, address, or bus" aria-label="Search this board" spellcheck="false" autocomplete="off">
+        <div class="explore-controls">
+          <label><span>Bus filter</span><select id="explore-bus"></select></label>
+          <label><span>Connections</span><select id="explore-connections">
+            <option value="all">All parts</option>
+            <option value="neighbors">Immediate neighbors</option>
+            <option value="network">Connected network</option>
+          </select></label>
+          <label><span>Reading detail</span><select id="explore-depth">
+            <option value="full">Detailed</option>
+            <option value="normal">Normal</option>
+            <option value="overview">Overview</option>
+            <option value="auto">Automatic with zoom</option>
+          </select></label>
+        </div>
+        <p id="explore-summary" role="status"></p>
+        <button id="explore-reset">Reset exploration</button>
+        <p id="explore-status" role="status"></p>
+        <div id="explore-results"></div>
+      </section>
       <div id="hintbar" aria-hidden="true">
         <kbd>V</kbd> <span>select</span> &middot; <kbd>C</kbd> <span>wire</span> &middot; <kbd>Z</kbd> <span>zone</span> &middot; <kbd>L</kbd> <span>lane</span>
         &middot; <kbd>N</kbd> <span>note</span> &middot; <kbd>H</kbd> <span>pan</span> &middot; <kbd>F</kbd> <span>fit</span> &middot; <kbd>B</kbd> <span>palette</span> &middot; <kbd>P</kbd> <span>panels</span> &middot; <kbd>A</kbd> <span>assistant</span>

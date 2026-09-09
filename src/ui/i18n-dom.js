@@ -9,7 +9,7 @@
 // onLanguageChange.
 import { trd, getLang, setLang, onLanguageChange } from '../i18n.js';
 
-const ROOTS = ['#toolbar', '#palette-search', '#hintbar', '#present-nav', 'dialog'];
+const ROOTS = ['#toolbar', '#explore-panel', '#canvas', '#palette-search', '#hintbar', '#present-nav', 'dialog'];
 const ATTRS = ['title', 'placeholder', 'aria-label'];
 const LETTER = /[A-Za-z]/;
 const originals = new WeakMap(); // node -> { text, lead, tail } | { attrs: { name: original } }

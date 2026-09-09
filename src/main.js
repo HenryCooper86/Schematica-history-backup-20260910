@@ -10,6 +10,7 @@ import { createLibrary } from './library.js';
 import { createPropsPanel } from './ui/props.js';
 import { initPartEditor } from './ui/part-editor.js';
 import { initPalette } from './ui/palette-ui.js';
+import { initExplore } from './ui/explore-ui.js';
 import { initLegend } from './ui/legend.js';
 import { initDialogs } from './ui/dialogs.js';
 import { initJourney } from './ui/journey-ui.js';
@@ -42,6 +43,7 @@ function loadAutosave() {
 const store = new Store(loadAutosave() || newDoc());
 const renderer = createRenderer(svg);
 let dialogs = null;
+let explorer = null;
 const tools = createTools({
   svg, store, requestRender: render, onToolChange: updateToolButtons,
   onSave: () => dialogs?.saveJSON(),
@@ -75,6 +77,7 @@ function updateZoomLabel() {
 function render(kind = 'all') {
   if (kind === 'view') {
     renderer.setView(tools.view, tools.ui.grid);
+    renderer.setReadingDepth(explorer?.state().depth, tools.view.zoom);
     updateZoomLabel();
     return;
   }
@@ -83,6 +86,8 @@ function render(kind = 'all') {
     return;
   }
   renderer.render(store.doc, tools.view, uiState());
+  renderer.setExploration(store.doc, explorer?.state(), store.selection);
+  renderer.setReadingDepth(explorer?.state().depth, tools.view.zoom);
   updateZoomLabel();
   document.getElementById('undo').disabled = !store.canUndo();
   document.getElementById('redo').disabled = !store.canRedo();
@@ -204,6 +209,7 @@ store.subscribe(() => {
 // ---- Panels, dialogs, menus ----
 initPalette({ svg, store, tools, library, editor });
 initLegend();
+explorer = initExplore({ store, tools, svg, render });
 dialogs = initDialogs({ store });
 const recorder = initRecording({ svg, store });
 initJourney({ svg, store, tools, render, recorder, propsPanel });

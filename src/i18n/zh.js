@@ -2,6 +2,32 @@
 // their English names. Grouped by the surface that shows them. Identity
 // entries mark Latin terms that stay Latin on purpose.
 export default {
+  // ---- board exploration ----
+  "Explore this board (/)": "探索当前板图 (/)",
+  "Board canvas": "板图画布",
+  "Explore board": "探索板图",
+  "Bus filter": "总线筛选",
+  "Connections": "连接范围",
+  "All parts": "所有部件",
+  "Immediate neighbors": "直接相连的部件",
+  "Connected network": "整个连通网络",
+  "Reading detail": "显示细节",
+  "Detailed": "详细",
+  "Normal": "常规",
+  "Overview": "概览",
+  "Automatic with zoom": "随缩放自动调整",
+  "Reset exploration": "重置探索视图",
+  "All buses": "所有总线",
+  "Search this board": "搜索当前板图",
+  "Name, part number, address, or bus": "名称、型号、地址或总线",
+  "Select a part to explore its connections.": "选择一个部件以查看其连接。",
+  "Parts: {nodes} · Connections: {wires}": "部件：{nodes} · 连接：{wires}",
+  "Select a part or filter by bus to explore connections.": "选择部件或筛选总线以查看连接。",
+  "1 part found": "找到 1 个部件",
+  "{n} parts found": "找到 {n} 个部件",
+  "No matching parts.": "没有匹配的部件。",
+  "Showing the first 50; refine your search.": "仅显示前 50 个，请缩小搜索范围。",
+
   // ---- shared words ----
   'Cancel': '取消',
   'Close': '关闭',
