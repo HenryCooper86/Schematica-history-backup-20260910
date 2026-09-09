@@ -1,4 +1,6 @@
 import { RDK_EXAMPLES } from './rdk/examples.js';
+import EXAMPLE_OVERLAYS_ZH from './i18n/examples.zh.js';
+export { EXAMPLE_OVERLAYS_ZH };
 
 // Built-in example boards. Every document must round-trip through
 // serialize/deserialize with zero warnings (enforced by tests/examples.test.js),
@@ -1036,3 +1038,37 @@ export const EXAMPLES = [
     },
   },
 ];
+
+// The example as the interface language shows it. English (or any language
+// without an overlay) is the example itself; Chinese is a deep copy with the
+// overlay's text applied. Part numbers, fields, ids, geometry and wires are
+// never touched, so the copy round-trips like the original.
+export function localizedExample(example, lang = 'en') {
+  const overlay = lang === 'zh' ? EXAMPLE_OVERLAYS_ZH[example.id] : undefined;
+  if (!overlay) return example;
+  const doc = structuredClone(example.doc);
+  if (overlay.title !== undefined) doc.title = overlay.title;
+  for (const n of doc.nodes) {
+    const o = overlay.nodes?.[n.id];
+    if (!o) continue;
+    if (o.label !== undefined) n.label = o.label;
+    if (o.notes !== undefined) n.notes = o.notes;
+  }
+  for (const z of doc.zones) {
+    const o = overlay.zones?.[z.id];
+    if (!o) continue;
+    if (o.label !== undefined) z.label = o.label;
+    if (o.lanes !== undefined) z.lanes = [...o.lanes];
+  }
+  for (const t of doc.notes) {
+    const text = overlay.notes?.[t.id];
+    if (text !== undefined) t.text = text;
+  }
+  for (const j of doc.journey) {
+    const o = overlay.journey?.[j.id];
+    if (!o) continue;
+    if (o.label !== undefined) j.label = o.label;
+    if (o.caption !== undefined) j.caption = o.caption;
+  }
+  return { ...example, name: overlay.name ?? example.name, doc };
+}
