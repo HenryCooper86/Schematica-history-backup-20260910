@@ -1430,3 +1430,15 @@ html[data-theme="light"] .ai-result.ok { color: #166534; }
 html[data-theme="light"] .ai-result.warn { color: #92400e; }
 
 .review-card { border: 1px solid var(--line2); border-radius: 14px; box-shadow: 0 20px 70px #0004; }
+
+/* Compact story controls keep the board visible on small screens. */
+#present-overlay { width: min(900px, calc(100% - 24px)); max-width: 900px; bottom: 12px; gap: 6px; padding: 10px; background: var(--bg2); border: 1px solid var(--line2); border-radius: 12px; }
+#present-title { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#present-chapters { display: flex; gap: 6px; overflow-x: auto; width: 100%; }
+#present-chapters button { flex: 0 0 auto; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#present-chapters button[aria-current="true"] { border-color: var(--accent); color: var(--text); background: var(--bg3); }
+#present-caption { background: transparent; border: 0; padding: 2px 8px; max-height: 88px; overflow: auto; white-space: pre-wrap; }
+#present-nav { flex-wrap: wrap; justify-content: center; gap: 4px; background: transparent; border: 0; padding: 0; }
+#present-nav button, #present-nav label, #present-nav select { font-size: 12px; }
+#present-nav label { display: flex; gap: 4px; align-items: center; }
+#present-nav button:disabled { opacity: .4; cursor: default; }

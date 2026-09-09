@@ -1,3 +1,4 @@
+import { runPresentationChecks } from './presentation.mjs';
 import { runAdoptionChecks } from './adoption.mjs';
 import { runExploreChecks } from './explore.mjs';
 // Browser smoke test: serves the repo, drives a headless Chrome over the
@@ -241,7 +242,9 @@ function check(name, ok, detail = '') {
 }
 
 try {
-  if (process.env.ADOPTION_E2E_ONLY) {
+  if (process.env.PRESENTATION_E2E_ONLY) {
+    await runPresentationChecks({ js, key, check, sleep });
+  } else if (process.env.ADOPTION_E2E_ONLY) {
     await runAdoptionChecks({ js, key, check, sleep });
   } else if (process.env.EXPLORE_E2E_ONLY) {
     await runExploreChecks({ js, key, check, sleep });

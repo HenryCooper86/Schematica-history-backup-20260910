@@ -1,5 +1,6 @@
 // The journey panel (authored camera steps with captions) and present mode.
 import { addStep, updateStep, removeStep, moveStep, tweenView, selectedTargets, resolveStep } from '../journey.js';
+import { createPlayback } from '../playback.js';
 import { onPress, escAttr } from './press.js';
 import { panelHeader, bindCollapsible } from './collapsible.js';
 import { tr, onLanguageChange } from '../i18n.js';
@@ -10,6 +11,15 @@ export function initJourney({ svg, store, tools, render, recorder, propsPanel })
   const presentState = { active: false, index: 0, caption: '', counter: '' };
   let tweenRaf = null;
   let presentedJourney = '';
+  const playback = createPlayback({
+    advance: () => presentGo(1),
+    delay: () => document.getElementById('present-speed').value,
+    changed: playing => {
+      const button = document.getElementById('present-play');
+      button.textContent = playing ? tr('Pause') : tr('Play');
+      button.setAttribute('aria-pressed', String(playing));
+    },
+  });
 
   // Journey steps store world-space centers so they frame the same content on any
   // viewport — including present mode, where hiding the chrome resizes the canvas.
@@ -145,6 +155,17 @@ export function initJourney({ svg, store, tools, render, recorder, propsPanel })
     presentState.counter = `${presentState.index + 1} / ${steps.length}`;
     document.getElementById('present-caption').textContent = presentState.caption;
     document.getElementById('present-counter').textContent = presentState.counter;
+    document.getElementById('present-title').textContent = step.label;
+    const rail = document.getElementById('present-chapters');
+    rail.replaceChildren(...steps.map((s, i) => {
+      const button = document.createElement('button');
+      button.textContent = `${i + 1}. ${s.label}`;
+      button.setAttribute('aria-current', String(i === presentState.index));
+      button.onclick = () => { playback.pause(); presentState.index = i; presentShow(); };
+      return button;
+    }));
+    document.getElementById('present-prev').disabled = presentState.index === 0;
+    document.getElementById('present-next').disabled = presentState.index === steps.length - 1;
     goToStep(step);
     recorder.setOverlay(presentState.caption, presentState.counter);
   }
@@ -152,16 +173,18 @@ export function initJourney({ svg, store, tools, render, recorder, propsPanel })
   function presentGo(delta) {
     const steps = store.doc.journey || [];
     const next = presentState.index + delta;
-    if (next < 0 || next >= steps.length) return;
+    if (next < 0 || next >= steps.length) return false;
     presentState.index = next;
     presentShow();
+    return true;
   }
 
   function presentKeys(e) {
-    if (e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
+    if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
     if (!presentState.active) return;
-    if (e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); presentGo(1); }
-    else if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); presentGo(-1); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); playback.pause(); presentGo(1); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); playback.pause(); presentGo(-1); }
+    else if (e.code === 'Space' && e.target?.tagName !== 'BUTTON') { e.preventDefault(); e.stopPropagation(); togglePlay(); }
     else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); presentExit(); }
     else if (/^[a-z]$/i.test(e.key) && !e.metaKey && !e.ctrlKey) {
       // Tool switches and F (fit) would silently move the presented camera.
@@ -182,6 +205,7 @@ export function initJourney({ svg, store, tools, render, recorder, propsPanel })
   }
 
   function presentExit() {
+    playback.pause();
     if (tweenRaf) { cancelAnimationFrame(tweenRaf); tweenRaf = null; }
     presentState.active = false;
     tools.ui.presenting = false;
@@ -195,9 +219,20 @@ export function initJourney({ svg, store, tools, render, recorder, propsPanel })
     render();
   }
 
-  document.getElementById('present-prev').addEventListener('click', () => presentGo(-1));
-  document.getElementById('present-next').addEventListener('click', () => presentGo(1));
+  document.getElementById('present-prev').addEventListener('click', () => { playback.pause(); presentGo(-1); });
+  document.getElementById('present-next').addEventListener('click', () => { playback.pause(); presentGo(1); });
   document.getElementById('present-exit').addEventListener('click', presentExit);
+  function togglePlay() { if (playback.playing) playback.pause(); else playback.play(); }
+  document.getElementById('present-play').addEventListener('click', togglePlay);
+  document.getElementById('present-speed').addEventListener('change', () => playback.reschedule());
+  document.getElementById('present-restart').addEventListener('click', () => { playback.pause(); presentState.index = 0; presentShow(); });
+  document.getElementById('present-all').addEventListener('click', () => {
+    playback.pause();
+    goToStep({ view: currentCenter(), targets: { nodes: store.doc.nodes.map(n => n.id), wires: store.doc.wires.map(w => w.id) } });
+    tools.ui.story = null; render();
+  });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) playback.pause(); });
+
 
   // While presenting, an undo/redo or edit can change or remove the current
   // step; re-show so the caption, counter, and camera stay truthful (and don't

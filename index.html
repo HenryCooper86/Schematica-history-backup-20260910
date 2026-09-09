@@ -132,11 +132,17 @@
         &middot; <kbd>Del</kbd> <span>delete</span> &middot; <kbd>Space</kbd><span>+drag pan</span>
       </div>
       <div id="present-overlay" hidden>
-        <div id="present-caption"></div>
+        <strong id="present-title"></strong>
+        <nav id="present-chapters" aria-label="Story chapters"></nav>
+        <div id="present-caption" role="status"></div>
         <div id="present-nav">
           <button id="present-prev" title="Previous (Left arrow)">&lsaquo;</button>
           <span id="present-counter"></span>
           <button id="present-next" title="Next (Right arrow)">&rsaquo;</button>
+          <button id="present-play">Play</button>
+          <label>Speed <select id="present-speed"><option value="8000">0.5×</option><option value="4000" selected>1×</option><option value="2000">2×</option></select></label>
+          <button id="present-restart">Restart</button>
+          <button id="present-all">Show all</button>
           <button id="present-exit" title="Exit (Esc)">&times;</button>
         </div>
       </div>

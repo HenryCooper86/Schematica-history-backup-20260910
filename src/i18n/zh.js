@@ -2,6 +2,12 @@
 // their English names. Grouped by the surface that shows them. Identity
 // entries mark Latin terms that stay Latin on purpose.
 export default {
+  "Story chapters": "故事章节",
+  "Play": "播放",
+  "Pause": "暂停",
+  "Speed": "速度",
+  "Restart": "重新开始",
+  "Show all": "显示全部",
   "Appearance": "外观",
   "Dark": "深色",
   "Light": "浅色",
