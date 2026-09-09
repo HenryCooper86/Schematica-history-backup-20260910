@@ -1,3 +1,4 @@
+import { initCompare } from './ui/compare-ui.js';
 // Boot: the store, renderer, and tools, the toolbar, autosave, and the
 // animation ticker. Every panel and dialog lives in src/ui/.
 import { Store, newDoc } from './state.js';
@@ -210,6 +211,7 @@ store.subscribe(() => {
 // ---- Panels, dialogs, menus ----
 initPalette({ svg, store, tools, library, editor });
 initLegend();
+initCompare({ store });
 explorer = initExplore({ store, tools, svg, render });
 dialogs = initDialogs({ store });
 const recorder = initRecording({ svg, store });

@@ -2,6 +2,21 @@
 // their English names. Grouped by the surface that shows them. Identity
 // entries mark Latin terms that stay Latin on purpose.
 export default {
+  "Compare saved board": "比较已保存的板图",
+  "Choose an earlier version of this board. Items are matched by their saved IDs.": "选择此板图的较早版本。按保存的对象 ID 匹配。",
+  "Before": "之前",
+  "After": "之后",
+  "Download comparison": "下载比较结果",
+  "Added": "新增",
+  "Removed": "已移除",
+  "Changed": "已更改",
+  "Rewired": "连接端点已更改",
+  "Layout changed": "布局已更改",
+  "No differences.": "没有差异。",
+  "Field": "字段",
+  "Item": "对象",
+  "Board file exceeds 16 MiB.": "板图文件超过 16 MiB。",
+
   'Interactive HTML': '交互式 HTML',
   'Choose a matching part': '选择匹配的部件',
   'Fit diagram': '适应板图大小',

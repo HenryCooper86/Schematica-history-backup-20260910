@@ -1391,3 +1391,17 @@ html {
 #canvas .story-muted { opacity: 0.2; }
 #canvas .wire.story-match:not(.invalid) .vis { stroke: var(--accent); stroke-width: 3; }
 #canvas .node.story-match .card { stroke: var(--accent); stroke-width: 2; }
+
+.review-card { width: min(1000px, 90vw); max-height: 85vh; overflow: auto; padding: 22px; background: var(--bg1); color: var(--text); }
+.compare-previews { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.compare-previews svg { width: 100%; height: 260px; background: var(--bg0); border: 1px solid var(--line2); }
+#compare-changes details { border-bottom: 1px solid var(--line); padding: 10px 0; }
+#compare-changes summary { cursor: pointer; }
+#compare-changes table { width: 100%; table-layout: fixed; font-size: 12px; margin-top: 10px; }
+#compare-changes td { overflow-wrap: anywhere; white-space: pre-wrap; padding: 5px; vertical-align: top; }
+.compare-previews .delta-added { filter: drop-shadow(0 0 5px #34d399); }
+.compare-previews .delta-removed { opacity: .6; filter: drop-shadow(0 0 5px #f87171); }
+.compare-previews :is(.delta-changed, .delta-rewired) { filter: drop-shadow(0 0 5px #fbbf24); }
+.compare-previews .delta-moved { filter: drop-shadow(0 0 5px #a78bfa); }
+.compare-previews .delta-focus { filter: drop-shadow(0 0 8px #38bdf8); }
+@media (max-width: 650px) { .compare-previews { grid-template-columns: 1fr; } }

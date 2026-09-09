@@ -14,6 +14,13 @@ export async function runAdoptionChecks({ js, key, check, sleep }) {
   check('undo restores journey targets', await js(`!!document.querySelector('#canvas .story-match')`));
   await js(`document.getElementById('journey-present').click(); document.getElementById('present-exit').click(); true`);
   check('leaving Present clears story highlighting', await js(`!document.querySelector('#canvas .story-match, #canvas .story-muted')`));
+
+  await js(`document.getElementById('explore-compare').click(); true`);
+  await js(`(async () => { const {EXAMPLES} = await import('/src/examples.js'); const prior = structuredClone(EXAMPLES.find(e => e.id === 'weather-station').doc); prior.nodes[0].x -= 50; prior.nodes[0].label = 'Previous label'; const transfer = new DataTransfer(); transfer.items.add(new File([JSON.stringify(prior)], 'earlier.json', {type:'application/json'})); const input = document.getElementById('compare-file'); input.files = transfer.files; input.dispatchEvent(new Event('change')); return true; })()`);
+  await sleep(150);
+  check('comparison shows before/after previews and distinguishes movement', await js(`document.querySelectorAll('.compare-previews svg').length === 2 && document.getElementById('compare-status').textContent.includes('Layout changed: 1') && document.getElementById('compare-status').textContent.includes('Changed: 1')`));
+  check('comparison receipt is available and details show actual changes', await js(`!document.getElementById('compare-download').disabled && document.getElementById('compare-changes').textContent.includes('Previous label')`));
+  await js(`document.getElementById('compare-close').click(); true`);
   await js(`(async () => { const {buildHTML} = await import('/src/html-export.js'); const {EXAMPLES} = await import('/src/examples.js'); const html = buildHTML(EXAMPLES.find(e => e.id === 'weather-station').doc); location.href = URL.createObjectURL(new Blob([html], {type:'text/html'})); return true; })()`);
   await sleep(450);
   check('offline HTML viewer loads its embedded board', await js(`document.querySelectorAll('svg .node').length === 8 && !!document.getElementById('chapters')`));

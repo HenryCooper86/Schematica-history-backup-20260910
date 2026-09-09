@@ -76,7 +76,10 @@ a board JSON download. It needs no server or external assets; journey links
 use a `#step=` fragment within that same file. Connection highlighting follows the wires drawn
 on the board in either direction; it does not simulate signal flow or prove
 hardware compatibility. Opening another board clears the search and connection
-filters.
+filters. **Explore → Compare saved board** compares an earlier JSON file with
+the current board by stable item IDs. Before/after previews and an expandable
+field report separate additions, removals, configuration edits, rewiring, and
+layout changes. Download comparison saves the change report as JSON.
 
 Custom parts carry their definition inside the board file, so share links and
 saved files are self-contained. The library of templates lives in this

@@ -120,6 +120,7 @@
         </div>
         <p id="explore-summary" role="status"></p>
         <button id="explore-reset">Reset exploration</button>
+        <button id="explore-compare">Compare saved board</button>
         <p id="explore-status" role="status"></p>
         <div id="explore-results"></div>
       </section>
@@ -150,6 +151,17 @@
   </div>
   <input type="file" id="file-input" accept=".json,application/json" hidden>
   <input type="file" id="parts-file-input" accept=".json,application/json" hidden>
+  <dialog id="compare-dialog">
+    <div class="review-card">
+      <h3>Compare saved board</h3>
+      <p>Choose an earlier version of this board. Items are matched by their saved IDs.</p>
+      <label>Before <input id="compare-file" type="file" accept=".json,application/json"></label>
+      <p id="compare-status" role="status"></p><p id="compare-warning"></p>
+      <div class="compare-previews"><section><h4>Before</h4><div id="compare-before"></div></section><section><h4>After</h4><div id="compare-after"></div></section></div>
+      <div id="compare-changes"></div>
+      <div class="rec-buttons"><button id="compare-download" disabled>Download comparison</button><button id="compare-close">Close</button></div>
+    </div>
+  </dialog>
   <dialog id="part-dialog">
     <div class="rec-card part-card">
       <h3 id="pe-title">New part</h3>
