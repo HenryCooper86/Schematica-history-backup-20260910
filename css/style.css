@@ -1442,3 +1442,9 @@ html[data-theme="light"] .ai-result.warn { color: #92400e; }
 #present-nav button, #present-nav label, #present-nav select { font-size: 12px; }
 #present-nav label { display: flex; gap: 4px; align-items: center; }
 #present-nav button:disabled { opacity: .4; cursor: default; }
+#present-stops { display: flex; overflow-x: auto; gap: 6px; max-width: 100%; }
+#present-stops:empty { display: none; }
+#present-stops button { flex: 0 0 auto; font-size: 12px; }
+#present-stops button[aria-current="true"] { border-color: var(--accent); background: var(--bg3); }
+.journey-stop { margin: 6px 0 6px 12px; padding: 6px; border-left: 2px solid var(--line2); }
+.journey-stop strong { font-size: 12px; }

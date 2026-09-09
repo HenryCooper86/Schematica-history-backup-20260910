@@ -117,3 +117,30 @@ test('linked steps follow moved parts and exact wire endpoints, round-trip, and 
   store.undo();
   assert.deepEqual(store.doc.journey[0].targets, { nodes: [], wires: ['w'] });
 });
+
+test('ordered stops round-trip with stable IDs, clamp hostile input, and remain undoable', async () => {
+  const { normalizeStops, addStops, resolveStoryStop } = await import('../src/journey.js');
+  const { serialize, deserialize } = await import('../src/serialize.js');
+  const store = new Store();
+  store.doc.nodes = [{id:'a',kind:'mcu',label:'A',x:0,y:0}, {id:'b',kind:'temp',label:'B',x:400,y:0}];
+  const id = addStep(store, view(10, 20));
+  addStops(store, id, new Set(['b', 'a', 'missing']));
+  const step = store.doc.journey[0];
+  assert.deepEqual(step.stops.map(s => s.node), ['b','a']);
+  assert.deepEqual(deserialize(serialize(store.doc)).doc.journey[0].stops, step.stops);
+  assert.deepEqual([...resolveStoryStop(store.doc, step, 0).ids], ['b']);
+  assert.deepEqual(normalizeStops([{id:'x',node:'a',caption:'a'.repeat(5000)},{id:'x',node:'b'},null]).map(s=>s.caption.length), [4000]);
+  store.doc.nodes = [];
+  assert.equal(resolveStoryStop(store.doc, step, 0).missing, 1);
+  assert.deepEqual(resolveStoryStop(store.doc, step, 0).view, step.view);
+  store.undo(); assert.equal(store.doc.journey[0].stops, undefined);
+});
+test('story navigation visits overviews and all stops in both directions', async () => {
+  const { nextStoryPosition } = await import('../src/journey.js');
+  const steps = [{stops:[{},{}]}, {}, {stops:[{}]}];
+  assert.deepEqual(nextStoryPosition(steps,0,-1,1),{chapter:0,stop:0});
+  assert.deepEqual(nextStoryPosition(steps,0,1,1),{chapter:1,stop:-1});
+  assert.deepEqual(nextStoryPosition(steps,1,-1,-1),{chapter:0,stop:1});
+  assert.equal(nextStoryPosition(steps,0,-1,-1),null);
+  assert.equal(nextStoryPosition(steps,2,0,1),null);
+});

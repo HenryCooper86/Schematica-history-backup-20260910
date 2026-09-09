@@ -2,6 +2,13 @@
 // their English names. Grouped by the surface that shows them. Identity
 // entries mark Latin terms that stay Latin on purpose.
 export default {
+  "Story stops": "故事停靠点",
+  "Missing part": "部件已缺失",
+  "Stop caption": "停靠点说明",
+  "Move stop up": "上移停靠点",
+  "Move stop down": "下移停靠点",
+  "Remove stop": "移除停靠点",
+  "Add selected parts as stops": "将所选部件添加为停靠点",
   "Story chapters": "故事章节",
   "Play": "播放",
   "Pause": "暂停",

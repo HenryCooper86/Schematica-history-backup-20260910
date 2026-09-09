@@ -1,4 +1,4 @@
-import { normalizeTargets } from './journey.js';
+import { normalizeTargets, normalizeStops } from './journey.js';
 import { knownPorts } from './rdk/profiles.js';
 import { BUSES, DEFAULT_BUS } from './buses.js';
 import { PARTS, DISPOSITIONS, PORT_ALIASES } from './palette.js';
@@ -277,6 +277,7 @@ export function deserialize(text) {
       label: str(s.label, tr('Step')),
       view,
       caption: str(s.caption),
+      ...(normalizeStops(s.stops).length ? { stops: normalizeStops(s.stops) } : {}),
       ...(normalizeTargets(s.targets) ? { targets: normalizeTargets(s.targets) } : {}),
     });
   }
