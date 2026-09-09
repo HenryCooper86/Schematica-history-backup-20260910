@@ -2,6 +2,13 @@
 // their English names. Grouped by the surface that shows them. Identity
 // entries mark Latin terms that stay Latin on purpose.
 export default {
+  'Interactive HTML': '交互式 HTML',
+  'Choose a matching part': '选择匹配的部件',
+  'Fit diagram': '适应板图大小',
+  'Download board': '下载板图',
+  'Choose a journey step': '选择漫游步骤',
+  'Previous step': '上一步',
+  'Next step': '下一步',
   'Link selection': '关联所选部件和连线',
   'Camera only': '仅使用镜头位置',
   'Linked to parts and wires': '已关联部件和连线',

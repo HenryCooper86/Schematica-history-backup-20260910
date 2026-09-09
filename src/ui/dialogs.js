@@ -1,3 +1,4 @@
+import { buildHTML } from '../html-export.js';
 // File and export actions: new/save/open, the export dialog (PNG, SVG, PDF,
 // seamless loop GIF), the BOM and design-rule dialogs, and share links.
 import { newDoc, deleteItems } from '../state.js';
@@ -63,6 +64,10 @@ export function initDialogs({ store }) {
       if (blob) download(safeName('.png'), blob);
       else toast(tr('PNG export failed in this browser. The SVG export still works.'));
     }, { width, height });
+  });
+  document.getElementById('export-html-go').addEventListener('click', () => {
+    exportDialog.close();
+    download(safeName('.html'), buildHTML(store.doc), 'text/html');
   });
   document.getElementById('export-svg-go').addEventListener('click', () => {
     exportDialog.close();

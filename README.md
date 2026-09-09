@@ -70,7 +70,10 @@ Work is autosaved to the browser's localStorage and restored on reload.
 
 Exploration is temporary view state: search, filters, and reading detail do not
 change the board, create undo steps, or enter saved files and share links.
-Exports retain full detail. Connection highlighting follows the wires drawn
+Exports retain full detail. **Export → Interactive HTML** creates one offline
+file with search, bus filters, connection highlighting, pan/zoom, journeys, and
+a board JSON download. It needs no server or external assets; journey links
+use a `#step=` fragment within that same file. Connection highlighting follows the wires drawn
 on the board in either direction; it does not simulate signal flow or prove
 hardware compatibility. Opening another board clears the search and connection
 filters.

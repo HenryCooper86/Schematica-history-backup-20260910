@@ -14,4 +14,10 @@ export async function runAdoptionChecks({ js, key, check, sleep }) {
   check('undo restores journey targets', await js(`!!document.querySelector('#canvas .story-match')`));
   await js(`document.getElementById('journey-present').click(); document.getElementById('present-exit').click(); true`);
   check('leaving Present clears story highlighting', await js(`!document.querySelector('#canvas .story-match, #canvas .story-muted')`));
+  await js(`(async () => { const {buildHTML} = await import('/src/html-export.js'); const {EXAMPLES} = await import('/src/examples.js'); const html = buildHTML(EXAMPLES.find(e => e.id === 'weather-station').doc); location.href = URL.createObjectURL(new Blob([html], {type:'text/html'})); return true; })()`);
+  await sleep(450);
+  check('offline HTML viewer loads its embedded board', await js(`document.querySelectorAll('svg .node').length === 8 && !!document.getElementById('chapters')`));
+  await js(`document.getElementById('search').value = 'ESP32'; document.getElementById('search').dispatchEvent(new Event('input')); document.getElementById('results').value = 'n5'; document.getElementById('results').dispatchEvent(new Event('change')); document.getElementById('bus').value = 'i2c'; document.getElementById('bus').dispatchEvent(new Event('change')); document.getElementById('connections').value = 'neighbors'; document.getElementById('connections').dispatchEvent(new Event('change')); true`);
+  check('offline search and bus tracing use embedded connectivity', await js(`document.querySelectorAll('.wire.focused').length === 1 && document.querySelectorAll('.node.focused').length === 2`));
+
 }
