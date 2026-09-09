@@ -4,6 +4,9 @@ import {
   snap, nodeRect, nodeSize, nodeMeta, portPosition, wireGeom, wireGeomToPoint, curvePoint, wireLanes, WIRE_FAN,
   rectContains, rectsIntersect, normRect, wrapText, noteHeight, NOTE_W, contentBounds, textUnits,
 } from '../src/geometry.js';
+import { EXAMPLE_OVERLAYS_ZH } from '../src/examples.js';
+
+const CLOSING_PUNCT = new Set([...'。，、；：？！）」』》”’']);
 
 const node = { x: 100, y: 200, w: 160, h: 100 };
 
@@ -126,10 +129,12 @@ test('wrapText breaks CJK text per character, ASCII output unchanged', () => {
   // CJK character its own token, so it still wraps.
   const cjk = '仅为设计：双目占用两个 CSI 接口。软件流程为描述性，未选择运行时。';
   const lines = wrapText(cjk);
+  assert.deepEqual(lines, ['仅为设计：双目占用两个', 'CSI 接口。软件流程为描', '述性，未选择运行时。']);
   assert.ok(lines.length > 1, 'a long CJK sentence still wraps into multiple lines');
   for (const line of lines) {
     assert.ok(textUnits(line) <= 22, `"${line}" exceeds the 22-unit width budget`);
     assert.ok(!line.startsWith(' ') && !line.endsWith(' '), `"${line}" has a stray edge space`);
+    assert.ok(!CLOSING_PUNCT.has(line[0]), `"${line}" starts with closing punctuation`);
   }
   // No character is dropped: with whitespace normalized away on both sides,
   // rejoining the lines reproduces the source exactly. The one space that
@@ -143,6 +148,41 @@ test('wrapText breaks CJK text per character, ASCII output unchanged', () => {
   // A Latin run immediately followed by CJK characters with no whitespace
   // between them in the source never gains a space at that boundary.
   assert.deepEqual(wrapText('ESP32-S3轮询'), ['ESP32-S3轮询']);
+});
+
+test('wrapText carries a closing punctuation mark down to join the character before it, never starting a line with one', () => {
+  // 11 CJK characters (textUnits 20.9) plus the following "。" (textUnits
+  // 1.9 more) lands at 22.8, just over the 22-unit budget: the break falls
+  // exactly before the "。". Without the carry rule the next line would
+  // start with "。" alone (and, if it were the last token, be a line
+  // containing only "。"); with it, the finished line's last character
+  // ("一") moves down to join the punctuation instead.
+  const prefix = '一二三四五六七八九十一'; // 11 characters
+  assert.ok(textUnits(prefix) <= 22 && textUnits(prefix) > 20, textUnits(prefix));
+  assert.ok(textUnits(prefix + '。') > 22, 'adding "。" pushes the line over the 22-unit budget');
+  const s = prefix + '。这是用来测试换行的更多文字内容确保后续换行仍然正常工作。';
+  const lines = wrapText(s);
+  assert.equal(lines[0], prefix.slice(0, -1), 'the finished line loses its last character');
+  assert.ok(lines[1].startsWith('一。'), 'the next line starts with the carried character followed by the punctuation');
+  for (const line of lines) assert.ok(!CLOSING_PUNCT.has(line[0]), `"${line}" starts with closing punctuation`);
+  assert.equal(lines.join(''), s, 'no character is lost or duplicated by the carry');
+});
+
+test('no note in EXAMPLE_OVERLAYS_ZH wraps to a line starting with closing punctuation or a lone punctuation mark', () => {
+  let checked = 0;
+  for (const [id, overlay] of Object.entries(EXAMPLE_OVERLAYS_ZH)) {
+    for (const [key, text] of Object.entries(overlay.notes || {})) {
+      checked += 1;
+      for (const line of wrapText(text)) {
+        assert.ok(!CLOSING_PUNCT.has(line[0]), `${id}.notes.${key} wraps a line starting with punctuation: "${line}"`);
+        assert.ok(
+          !(line.length === 1 && CLOSING_PUNCT.has(line)),
+          `${id}.notes.${key} wraps a line that is only punctuation: "${line}"`,
+        );
+      }
+    }
+  }
+  assert.ok(checked > 0, 'at least one note was actually checked');
 });
 
 test('noteHeight grows with lines', () => {

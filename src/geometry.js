@@ -225,28 +225,33 @@ export function normRect(x1, y1, x2, y2) {
 // sentence with no spaces can still wrap. Each token remembers whether
 // whitespace preceded it in the source, so a token adjacent to a CJK
 // character with no whitespace between them (`ESP32-S3轮询`) never gains
-// one on reassembly.
+// one on reassembly. A token's `space` is only ever read once it is joined
+// onto a non-empty line (`wrapText` always takes an empty line's token
+// verbatim), so the very first token's flag is moot regardless of any
+// leading whitespace in the source.
 function tokenizeForWrap(s) {
   const tokens = [];
   let i = 0;
   let spacePending = false;
-  let first = true;
   while (i < s.length) {
     const ch = s[i];
     if (/\s/.test(ch)) { spacePending = true; i++; continue; }
     if (WIDE.test(ch)) {
-      tokens.push({ text: ch, space: !first && spacePending });
-      spacePending = false; first = false; i++;
+      tokens.push({ text: ch, space: spacePending });
+      spacePending = false; i++;
       continue;
     }
     let j = i;
     while (j < s.length && !/\s/.test(s[j]) && !WIDE.test(s[j])) j++;
-    tokens.push({ text: s.slice(i, j), space: !first && spacePending });
-    spacePending = false; first = false;
+    tokens.push({ text: s.slice(i, j), space: spacePending });
+    spacePending = false;
     i = j;
   }
   return tokens;
 }
+
+// CJK closing punctuation: never allowed to start a wrapped line.
+const CLOSING_PUNCT = new Set([...'。，、；：？！）」』》”’']);
 
 export function wrapText(text, maxChars = 22) {
   const tokens = tokenizeForWrap(String(text));
@@ -256,14 +261,22 @@ export function wrapText(text, maxChars = 22) {
   for (const tok of tokens) {
     const candidate = line ? line + (tok.space ? ' ' : '') + tok.text : tok.text;
     if (line && textUnits(candidate) > maxChars) {
-      lines.push(line);
-      line = tok.text;
+      if (CLOSING_PUNCT.has(tok.text) && line.length > 1) {
+        // Don't start the new line with closing punctuation: carry the
+        // finished line's last character down to join it instead. The
+        // finished line only gets shorter, so it still fits its budget.
+        lines.push(line.slice(0, -1));
+        line = line.slice(-1) + tok.text;
+      } else {
+        lines.push(line);
+        line = tok.text;
+      }
     } else {
       line = candidate;
     }
   }
   if (line) lines.push(line);
-  return lines.length ? lines : [''];
+  return lines;
 }
 
 // ---- Swimlanes ----
