@@ -22,4 +22,21 @@ export async function runPresentationChecks({ js, check, sleep }) {
   check('stop transition reveals exact wire, ports and unspecified direction', await js(`document.querySelector('#canvas .wire[data-id="w6"]').classList.contains('story-match') && document.querySelectorAll('#canvas .wire.story-match').length === 1 && document.querySelectorAll('#canvas .portg.story-port').length === 2 && document.getElementById('present-relationship').textContent.includes('Direction unspecified') && document.querySelector('#canvas .node[data-id="n6"]').classList.contains('story-current')`));
   await js(`document.getElementById('present-play').click(); document.getElementById('present-exit').click(); true`);
 
+  await js(`document.getElementById('journey-present').click(); document.querySelector('#present-stops button:last-child').click(); navigator.clipboard.writeText = async text => { window.__storyLink = text; }; document.getElementById('present-copy').click(); true`);
+  await sleep(150);
+  check('copy moment includes the board and stable stop ID', await js(`document.getElementById('story-link-dialog').open && window.__storyLink.includes('stop=beat-b') && /#[dj]=/.test(window.__storyLink)`));
+  await js(`location.href = window.__storyLink; location.reload(); true`);
+  await sleep(700);
+  check('shared board restores the exact presentation stop', await js(`!document.getElementById('present-overlay').hidden && document.getElementById('present-caption').textContent === 'Sample temperature' && document.querySelector('#present-stops button:last-child').getAttribute('aria-current') === 'true'`));
+  await js(`(async () => { const {buildHTML} = await import('/src/html-export.js'); const {EXAMPLES} = await import('/src/examples.js'); const board = structuredClone(EXAMPLES[0].doc); board.journey[0].stops=[{id:'beat-a',node:'n5',caption:'Read sensors'},{id:'beat-b',node:'n6',caption:'Sample temperature'}]; location.href = URL.createObjectURL(new Blob([buildHTML(board)],{type:'text/html'})) + '#step=' + board.journey[0].id + '&stop=beat-b&present=1'; return true; })()`);
+  await sleep(700);
+  check('offline HTML restores exact stop with relationship and presentation stage', await js(`document.body.classList.contains('presenting') && document.getElementById('caption').textContent === 'Sample temperature' && document.querySelectorAll('.wire.focused').length === 1 && document.getElementById('relationship').textContent.includes('I2C')`));
+  await js(`document.getElementById('restart').click(); document.querySelector('#stop-rail button').click(); document.getElementById('speed').value='2000'; document.getElementById('play').click(); true`);
+  await sleep(2150);
+  check('offline player advances through authored stops', await js(`document.getElementById('caption').textContent === 'Sample temperature' && location.hash.includes('stop=beat-b')`));
+  await js(`document.getElementById('play').click(); document.getElementById('copy-moment').click(); true`);
+  check('offline sharing explains file transfer and exposes a moment fragment', await js(`document.getElementById('moment-dialog').open && document.getElementById('moment-link').value.startsWith('#step=') && document.getElementById('moment-help').textContent.includes('send the HTML file')`));
+  await js(`document.getElementById('moment-close').click(); document.getElementById('show-all').click(); true`);
+  check('offline show all pauses and removes transient highlights', await js(`!document.querySelector('.muted') && document.getElementById('play').getAttribute('aria-pressed') === 'false' && !location.hash`));
+
 }

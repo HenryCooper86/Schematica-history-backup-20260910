@@ -217,7 +217,7 @@ initCompare({ store });
 explorer = initExplore({ store, tools, svg, render });
 dialogs = initDialogs({ store });
 const recorder = initRecording({ svg, store });
-initJourney({ svg, store, tools, render, recorder, propsPanel });
+const journeyUI = initJourney({ svg, store, tools, render, recorder, propsPanel });
 initExamplesMenu({ store });
 initLayoutToggles();
 initAssistant({ store, tools, render, svg, library });
@@ -235,7 +235,10 @@ syncAnimation();
 (async () => {
   if (!location.hash || location.hash.length < 4) return;
   try {
-    const text = await decodeShare(location.hash);
+    const moment = new URLSearchParams(location.hash.slice(1));
+    const boardFragment = moment.has('d') ? 'd=' + moment.get('d') : moment.has('j') ? 'j=' + moment.get('j') : '';
+    if (!boardFragment) return;
+    const text = await decodeShare(boardFragment);
     const { doc, warnings } = deserialize(text);
     const prev = store.doc;
     const hasWork = prev.nodes.length || prev.wires.length || prev.zones.length
@@ -247,6 +250,7 @@ syncAnimation();
     }
     history.replaceState(null, '', location.pathname + location.search);
     store.replaceDoc(doc);
+    if (moment.has('step')) journeyUI.openMoment(moment);
     const notes = warnings.length ? tr('\n\nLoaded with warnings:\n{list}', { list: warnings.join('\n') }) : '';
     if (hasWork) {
       toast(tr('Loaded the shared board "{title}". Your previous board is kept as a backup.{notes}', { title: doc.title, notes }), {

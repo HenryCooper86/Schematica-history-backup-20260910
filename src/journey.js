@@ -172,3 +172,10 @@ export function storyRelationshipText(doc, step, index) {
     return `${endpoint(w.from)} ${arrow} ${endpoint(w.to)} · ${BUSES[w.bus]?.short || w.bus}${w.label ? ' · ' + w.label : ''} · ${direction}`;
   }).join('\n');
 }
+
+export function readStoryMoment(steps, params) {
+  const chapter = steps.findIndex(s => s.id === params.get('step'));
+  if (chapter < 0) return null;
+  const stop = (steps[chapter].stops || []).findIndex(s => s.id === params.get('stop'));
+  return { chapter, stop };
+}

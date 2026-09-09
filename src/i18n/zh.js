@@ -2,6 +2,10 @@
 // their English names. Grouped by the surface that shows them. Identity
 // entries mark Latin terms that stay Latin on purpose.
 export default {
+  "Copy moment": "复制当前时刻",
+  "Story moment link": "故事时刻链接",
+  "Copy this link to open this chapter and stop.": "复制此链接以打开当前章节和停靠点。",
+  "For an offline file, send the HTML file together with this moment fragment.": "对于离线文件，请将 HTML 文件与此时刻片段一起发送。",
   "Starting part": "起始部件",
   "Same part; another explanation": "同一部件的另一项说明",
   "No direct wire between these stops": "这些停靠点之间没有直接连线",

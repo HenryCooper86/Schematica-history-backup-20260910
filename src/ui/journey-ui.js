@@ -1,5 +1,6 @@
 // The journey panel (authored camera steps with captions) and present mode.
-import { addStep, updateStep, removeStep, moveStep, tweenView, selectedTargets, resolveStep, addStops, nextStoryPosition, resolveStoryStop, storyRelationshipText } from '../journey.js';
+import { addStep, updateStep, removeStep, moveStep, tweenView, selectedTargets, resolveStep, addStops, nextStoryPosition, resolveStoryStop, storyRelationshipText, readStoryMoment } from '../journey.js';
+import { encodeShare } from '../share.js';
 import { createPlayback } from '../playback.js';
 import { onPress, escAttr } from './press.js';
 import { panelHeader, bindCollapsible } from './collapsible.js';
@@ -37,7 +38,7 @@ export function initJourney({ svg, store, tools, render, recorder, propsPanel })
     const r = svg.getBoundingClientRect();
     return {
       x: r.width / 2 - c.cx * c.zoom,
-      y: r.height / 2 - c.cy * c.zoom,
+      y: (r.height - (presentState.active ? overlay.offsetHeight + 24 : 0)) / 2 - c.cy * c.zoom,
       zoom: c.zoom,
     };
   }
@@ -71,7 +72,7 @@ export function initJourney({ svg, store, tools, render, recorder, propsPanel })
 
   function goToStep(step, stop = -1) {
     const r = svg.getBoundingClientRect();
-    const resolved = resolveStoryStop(store.doc, step, stop, { width: r.width, height: r.height });
+    const resolved = resolveStoryStop(store.doc, step, stop, { width: r.width, height: r.height - (presentState.active ? overlay.offsetHeight + 24 : 0) });
     tools.ui.story = resolved.ids.size ? resolved.ids : null;
     tools.ui.storyCurrent = step.stops?.[stop]?.node || null;
     render();
@@ -167,6 +168,7 @@ export function initJourney({ svg, store, tools, render, recorder, propsPanel })
 
   // ---- Present mode ----
   function presentShow() {
+    document.getElementById('present-copy').disabled = false;
     const steps = store.doc.journey || [];
     if (!steps.length) { presentExit(); return; }
     presentedJourney = JSON.stringify(steps);
@@ -266,8 +268,27 @@ export function initJourney({ svg, store, tools, render, recorder, propsPanel })
     playback.pause();
     goToStep({ view: currentCenter(), targets: { nodes: store.doc.nodes.map(n => n.id), wires: store.doc.wires.map(w => w.id) } });
     tools.ui.story = null; render();
+    document.getElementById('present-copy').disabled = true;
   });
   document.addEventListener('visibilitychange', () => { if (document.hidden) playback.pause(); });
+  window.addEventListener('resize', () => { if (presentState.active) { playback.pause(); presentShow(); } });
+  const linkDialog = document.getElementById('story-link-dialog');
+  document.getElementById('story-link-close').onclick = () => linkDialog.close();
+  document.getElementById('present-copy').addEventListener('click', async () => {
+    playback.pause();
+    const step = store.doc.journey[presentState.index];
+    const stop = step?.stops?.[presentState.stop];
+    const snapshot = structuredClone(store.doc);
+    const params = new URLSearchParams({ step: step.id, present: '1' });
+    if (stop) params.set('stop', stop.id);
+    const fragment = await encodeShare(snapshot);
+    const url = `${location.origin}${location.pathname}#${fragment}&${params}`;
+    const input = document.getElementById('story-link-value');
+    input.value = url;
+    linkDialog.showModal(); input.focus(); input.select();
+    try { await navigator.clipboard.writeText(url); } catch { /* selectable link is the clipboard fallback */ }
+  });
+
 
 
   // While presenting, an undo/redo or edit can change or remove the current
@@ -279,4 +300,12 @@ export function initJourney({ svg, store, tools, render, recorder, propsPanel })
     if (store.doc.journey?.[presentState.index]?.targets || store.doc.journey?.[presentState.index]?.stops) { presentShow(); return; }
     if (j !== presentedJourney) presentShow();
   });
+  return { openMoment(params) {
+    const moment = readStoryMoment(store.doc.journey || [], params);
+    if (!moment) return;
+    presentEnter();
+    presentState.index = moment.chapter; presentState.stop = moment.stop;
+    presentShow();
+  } };
+
 }

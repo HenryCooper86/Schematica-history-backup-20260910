@@ -131,6 +131,7 @@
         &middot; <span>drag ports to link</span> &middot; <span>double-click rename</span>
         &middot; <kbd>Del</kbd> <span>delete</span> &middot; <kbd>Space</kbd><span>+drag pan</span>
       </div>
+      <dialog id="story-link-dialog"><p>Story moment link</p><input id="story-link-value" readonly aria-label="Story moment link"><p>Copy this link to open this chapter and stop.</p><button id="story-link-close">Close</button></dialog>
       <div id="present-overlay" hidden>
         <strong id="present-title"></strong>
         <nav id="present-chapters" aria-label="Story chapters"></nav>
@@ -144,6 +145,7 @@
           <button id="present-play">Play</button>
           <label>Speed <select id="present-speed"><option value="8000">0.5×</option><option value="4000" selected>1×</option><option value="2000">2×</option></select></label>
           <button id="present-restart">Restart</button>
+          <button id="present-copy">Copy moment</button>
           <button id="present-all">Show all</button>
           <button id="present-exit" title="Exit (Esc)">&times;</button>
         </div>

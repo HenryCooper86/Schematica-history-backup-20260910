@@ -162,3 +162,11 @@ test('story relationships highlight only direct wires and preserve authored dire
   const reverse = {...step,stops:[{node:'c'},{node:'b'}]};
   assert.match(storyRelationshipText(doc,reverse,1), /b · gpio → c · gpio/);
 });
+
+test('story moment links survive reordering and fall back for removed stops', async () => {
+  const { readStoryMoment } = await import('../src/journey.js');
+  const steps = [{id:'other'}, {id:'chapter',stops:[{id:'b'},{id:'a'}]}];
+  assert.deepEqual(readStoryMoment(steps,new URLSearchParams('step=chapter&stop=a')),{chapter:1,stop:1});
+  assert.deepEqual(readStoryMoment(steps,new URLSearchParams('step=chapter&stop=removed')),{chapter:1,stop:-1});
+  assert.equal(readStoryMoment(steps,new URLSearchParams('step=missing')),null);
+});
