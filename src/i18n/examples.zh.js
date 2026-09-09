@@ -3,6 +3,8 @@
 // labels, notes, zone labels and lane names, note text, journey labels and
 // captions. Part numbers (sublabels), fields, ids and geometry never appear
 // here. localizedExample() in src/examples.js applies an overlay to a copy.
+// The RDK software-stage cards share this note on every board.
+const RDK_STAGE_NOTE = '描述性处理阶段；流程箭头不会部署或执行软件包。运行时及具体示例集成需要验证。';
 export default {
   'weather-station': {
     name: '气象站',
@@ -293,6 +295,117 @@ export default {
       j1: { label: '十一路摄像头', caption: '十一路 GMSL2 摄像头以四组接入控制器：前向三路、每侧两路、后视与泊车四路。线束中每个摄像头各有自己的同轴线；分组只是为了让图面易读。' },
       j2: { label: '计算', caption: '征程 6P（560 TOPS 等效，BPU Nash）端到端运行地平线 SuperDrive，覆盖城区、高速和泊车场景。前雷达经 CAN FD 接入，角雷达经 T1 接入。' },
       j3: { label: '车载网络', caption: '1000BASE-T1 交换机连接控制器和角雷达；网关将 CAN FD 桥接到车身 CAN 和 OBD-II 接口。摄像头、雷达和交换机的供电仍作为通用检查结果保留。' },
+    },
+  },
+  'rdk-rover': {
+    name: 'RDK X5 漫游车（地瓜机器人）',
+    title: 'RDK X5 漫游车',
+    nodes: {
+      n1: { label: '电池' },
+      n2: { label: '稳压器' },
+      n3: { label: '机器人主控', notes: 'RDK X5；稳压 5V 供电按至少 5A 选型。仅为架构设计；硬件未经测试。' },
+      n5: { label: '双目摄像头', notes: '两根 CSI 排线占用 X5 的两个摄像头接口。请按链接的官方指南确认安装与驱动配置。' },
+      n7: { label: '激光雷达' },
+      n8: { label: '电机控制器' },
+      n9: { label: '左电机' },
+      n10: { label: '右电机' },
+      n11: { label: '惯性测量单元' },
+      s1: { label: '传感器采集', notes: RDK_STAGE_NOTE },
+      s2: { label: 'BPU 推理', notes: RDK_STAGE_NOTE },
+      s3: { label: '图像编解码', notes: RDK_STAGE_NOTE },
+      s4: { label: '可视化', notes: RDK_STAGE_NOTE },
+    },
+    zones: { z1: { label: '电源' }, z2: { label: '感知' }, z3: { label: '执行器' }, zs: { label: 'X5 上的软件 · 未选择运行时' } },
+    notes: {
+      t1: '仅为设计：双目占用两个 CSI 接口。软件流程为描述性，未选择运行时。',
+      t2: '供电细节不完整：传感器供电和电机回路未绘制。通用检查保留这些缺项。',
+    },
+    journey: {
+      j1: { label: '供电与计算', caption: '4S 电池组为 X5 提供额定至少 5A 的稳压 5V 供电。供电与回路细节仍不完整；请查看通用检查结果。' },
+      j2: { label: '双目采集', caption: 'GS130W 左右两路 CSI 排线占用 X5 的 CSI1 和 CSI2。未绘制额外的 MIPI 摄像头或未经验证的串行舵机捷径。' },
+      j3: { label: '运动概念', caption: '一个概念性的 CAN FD 控制器驱动两个轮子。控制器电气接口、功率参数和实际 CAN 布线需另行验证。' },
+      j4: { label: '描述性流水线', caption: '传感器采集、推理、编解码和可视化阶段以 X5 为目标。流程描述的是预期的数据处理，而非启动配置；未选择运行时。' },
+    },
+  },
+  'rdk-perception': {
+    name: 'RDK X5 双目感知',
+    title: 'RDK X5 双目感知',
+    nodes: {
+      n1: { label: '电池' },
+      n2: { label: '稳压器' },
+      n3: { label: '机器人主控', notes: 'RDK X5；稳压 5V 供电按至少 5A 选型。仅为架构设计；硬件未经测试。' },
+      n5: { label: '双目摄像头', notes: '两根 CSI 排线占用 X5 的两个摄像头接口。请按链接的官方指南确认安装与驱动配置。' },
+      s1: { label: '传感器采集', notes: RDK_STAGE_NOTE },
+      s2: { label: 'BPU 推理', notes: RDK_STAGE_NOTE },
+      s3: { label: '图像编解码', notes: RDK_STAGE_NOTE },
+      s4: { label: '可视化', notes: RDK_STAGE_NOTE },
+    },
+    zones: { z1: { label: '电源' }, z2: { label: '感知' }, zs: { label: 'X5 上的软件 · 未选择运行时' } },
+    notes: {
+      t1: '仅为设计：双目占用两个 CSI 接口。软件流程为描述性，未选择运行时。',
+      t2: '供电细节不完整：电池回路未绘制。通用检查保留这一缺项；硬件未经测试。',
+    },
+    journey: {
+      j1: { label: '供电与计算', caption: '概念性的 4S 供电和稳压 5V 5A 输出为 X5 供电。电池回路有意省略，仍作为通用检查结果保留。' },
+      j2: { label: '双目采集', caption: 'GS130W 左右两路 CSI 排线占用 X5 的 CSI1 和 CSI2。未绘制额外的 MIPI 摄像头或未经验证的串行舵机捷径。' },
+      j4: { label: '描述性流水线', caption: '传感器采集、推理、编解码和可视化阶段以 X5 为目标。流程描述的是预期的数据处理，而非启动配置；未选择运行时。' },
+    },
+  },
+  'rdk-x3-robot': {
+    name: 'RDK X3 视觉机器人（地瓜机器人）',
+    title: 'RDK X3 视觉机器人',
+    nodes: {
+      n1: { label: '电池' },
+      n2: { label: '稳压器' },
+      n3: { label: '机器人主控', notes: 'RDK X3；只有一个 MIPI CSI 接口且没有 CAN FD，因此运动控制经由 UART 连接的微控制器完成。稳压 5V 供电按至少 3A 选型。仅为架构设计；硬件未经测试。' },
+      n4: { label: '前置摄像头', notes: '单个 X3 CSI 接口上的 IMX219 系列模组。传感器名称不能确定模组、线缆或驱动的兼容性；下单前请选择文档列出的厂商模组和转接板。' },
+      n5: { label: '驱动微控制器', notes: '通过 UART 接收来自 X3 的速度指令，并以 PWM 驱动两个轮子。驱动电路和供电未绘制。' },
+      n6: { label: '左电机' },
+      n7: { label: '右电机' },
+      n8: { label: '超声波' },
+      n9: { label: '惯性测量单元' },
+      s1: { label: '传感器采集', notes: RDK_STAGE_NOTE },
+      s2: { label: 'BPU 推理', notes: RDK_STAGE_NOTE },
+      s3: { label: '可视化', notes: RDK_STAGE_NOTE },
+    },
+    zones: { z1: { label: '电源' }, z2: { label: '感知' }, z3: { label: '执行器' }, zs: { label: 'X3 上的软件 · 未选择运行时' } },
+    notes: {
+      t1: '仅为设计：一个 CSI 接口，没有 CAN FD；由 UART 微控制器驱动轮子。摄像头兼容性是一个未关闭的检查项。',
+      t2: '供电细节不完整：微控制器、传感器和电机供电未绘制。通用检查保留这些缺项；硬件未经测试。',
+    },
+    journey: {
+      j1: { label: '供电与计算', caption: '3S 电池组为 X3 提供额定至少 3A 的稳压 5V 供电。微控制器、传感器和电机供电仍未绘制；请查看通用检查结果。' },
+      j2: { label: '单摄像头', caption: '一个 IMX219 系列模组占用 X3 唯一的 CSI 接口。目录未确认模组、线缆或驱动的兼容性，因此检查器有意保留该检查项。' },
+      j3: { label: '经 UART 的运动控制', caption: 'X3 没有 CAN FD，因此由 Cortex-M4 驱动微控制器通过 UART 接收速度指令并以 PWM 驱动两个轮子。驱动电路和回路需另行验证。' },
+      j4: { label: '描述性流水线', caption: '传感器采集、推理和可视化阶段以 X3 为目标。流程描述的是预期的数据处理，而非启动配置；未选择运行时。' },
+    },
+  },
+  'rdk-s100-node': {
+    name: 'RDK S100 感知节点（地瓜机器人）',
+    title: 'RDK S100 感知节点',
+    nodes: {
+      n1: { label: '电池', notes: '直接为 S100 供电：其文档标称输入为 12-20V 直流，因此未绘制板级稳压器。' },
+      n3: { label: '感知节点', notes: 'RDK S100（80 TOPS，12GB LPDDR5）；由 4S 电池组提供 12-20V 直流输入。摄像头信号经 J25 引入，排线摄像头需要摄像头扩展板。目录中没有经验证的接口图，因此这里的每个接口都是未关闭的检查项。仅为架构设计；硬件未经测试。' },
+      n5: { label: '双目摄像头', notes: '带 ICM-42688-P IMU 的双 SC132GS 全局快门双目模组。两根排线经摄像头扩展板接入 S100；请按链接的官方指南确认安装。' },
+      n7: { label: '激光雷达' },
+      n8: { label: 'GNSS 接收机' },
+      n9: { label: 'GNSS 天线' },
+      n12: { label: '主机电脑' },
+      s1: { label: '传感器采集', notes: RDK_STAGE_NOTE },
+      s2: { label: 'BPU 推理', notes: RDK_STAGE_NOTE },
+      s3: { label: '图像编解码', notes: RDK_STAGE_NOTE },
+      s4: { label: '可视化', notes: RDK_STAGE_NOTE },
+    },
+    zones: { z1: { label: '电源' }, z2: { label: '感知' }, z3: { label: '定位' }, z4: { label: '上行链路' }, zs: { label: 'S100 上的软件 · 未选择运行时' } },
+    notes: {
+      t1: '仅为设计：没有经验证的 S100 接口图，因此 CSI、UART 和以太网链路仍是未关闭的检查项。排线摄像头需要摄像头扩展板。',
+      t2: '供电细节不完整：传感器供电和回路未绘制。4S 电池组处于 S100 文档标称的 12-20V 输入范围内；硬件未经测试。',
+    },
+    journey: {
+      j1: { label: '电池组直接供电', caption: '4S 电池组直接为 S100 供电，因为其文档标称输入为 12 至 20V；无需板级稳压器。传感器供电和回路仍未绘制，作为通用检查结果保留。' },
+      j2: { label: '经扩展板的双目', caption: 'GS130WI 左右两路排线经摄像头扩展板接入 S100。目录中没有经验证的 S100 接口图，因此检查器将该接口对报告为未经验证，而非已通过。' },
+      j3: { label: '测距与定位', caption: 'UART 上的 2D 激光雷达和第二路 UART 上的 RTK GNSS 接收机提供距离和位置；天线馈线也已绘出，以免遗漏射频路径。' },
+      j4: { label: '上行与流水线', caption: '以太网将结果送往 ROS 2 工作站。采集、推理、编解码和可视化阶段以 S100 为目标；流程为描述性，未选择运行时。' },
     },
   },
 };
