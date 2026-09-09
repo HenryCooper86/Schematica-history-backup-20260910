@@ -6,7 +6,29 @@ import {
 } from '../src/geometry.js';
 import { EXAMPLE_OVERLAYS_ZH } from '../src/examples.js';
 
-const CLOSING_PUNCT = new Set([...'。，、；：？！）」』》”’']);
+const CLOSING_PUNCT = new Set([...'。，、；：？！）」』》']);
+
+// The same character classes geometry.js counts as wide, and the same tokens
+// it wraps on: a run of non-space, non-CJK characters (a Latin word) is one
+// token, every CJK character is its own.
+const WIDE_CLASS = '　-〿぀-ヿ㐀-䶿一-鿿가-힯＀-￯';
+const tokensOf = (s) => String(s).match(new RegExp(`[${WIDE_CLASS}]|[^\\s${WIDE_CLASS}]+`, 'gu')) || [];
+
+// What wrapping must never do, whatever the text: leave an empty line, start
+// a line with closing punctuation (a lone punctuation line included), or put
+// a break inside a run of non-wide, non-space characters — tokenizing the
+// lines has to give back exactly the source's tokens, in order.
+function assertWrapInvariants(source, lines, what) {
+  for (const line of lines) {
+    assert.ok(line.length > 0, `${what}: empty line in ${JSON.stringify(lines)}`);
+    assert.ok(!CLOSING_PUNCT.has(line[0]), `${what}: "${line}" starts with closing punctuation`);
+    assert.ok(!(line.length === 1 && CLOSING_PUNCT.has(line)), `${what}: "${line}" is only punctuation`);
+  }
+  assert.deepEqual(
+    lines.flatMap(tokensOf), tokensOf(source),
+    `${what}: a line boundary fell inside a word — ${JSON.stringify(lines)}`,
+  );
+}
 
 const node = { x: 100, y: 200, w: 160, h: 100 };
 
@@ -192,46 +214,90 @@ test('wrapText carries a whole run of adjacent closing punctuation, not just its
   assert.equal(lines2.join(''), s2, 'no character is lost or duplicated by the carry');
 });
 
-test('a generated set of "一" strings with 1-3-mark punctuation runs never wraps to a line starting with punctuation', () => {
-  // For every length 1..40 and every insertion point after the first
-  // character (inserting right at the start just makes the input itself
-  // begin with punctuation, which is not a wrapping artifact to fix), drop
-  // in a run of 1-3 of each punctuation mark and wrap the result. None of
-  // these inputs contain spaces, so every character must survive in order.
+test('the carry moves whole tokens, so a Latin word before the punctuation travels down intact', () => {
+  // The carry pops the trailing punctuation plus one preceding *token*. When
+  // that token is a Latin word, slicing the finished line by code point (as
+  // fix round 3 did) cut it in half — the shipped rdk-s100-node note broke as
+  // "…因此 CS" / "I、UART…". Each case below is built so the break lands
+  // exactly on the mark that follows the Latin word.
+  const cases = [
+    ['某某某某某某', ' ESP32-S3', '。', '后面还有更多文字继续填充'],
+    ['所有电源域共用一条', ' GND', '。', '后面还有更多文字继续填充'],
+    ['双目相机各占用一路', ' CSI', '、', 'UART 和以太网链路仍未确认'],
+  ];
+  for (const [head, word, punct, tail] of cases) {
+    assert.ok(textUnits(head + word) <= 22, `${head}${word} should still fit the budget`);
+    assert.ok(textUnits(head + word + punct) > 22, `${head}${word}${punct} should overflow it`);
+    const s = `${head}${word}${punct}${tail}`;
+    const lines = wrapText(s);
+    assertWrapInvariants(s, lines, s);
+    assert.equal(lines[0], head, 'the finished line keeps only the characters before the Latin word');
+    assert.ok(
+      lines[1].startsWith(word.trim() + punct),
+      `the word and its mark start the next line, together: "${lines[1]}"`,
+    );
+  }
+});
+
+test('a generated set of strings with 1-3-mark punctuation runs never wraps to a line starting with punctuation or inside a word', () => {
+  // For every length 1..40 and every insertion point after the first token
+  // (inserting right at the start just makes the input itself begin with
+  // punctuation, which is not a wrapping artifact to fix), drop in a run of
+  // 1-3 of each punctuation mark and wrap the result.
+  //
+  // Three fillers: plain "一" characters, and two that alternate CJK
+  // characters with the short Latin runs real boards carry — spaced the way
+  // the dictionary writes them ("因此 CSI、"), and unspaced ("ESP32-S3轮询").
+  // A Latin run is what the by-code-point carry used to cut in half, so the
+  // wrap invariants (which include "no token is split") are checked on every
+  // generated case.
   const PUNCTS = ['。', '，', '）'];
+  const MIXED = ['一', 'GND', '二', 'CSI', '三', 'ESP32-S3', '四', '五'];
+  // Token `i` of a filler, with the separator that precedes it.
+  const fillers = [
+    (i) => '一',
+    (i) => (i && (/[A-Z]/.test(MIXED[i % MIXED.length]) || /[A-Z]/.test(MIXED[(i - 1) % MIXED.length])) ? ' ' : '') + MIXED[i % MIXED.length],
+    (i) => MIXED[i % MIXED.length],
+  ];
   let cases = 0;
-  for (let len = 1; len <= 40; len++) {
-    for (let pos = 1; pos <= len; pos++) {
-      for (const p of PUNCTS) {
-        for (let run = 1; run <= 3; run++) {
-          const base = '一'.repeat(len);
-          const s = base.slice(0, pos) + p.repeat(run) + base.slice(pos);
-          const lines = wrapText(s);
-          cases += 1;
-          for (const line of lines) {
-            assert.ok(line.length > 0, `empty line for ${JSON.stringify(s)}`);
-            assert.ok(!CLOSING_PUNCT.has(line[0]), `"${line}" (from ${JSON.stringify(s)}) starts with closing punctuation`);
+  for (const filler of fillers) {
+    for (let len = 1; len <= 40; len++) {
+      const pieces = Array.from({ length: len }, (_, i) => filler(i));
+      for (let pos = 1; pos <= len; pos++) {
+        for (const p of PUNCTS) {
+          for (let run = 1; run <= 3; run++) {
+            const s = pieces.slice(0, pos).join('') + p.repeat(run) + pieces.slice(pos).join('');
+            const lines = wrapText(s);
+            cases += 1;
+            assertWrapInvariants(s, lines, `generated ${JSON.stringify(s)}`);
           }
-          assert.equal(lines.join(''), s, `reconstruction mismatch for ${JSON.stringify(s)}`);
         }
       }
     }
   }
-  assert.ok(cases > 1000, `only generated ${cases} cases`);
+  assert.ok(cases > 3000, `only generated ${cases} cases`);
+
+  // The space-free filler additionally reconstructs character for character:
+  // with no whitespace in the source, joining the lines gives the source back.
+  const base = '一'.repeat(30);
+  const s = `${base.slice(0, 12)}。，${base.slice(12)}`;
+  assert.equal(wrapText(s).join(''), s, `reconstruction mismatch for ${JSON.stringify(s)}`);
 });
 
-test('no note in EXAMPLE_OVERLAYS_ZH wraps to a line starting with closing punctuation or a lone punctuation mark', () => {
+test('every shipped Chinese note and journey caption wraps cleanly', () => {
+  // Both wraps the app actually performs: a board note through the 22-unit
+  // note wrap (render.js), and a journey caption through the 64-unit wrap the
+  // recorder lays out its caption with (recorder.js).
   let checked = 0;
   for (const [id, overlay] of Object.entries(EXAMPLE_OVERLAYS_ZH)) {
     for (const [key, text] of Object.entries(overlay.notes || {})) {
       checked += 1;
-      for (const line of wrapText(text)) {
-        assert.ok(!CLOSING_PUNCT.has(line[0]), `${id}.notes.${key} wraps a line starting with punctuation: "${line}"`);
-        assert.ok(
-          !(line.length === 1 && CLOSING_PUNCT.has(line)),
-          `${id}.notes.${key} wraps a line that is only punctuation: "${line}"`,
-        );
-      }
+      assertWrapInvariants(text, wrapText(text), `${id}.notes.${key}`);
+    }
+    for (const [key, step] of Object.entries(overlay.journey || {})) {
+      if (step.caption === undefined) continue;
+      checked += 1;
+      assertWrapInvariants(step.caption, wrapText(step.caption, 64), `${id}.journey.${key}.caption`);
     }
   }
   assert.ok(checked > 0, 'at least one note was actually checked');

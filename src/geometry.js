@@ -250,43 +250,64 @@ function tokenizeForWrap(s) {
   return tokens;
 }
 
-// CJK closing punctuation: never allowed to start a wrapped line.
-const CLOSING_PUNCT = new Set([...'。，、；：？！）」』》”’']);
+// CJK closing punctuation: never allowed to start a wrapped line. Membership
+// requires WIDE, so every mark here is a token of its own and the carry below
+// can only ever fire on text that holds CJK — the ASCII path is unchanged by
+// construction. (The Latin curly quotes ”’ are deliberately not members: they
+// close Latin text, where a carry would have to cut into a word.)
+const CLOSING_PUNCT = new Set([...'。，、；：？！）」』》'].filter((ch) => WIDE.test(ch)));
 
-// How many closing-punctuation code points end `line`, counting code points
-// (not UTF-16 units) so a run is measured correctly for any text.
-function trailingPunctRun(chars) {
+// How many closing-punctuation tokens end `toks`. Every closing mark is WIDE,
+// so it is always its own token and a run is measured token by token.
+function trailingPunctRun(toks) {
   let k = 0;
-  while (k < chars.length && CLOSING_PUNCT.has(chars[chars.length - 1 - k])) k++;
+  while (k < toks.length && CLOSING_PUNCT.has(toks[toks.length - 1 - k].text)) k++;
   return k;
+}
+
+// Renders a line's tokens back to text: a token joins with a space only where
+// the source had whitespace, and the first token never takes one — it starts
+// the line.
+function joinTokens(toks) {
+  let s = '';
+  for (let i = 0; i < toks.length; i++) s += (i && toks[i].space ? ' ' : '') + toks[i].text;
+  return s;
 }
 
 export function wrapText(text, maxChars = 22) {
   const tokens = tokenizeForWrap(String(text));
   if (!tokens.length) return [''];
   const lines = [];
-  let line = '';
+  // A line is built as its token list, so the carry below can move whole
+  // tokens: slicing the rendered text by code point would cut a Latin word
+  // in half ("CSI、" → "CS" / "I、").
+  let line = [];
+  let rendered = '';
   for (const tok of tokens) {
-    const candidate = line ? line + (tok.space ? ' ' : '') + tok.text : tok.text;
-    if (line && textUnits(candidate) > maxChars) {
-      const chars = [...line];
-      const k = CLOSING_PUNCT.has(tok.text) ? trailingPunctRun(chars) : -1;
-      if (k >= 0 && chars.length > k + 1) {
-        // Don't start the new line with closing punctuation: carry the
-        // finished line's last ordinary character, plus any run of
-        // punctuation already stuck to it, down to join the incoming mark.
-        // The finished line only gets shorter, so it still fits its budget.
-        lines.push(chars.slice(0, chars.length - (k + 1)).join(''));
-        line = chars.slice(chars.length - (k + 1)).join('') + tok.text;
+    const candidate = rendered + (line.length && tok.space ? ' ' : '') + tok.text;
+    if (line.length && textUnits(candidate) > maxChars) {
+      // Don't start the new line with closing punctuation: carry the run of
+      // marks already stuck to the finished line's end, plus exactly one
+      // token before it (a whole Latin word or a single CJK character), down
+      // to join the incoming mark. The finished line only gets shorter, so it
+      // still fits its budget; if the carry would leave it empty, break
+      // plainly instead.
+      const k = CLOSING_PUNCT.has(tok.text) ? trailingPunctRun(line) : -1;
+      const keep = line.length - (k + 1);
+      if (k >= 0 && keep > 0) {
+        lines.push(joinTokens(line.slice(0, keep)));
+        line = [...line.slice(keep), tok];
       } else {
-        lines.push(line);
-        line = tok.text;
+        lines.push(rendered);
+        line = [tok];
       }
+      rendered = joinTokens(line);
     } else {
-      line = candidate;
+      line.push(tok);
+      rendered = candidate;
     }
   }
-  if (line) lines.push(line);
+  if (line.length) lines.push(rendered);
   return lines;
 }
 
