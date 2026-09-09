@@ -104,7 +104,11 @@ partial and shows what will be included. PDF and DOCX extraction uses the
 bundled, lazy-loaded PDF.js and Mammoth distributions; document bytes and
 parsing stay local until selected extracted text is sent with your message.
 
-Journeys are saved inside the `.schematica.json` document. Recording during
+Journeys are saved inside the `.schematica.json` document. Select parts or wires
+and use **Link selection** on a step to make its camera follow those items.
+**Go** and Present highlight the linked items and frame their current positions.
+**Camera only** removes the link. Missing targets are reported, and a step with
+no remaining targets falls back to its saved camera. Recording during
 Present captures the animated tour with captions burned into the frames.
 
 ## RDK architecture references

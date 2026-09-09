@@ -1,3 +1,4 @@
+import { runAdoptionChecks } from './adoption.mjs';
 import { runExploreChecks } from './explore.mjs';
 // Browser smoke test: serves the repo, drives a headless Chrome over the
 // DevTools Protocol, and checks the interactions unit tests cannot reach
@@ -240,7 +241,9 @@ function check(name, ok, detail = '') {
 }
 
 try {
-  if (process.env.EXPLORE_E2E_ONLY) {
+  if (process.env.ADOPTION_E2E_ONLY) {
+    await runAdoptionChecks({ js, key, check, sleep });
+  } else if (process.env.EXPLORE_E2E_ONLY) {
     await runExploreChecks({ js, key, check, sleep });
   } else if (process.env.DOCUMENT_E2E_ONLY) {
     const seedDocumentsFake = () => js(`localStorage.setItem('schematica.ai.settings', JSON.stringify({ provider: 'anthropic', model: 'test-model', baseUrl: location.origin + '/fake', effort: 'low', remember: true, tools: true })); localStorage.setItem('schematica.ai.key.anthropic', 'sk-fake'); true`);

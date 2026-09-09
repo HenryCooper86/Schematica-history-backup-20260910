@@ -86,7 +86,8 @@ function render(kind = 'all') {
     return;
   }
   renderer.render(store.doc, tools.view, uiState());
-  renderer.setExploration(store.doc, explorer?.state(), store.selection);
+  renderer.setExploration(store.doc, tools.ui.story ? {} : explorer?.state(), store.selection);
+  renderer.setStory(tools.ui.story);
   renderer.setReadingDepth(explorer?.state().depth, tools.view.zoom);
   updateZoomLabel();
   document.getElementById('undo').disabled = !store.canUndo();

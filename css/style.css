@@ -1385,3 +1385,9 @@ html {
 #canvas .layer-diagram[data-depth="overview"] :is(.node, .wire):not([data-reading-focus]) [data-detail],
 #canvas .layer-diagram[data-depth="normal"] .node:not([data-reading-focus]) [data-detail="fine"] { visibility: hidden; }
 #app.presenting #explore-panel { display: none; }
+
+.journey-step .step-actions { flex-wrap: wrap; }
+.journey-step small { color: var(--muted); font-size: 10px; }
+#canvas .story-muted { opacity: 0.2; }
+#canvas .wire.story-match:not(.invalid) .vis { stroke: var(--accent); stroke-width: 3; }
+#canvas .node.story-match .card { stroke: var(--accent); stroke-width: 2; }

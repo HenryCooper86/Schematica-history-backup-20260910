@@ -601,6 +601,14 @@ export function createRenderer(svg) {
       root.setAttribute('transform', `translate(${view.x} ${view.y}) scale(${view.zoom})`);
       grid.setAttribute('display', showGrid ? 'inline' : 'none');
     },
+    setStory(ids) {
+      for (const el of diagram.querySelectorAll('.node, .wire')) {
+        const match = ids?.has(el.dataset.id);
+        el.classList.toggle('story-muted', !!ids?.size && !match);
+        el.classList.toggle('story-match', !!match);
+        if (match) el.setAttribute('data-reading-focus', '');
+      }
+    },
     setReadingDepth(mode, zoom) {
       diagram.setAttribute('data-depth', readingDepth(mode, zoom));
     },

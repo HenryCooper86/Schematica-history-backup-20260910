@@ -2,6 +2,10 @@
 // their English names. Grouped by the surface that shows them. Identity
 // entries mark Latin terms that stay Latin on purpose.
 export default {
+  'Link selection': '关联所选部件和连线',
+  'Camera only': '仅使用镜头位置',
+  'Linked to parts and wires': '已关联部件和连线',
+  'Some linked items are missing; the saved view is the fallback.': '部分关联对象已缺失；无可用对象时使用保存的视图。',
   // ---- board exploration ----
   "Explore this board (/)": "探索当前板图 (/)",
   "Board canvas": "板图画布",

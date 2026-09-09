@@ -93,3 +93,27 @@ test('tweenView interpolates screen views and clamps t', () => {
   assert.deepEqual(tweenView(from, to, -5), from);
   assert.deepEqual(tweenView(from, to, 5), to);
 });
+
+test('linked steps follow moved parts and exact wire endpoints, round-trip, and fall back when deleted', async () => {
+  const { resolveStep, selectedTargets } = await import('../src/journey.js');
+  const { serialize, deserialize } = await import('../src/serialize.js');
+  const store = new Store();
+  store.doc.nodes = [{ id: 'a', kind: 'mcu', label: 'A', x: 0, y: 0 }, { id: 'b', kind: 'temp', label: 'B', x: 400, y: 0 }];
+  store.doc.wires = [{ id: 'w', bus: 'i2c', from: { node: 'a', port: 'i2c' }, to: { node: 'b', port: 'i2c' } }];
+  const id = addStep(store, view(10, 20));
+  updateStep(store, id, { targets: selectedTargets(store.doc, new Set(['w'])) });
+  const step = store.doc.journey[0];
+  assert.deepEqual([...resolveStep(store.doc, step).ids].sort(), ['a', 'b', 'w']);
+  const first = resolveStep(store.doc, step).view;
+  store.doc.nodes[1].x += 500;
+  assert.ok(resolveStep(store.doc, step).view.cx > first.cx);
+  const restored = deserialize(serialize(store.doc)).doc;
+  assert.deepEqual(restored.journey[0].targets, step.targets);
+  store.doc.wires = [];
+  assert.deepEqual(resolveStep(store.doc, step).view, step.view);
+  assert.equal(resolveStep(store.doc, step).missing, 1);
+  updateStep(store, id, { targets: null });
+  assert.equal(store.doc.journey[0].targets, undefined);
+  store.undo();
+  assert.deepEqual(store.doc.journey[0].targets, { nodes: [], wires: ['w'] });
+});

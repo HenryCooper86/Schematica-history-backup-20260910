@@ -1,5 +1,5 @@
 // The journey panel (authored camera steps with captions) and present mode.
-import { addStep, updateStep, removeStep, moveStep, tweenView } from '../journey.js';
+import { addStep, updateStep, removeStep, moveStep, tweenView, selectedTargets, resolveStep } from '../journey.js';
 import { onPress, escAttr } from './press.js';
 import { panelHeader, bindCollapsible } from './collapsible.js';
 import { tr, onLanguageChange } from '../i18n.js';
@@ -59,6 +59,14 @@ export function initJourney({ svg, store, tools, render, recorder, propsPanel })
 
   const flyToCenter = (c, instant = false) => flyTo(centerToView(c), instant);
 
+  function goToStep(step) {
+    const r = svg.getBoundingClientRect();
+    const resolved = resolveStep(store.doc, step, { width: r.width, height: r.height });
+    tools.ui.story = resolved.ids.size ? resolved.ids : null;
+    render();
+    flyToCenter(resolved.view);
+  }
+
   function renderJourney() {
     if (journeyPanel.hidden) return;
     const ae = document.activeElement;
@@ -70,9 +78,12 @@ export function initJourney({ svg, store, tools, render, recorder, propsPanel })
         + `<div class="step-head"><span class="step-num">${i + 1}</span>`
         + `<input type="text" data-jfield="label" value="${escAttr(s.label)}"></div>`
         + `<textarea data-jfield="caption" placeholder="${escAttr(tr('Caption shown while presenting'))}">${escAttr(s.caption)}</textarea>`
+        + (s.targets ? `<small>${escAttr(resolveStep(store.doc, s).missing ? tr('Some linked items are missing; the saved view is the fallback.') : tr('Linked to parts and wires'))}</small>` : '')
         + '<div class="step-actions">'
         + `<button data-jact="go">${escAttr(tr('Go'))}</button>`
         + `<button data-jact="set" title="${escAttr(tr('Update this step to the current view'))}">${escAttr(tr('Set'))}</button>`
+        + `<button data-jact="link"${selectedTargets(store.doc, store.selection) ? '' : ' disabled'}>${escAttr(tr('Link selection'))}</button>`
+        + (s.targets ? `<button data-jact="unlink">${escAttr(tr('Camera only'))}</button>` : '')
         + '<button data-jact="up">&uarr;</button>'
         + '<button data-jact="down">&darr;</button>'
         + '<button data-jact="del">&times;</button>'
@@ -100,7 +111,9 @@ export function initJourney({ svg, store, tools, render, recorder, propsPanel })
         const act = btn.dataset.jact;
         const step = (store.doc.journey || []).find((s) => s.id === id);
         if (!step) return;
-        if (act === 'go') flyToCenter(step.view);
+        if (act === 'go') goToStep(step);
+        if (act === 'link') updateStep(store, id, { targets: selectedTargets(store.doc, store.selection) });
+        if (act === 'unlink') { updateStep(store, id, { targets: null }); tools.ui.story = null; render(); }
         if (act === 'set') updateStep(store, id, { view: currentCenter() });
         if (act === 'up') moveStep(store, id, -1);
         if (act === 'down') moveStep(store, id, 1);
@@ -116,6 +129,9 @@ export function initJourney({ svg, store, tools, render, recorder, propsPanel })
     propsPanel.render();
   });
   store.subscribe(renderJourney);
+  svg.addEventListener('pointerdown', () => { if (!presentState.active && tools.ui.story) { tools.ui.story = null; render(); } });
+  let generation = store.generation;
+  store.subscribe(() => { if (generation !== store.generation) { generation = store.generation; tools.ui.story = null; if (presentState.active) presentExit(); else render(); } });
   onLanguageChange(() => { renderJourney(); if (presentState.active) presentShow(); });
 
   // ---- Present mode ----
@@ -129,7 +145,7 @@ export function initJourney({ svg, store, tools, render, recorder, propsPanel })
     presentState.counter = `${presentState.index + 1} / ${steps.length}`;
     document.getElementById('present-caption').textContent = presentState.caption;
     document.getElementById('present-counter').textContent = presentState.counter;
-    flyToCenter(step.view);
+    goToStep(step);
     recorder.setOverlay(presentState.caption, presentState.counter);
   }
 
@@ -173,6 +189,8 @@ export function initJourney({ svg, store, tools, render, recorder, propsPanel })
     overlay.hidden = true;
     window.removeEventListener('keydown', presentKeys, true);
     recorder.setOverlay('', '');
+    tools.ui.story = null;
+    render();
   }
 
   document.getElementById('present-prev').addEventListener('click', () => presentGo(-1));
@@ -185,6 +203,7 @@ export function initJourney({ svg, store, tools, render, recorder, propsPanel })
   store.subscribe(() => {
     if (!presentState.active) return;
     const j = JSON.stringify(store.doc.journey || []);
+    if (store.doc.journey?.[presentState.index]?.targets) { presentShow(); return; }
     if (j !== presentedJourney) presentShow();
   });
 }
