@@ -19,6 +19,7 @@ export async function runPresentationChecks({ js, check, sleep }) {
   await js(`document.getElementById('present-speed').value='2000'; document.getElementById('present-play').click(); true`);
   await sleep(2150);
   check('timed playback advances to the next stop', await js(`document.querySelector('#present-stops button:last-child').getAttribute('aria-current') === 'true' && document.getElementById('present-caption').textContent === 'Sample temperature'`));
+  check('stop transition reveals exact wire, ports and unspecified direction', await js(`document.querySelector('#canvas .wire[data-id="w6"]').classList.contains('story-match') && document.querySelectorAll('#canvas .wire.story-match').length === 1 && document.querySelectorAll('#canvas .portg.story-port').length === 2 && document.getElementById('present-relationship').textContent.includes('Direction unspecified') && document.querySelector('#canvas .node[data-id="n6"]').classList.contains('story-current')`));
   await js(`document.getElementById('present-play').click(); document.getElementById('present-exit').click(); true`);
 
 }

@@ -144,3 +144,21 @@ test('story navigation visits overviews and all stops in both directions', async
   assert.equal(nextStoryPosition(steps,0,-1,-1),null);
   assert.equal(nextStoryPosition(steps,2,0,1),null);
 });
+
+test('story relationships highlight only direct wires and preserve authored direction', async () => {
+  const { storyRelationship, storyRelationshipText, resolveStoryStop } = await import('../src/journey.js');
+  const doc = {nodes:['a','b','c'].map((id,i)=>({id,kind:'mcu',label:id,x:i*300,y:0})), wires:[
+    {id:'ab',bus:'i2c',from:{node:'a',port:'i2c'},to:{node:'b',port:'i2c'}},
+    {id:'ab2',bus:'uart',arrow:'both',from:{node:'a',port:'uart'},to:{node:'b',port:'uart'}},
+    {id:'bc',bus:'gpio',arrow:'fwd',from:{node:'b',port:'gpio'},to:{node:'c',port:'gpio'}}]};
+  const step = {view:view(0,0),stops:[{node:'b'},{node:'a'},{node:'c'}]};
+  assert.equal(storyRelationship(doc,step,0).kind,'start');
+  assert.deepEqual(storyRelationship(doc,step,1).wires.map(w=>w.id),['ab','ab2']);
+  assert.equal(storyRelationship(doc,step,2).kind,'unconnected');
+  assert.match(storyRelationshipText(doc,step,1), /a · i2c — b · i2c.*Direction unspecified/);
+  assert.match(storyRelationshipText(doc,step,1), /a · uart ↔ b · uart.*Bidirectional arrow/);
+  assert.deepEqual([...resolveStoryStop(doc,step,1).ids].sort(),['a','ab','ab2','b']);
+  assert.deepEqual([...resolveStoryStop(doc,step,2).ids],['c']);
+  const reverse = {...step,stops:[{node:'c'},{node:'b'}]};
+  assert.match(storyRelationshipText(doc,reverse,1), /b · gpio → c · gpio/);
+});

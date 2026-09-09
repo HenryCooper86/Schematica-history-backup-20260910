@@ -104,6 +104,7 @@ export function bakeFrame(root, nowMs) {
   root.querySelectorAll('.ports').forEach((el) => el.remove());
   root.querySelectorAll('.explore-muted, .story-muted').forEach(el => el.setAttribute('opacity', '0.2'));
   root.querySelectorAll('.wire.explore-match:not(.invalid) .vis, .wire.story-match:not(.invalid) .vis').forEach(el => { el.setAttribute('stroke', '#38bdf8'); el.setAttribute('stroke-width', '3'); });
+  root.querySelectorAll('.node.story-current .card').forEach(el => el.setAttribute('stroke-width', '3'));
   root.querySelectorAll('.node.explore-match .card, .node.story-match .card').forEach(el => el.setAttribute('stroke', '#38bdf8'));
   root.querySelectorAll('[data-depth="overview"] .node:not([data-reading-focus]) [data-detail], [data-depth="overview"] .wire:not([data-reading-focus]) [data-detail], [data-depth="normal"] .node:not([data-reading-focus]) [data-detail="fine"]').forEach(el => el.setAttribute('visibility', 'hidden'));
   const off = flowOffset(nowMs);
@@ -600,13 +601,19 @@ export function createRenderer(svg) {
       root.setAttribute('transform', `translate(${view.x} ${view.y}) scale(${view.zoom})`);
       grid.setAttribute('display', showGrid ? 'inline' : 'none');
     },
-    setStory(ids) {
+    setStory(ids, current, doc) {
       for (const el of diagram.querySelectorAll('.node, .wire')) {
         const match = ids?.has(el.dataset.id);
         el.classList.toggle('story-muted', !!ids?.size && !match);
         el.classList.toggle('story-match', !!match);
+        el.classList.toggle('story-current', !!match && el.dataset.id === current);
         if (match) el.setAttribute('data-reading-focus', '');
       }
+      const endpoints = (doc?.wires || []).filter(w => ids?.has(w.id)).flatMap(w => [w.from, w.to]);
+      for (const port of diagram.querySelectorAll('.portg')) {
+        port.classList.toggle('story-port', endpoints.some(p => p.node === port.dataset.node && p.port === port.dataset.port));
+      }
+      for (const ports of diagram.querySelectorAll('.ports')) ports.classList.toggle('story-ports', !!ports.querySelector('.story-port'));
     },
     setReadingDepth(mode, zoom) {
       diagram.setAttribute('data-depth', readingDepth(mode, zoom));

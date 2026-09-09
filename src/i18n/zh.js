@@ -2,6 +2,12 @@
 // their English names. Grouped by the surface that shows them. Identity
 // entries mark Latin terms that stay Latin on purpose.
 export default {
+  "Starting part": "起始部件",
+  "Same part; another explanation": "同一部件的另一项说明",
+  "No direct wire between these stops": "这些停靠点之间没有直接连线",
+  "Bidirectional arrow": "双向箭头",
+  "Authored arrow direction": "已定义的箭头方向",
+  "Direction unspecified": "未指定方向",
   "Story stops": "故事停靠点",
   "Missing part": "部件已缺失",
   "Stop caption": "停靠点说明",

@@ -1,5 +1,6 @@
 import { nodeRect } from './geometry.js';
 import { uid } from './state.js';
+import { BUSES } from './buses.js';
 import { tr } from './i18n.js';
 
 // Step views are stored as WORLD-SPACE centers ({cx, cy, zoom}) so a journey
@@ -82,7 +83,7 @@ export function selectedTargets(doc, selection) {
 }
 
 export function resolveStep(doc, step, viewport = { width: 1000, height: 700 }) {
-  const targets = normalizeTargets(step.targets);
+  const targets = normalizeTargets(step.targets) || normalizeTargets({ nodes: (step.stops || []).map(s => s.node) });
   const ids = new Set();
   const nodes = new Map(doc.nodes.map(n => [n.id, n]));
   const wires = new Map(doc.wires.map(w => [w.id, w]));
@@ -140,5 +141,34 @@ export function nextStoryPosition(steps, chapter, stop, delta) {
 export function resolveStoryStop(doc, step, index, viewport) {
   const stop = step.stops?.[index];
   if (!stop) return resolveStep(doc, step, viewport);
-  return resolveStep(doc, { ...step, targets: { nodes: [stop.node], wires: [] } }, viewport);
+  const relationship = storyRelationship(doc, step, index);
+  return resolveStep(doc, { ...step, targets: { nodes: [stop.node], wires: relationship.wires.map(w => w.id) } }, viewport);
+}
+
+// Diagram order and electrical direction are independent. Only direct authored
+// wires are included; multiple connections and unspecified arrows stay explicit.
+export function storyRelationship(doc, step, index) {
+  const current = step.stops?.[index]?.node, previous = step.stops?.[index - 1]?.node;
+  const nodes = new Map(doc.nodes.map(n => [n.id, n]));
+  if (!current || !nodes.has(current)) return { kind: 'missing', wires: [] };
+  if (!previous) return { kind: 'start', wires: [] };
+  if (!nodes.has(previous)) return { kind: 'missing', wires: [] };
+  if (previous === current) return { kind: 'same', wires: [] };
+  const wires = doc.wires.filter(w => (w.from.node === previous && w.to.node === current)
+    || (w.to.node === previous && w.from.node === current));
+  return { kind: wires.length ? 'connected' : 'unconnected', wires };
+}
+
+export function storyRelationshipText(doc, step, index) {
+  const relation = storyRelationship(doc, step, index);
+  if (relation.kind === 'start') return tr('Starting part');
+  if (relation.kind === 'missing') return tr('Missing part');
+  if (relation.kind === 'same') return tr('Same part; another explanation');
+  if (relation.kind === 'unconnected') return tr('No direct wire between these stops');
+  const endpoint = p => `${doc.nodes.find(n => n.id === p.node)?.label || p.node} · ${p.port}`;
+  return relation.wires.map(w => {
+    const arrow = w.arrow === 'both' ? '↔' : w.arrow === 'fwd' ? '→' : '—';
+    const direction = w.arrow === 'both' ? tr('Bidirectional arrow') : w.arrow === 'fwd' ? tr('Authored arrow direction') : tr('Direction unspecified');
+    return `${endpoint(w.from)} ${arrow} ${endpoint(w.to)} · ${BUSES[w.bus]?.short || w.bus}${w.label ? ' · ' + w.label : ''} · ${direction}`;
+  }).join('\n');
 }

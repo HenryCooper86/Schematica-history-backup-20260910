@@ -1448,3 +1448,9 @@ html[data-theme="light"] .ai-result.warn { color: #92400e; }
 #present-stops button[aria-current="true"] { border-color: var(--accent); background: var(--bg3); }
 .journey-stop { margin: 6px 0 6px 12px; padding: 6px; border-left: 2px solid var(--line2); }
 .journey-stop strong { font-size: 12px; }
+#present-relationship { max-width: 100%; max-height: 64px; overflow: auto; white-space: pre-wrap; color: var(--muted); font-size: 12px; text-align: center; }
+#present-relationship:empty { display: none; }
+#canvas .node.story-current .card { stroke-width: 3; }
+#canvas .ports.story-ports { opacity: 1; }
+#canvas .portg.story-port .port-name { opacity: 1; }
+#canvas .portg.story-port .port { stroke-width: 2.5; }

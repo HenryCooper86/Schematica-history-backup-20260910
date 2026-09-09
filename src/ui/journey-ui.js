@@ -1,5 +1,5 @@
 // The journey panel (authored camera steps with captions) and present mode.
-import { addStep, updateStep, removeStep, moveStep, tweenView, selectedTargets, resolveStep, addStops, nextStoryPosition, resolveStoryStop } from '../journey.js';
+import { addStep, updateStep, removeStep, moveStep, tweenView, selectedTargets, resolveStep, addStops, nextStoryPosition, resolveStoryStop, storyRelationshipText } from '../journey.js';
 import { createPlayback } from '../playback.js';
 import { onPress, escAttr } from './press.js';
 import { panelHeader, bindCollapsible } from './collapsible.js';
@@ -73,6 +73,7 @@ export function initJourney({ svg, store, tools, render, recorder, propsPanel })
     const r = svg.getBoundingClientRect();
     const resolved = resolveStoryStop(store.doc, step, stop, { width: r.width, height: r.height });
     tools.ui.story = resolved.ids.size ? resolved.ids : null;
+    tools.ui.storyCurrent = step.stops?.[stop]?.node || null;
     render();
     flyToCenter(resolved.view);
   }
@@ -174,6 +175,7 @@ export function initJourney({ svg, store, tools, render, recorder, propsPanel })
     presentState.stop = Math.min(presentState.stop, (step.stops?.length || 0) - 1);
     const stop = step.stops?.[presentState.stop];
     const node = stop && store.doc.nodes.find(n => n.id === stop.node);
+    document.getElementById('present-relationship').textContent = stop ? storyRelationshipText(store.doc, step, presentState.stop) : '';
     presentState.caption = stop ? (stop.caption || step.caption || '') : (step.caption || '');
     if (stop && !node) presentState.caption = tr('Missing part') + ': ' + stop.node + '. ' + presentState.caption;
     const stopsRail = document.getElementById('present-stops');

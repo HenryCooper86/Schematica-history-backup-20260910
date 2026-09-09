@@ -90,7 +90,7 @@ function render(kind = 'all') {
   }
   renderer.render(store.doc, tools.view, uiState());
   renderer.setExploration(store.doc, tools.ui.story || tools.ui.presenting ? {} : explorer?.state(), store.selection);
-  renderer.setStory(tools.ui.story);
+  renderer.setStory(tools.ui.story, tools.ui.storyCurrent, store.doc);
   renderer.setReadingDepth(tools.ui.presenting ? 'full' : explorer?.state().depth, tools.view.zoom);
   updateZoomLabel();
   document.getElementById('undo').disabled = !store.canUndo();
