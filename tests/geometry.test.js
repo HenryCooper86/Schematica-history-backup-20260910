@@ -168,6 +168,58 @@ test('wrapText carries a closing punctuation mark down to join the character bef
   assert.equal(lines.join(''), s, 'no character is lost or duplicated by the carry');
 });
 
+test('wrapText carries a whole run of adjacent closing punctuation, not just its last mark', () => {
+  // Reproduction: a "。，" pair sits right where the break lands. Carrying
+  // only the line's literal last character (as fix round 2 did) carries
+  // the "。" itself down, so the new line still starts with punctuation
+  // ("。，..."). The fix must walk back over the whole trailing run.
+  const s = '一二三四五六七八九十。，这是后续填充文字用来确保测试有效并继续换行下去';
+  const lines = wrapText(s);
+  for (const line of lines) assert.ok(!CLOSING_PUNCT.has(line[0]), `"${line}" starts with closing punctuation`);
+  assert.ok(lines.some((l) => l.includes('十。，')), 'the "。，" pair stays attached to "十"');
+  assert.equal(lines.join(''), s, 'no character is lost or duplicated by the carry');
+
+  // "）。" adjacency: 10 "一" (textUnits 19) plus "）" (20.9) still fits, but
+  // adding "。" reaches 22.8 — over budget — so the break lands exactly
+  // before "）。", the run this test is built to land on.
+  const prefix10 = '一'.repeat(10);
+  assert.ok(textUnits(prefix10 + '）') <= 22);
+  assert.ok(textUnits(prefix10 + '）。') > 22, 'adding "）。" pushes the line over the 22-unit budget');
+  const s2 = `${prefix10}）。这是后续填充文字用来确保测试有效并继续换行下去`;
+  const lines2 = wrapText(s2);
+  for (const line of lines2) assert.ok(!CLOSING_PUNCT.has(line[0]), `"${line}" starts with closing punctuation`);
+  assert.ok(lines2.some((l) => l.includes('一）。')), 'the "）。" pair travels with the preceding "一"');
+  assert.equal(lines2.join(''), s2, 'no character is lost or duplicated by the carry');
+});
+
+test('a generated set of "一" strings with 1-3-mark punctuation runs never wraps to a line starting with punctuation', () => {
+  // For every length 1..40 and every insertion point after the first
+  // character (inserting right at the start just makes the input itself
+  // begin with punctuation, which is not a wrapping artifact to fix), drop
+  // in a run of 1-3 of each punctuation mark and wrap the result. None of
+  // these inputs contain spaces, so every character must survive in order.
+  const PUNCTS = ['。', '，', '）'];
+  let cases = 0;
+  for (let len = 1; len <= 40; len++) {
+    for (let pos = 1; pos <= len; pos++) {
+      for (const p of PUNCTS) {
+        for (let run = 1; run <= 3; run++) {
+          const base = '一'.repeat(len);
+          const s = base.slice(0, pos) + p.repeat(run) + base.slice(pos);
+          const lines = wrapText(s);
+          cases += 1;
+          for (const line of lines) {
+            assert.ok(line.length > 0, `empty line for ${JSON.stringify(s)}`);
+            assert.ok(!CLOSING_PUNCT.has(line[0]), `"${line}" (from ${JSON.stringify(s)}) starts with closing punctuation`);
+          }
+          assert.equal(lines.join(''), s, `reconstruction mismatch for ${JSON.stringify(s)}`);
+        }
+      }
+    }
+  }
+  assert.ok(cases > 1000, `only generated ${cases} cases`);
+});
+
 test('no note in EXAMPLE_OVERLAYS_ZH wraps to a line starting with closing punctuation or a lone punctuation mark', () => {
   let checked = 0;
   for (const [id, overlay] of Object.entries(EXAMPLE_OVERLAYS_ZH)) {

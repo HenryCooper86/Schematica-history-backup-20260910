@@ -253,6 +253,14 @@ function tokenizeForWrap(s) {
 // CJK closing punctuation: never allowed to start a wrapped line.
 const CLOSING_PUNCT = new Set([...'。，、；：？！）」』》”’']);
 
+// How many closing-punctuation code points end `line`, counting code points
+// (not UTF-16 units) so a run is measured correctly for any text.
+function trailingPunctRun(chars) {
+  let k = 0;
+  while (k < chars.length && CLOSING_PUNCT.has(chars[chars.length - 1 - k])) k++;
+  return k;
+}
+
 export function wrapText(text, maxChars = 22) {
   const tokens = tokenizeForWrap(String(text));
   if (!tokens.length) return [''];
@@ -261,12 +269,15 @@ export function wrapText(text, maxChars = 22) {
   for (const tok of tokens) {
     const candidate = line ? line + (tok.space ? ' ' : '') + tok.text : tok.text;
     if (line && textUnits(candidate) > maxChars) {
-      if (CLOSING_PUNCT.has(tok.text) && line.length > 1) {
+      const chars = [...line];
+      const k = CLOSING_PUNCT.has(tok.text) ? trailingPunctRun(chars) : -1;
+      if (k >= 0 && chars.length > k + 1) {
         // Don't start the new line with closing punctuation: carry the
-        // finished line's last character down to join it instead. The
-        // finished line only gets shorter, so it still fits its budget.
-        lines.push(line.slice(0, -1));
-        line = line.slice(-1) + tok.text;
+        // finished line's last ordinary character, plus any run of
+        // punctuation already stuck to it, down to join the incoming mark.
+        // The finished line only gets shorter, so it still fits its budget.
+        lines.push(chars.slice(0, chars.length - (k + 1)).join(''));
+        line = chars.slice(chars.length - (k + 1)).join('') + tok.text;
       } else {
         lines.push(line);
         line = tok.text;
