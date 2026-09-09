@@ -1064,3 +1064,118 @@ Run: `npm test` (expect 472 + 25 = 497 passing, pristine) and `npm run e2e` (exp
 git add tests/examples-zh.test.js README.md docs/superpowers/specs/2026-09-08-chinese-language-design.md
 git commit -m "i18n(examples): every board has an overlay; README and spec aligned"
 ```
+
+---
+
+### Task 9: Wire labels (plan amendment, added during execution)
+
+Discovered from the rover screenshot: the spec's overlay shape never included wire labels, so 74 English-word labels (`logical flow`, `poisons`, `lure mail`, …) stay English on Chinese boards while code-like labels (`CSI-2`, `5V`, `M1`) rightly stay as they are. This task extends the overlay with `wires: { id: label }`, translates every word-like wire label, and guards the rule.
+
+**Files:**
+- Modify: `src/examples.js` (`localizedExample` applies `wires`)
+- Modify: `src/i18n/examples.zh.js` (a `wires` map on every board that has word-like labels)
+- Modify: `tests/examples-zh.test.js` (semantics; per-overlay validity; the word-like rule)
+- Modify: `docs/superpowers/specs/2026-09-08-chinese-language-design.md` (overlay shape gains `wires`)
+
+**Interfaces:**
+- Consumes: `localizedExample`, `EXAMPLE_OVERLAYS_ZH`.
+- Produces: overlay field `wires: { [wireId]: label }`; `WORDY_WIRE_LABEL = /[a-z]{3,}/` and `CODE_LIKE_WIRE_LABELS = ['isoSPI', '500 kbit/s']` exported from `tests/examples-zh.test.js` are test-local (not exported from src).
+
+- [ ] **Step 1: Failing tests**
+
+Append to `tests/examples-zh.test.js`:
+
+```js
+const WORDY = /[a-z]{3,}/;
+const CODE_LIKE = new Set(['isoSPI', '500 kbit/s']);
+
+test('a wire label in the overlay replaces the English label and leaves the wire otherwise untouched', () => {
+  const ex = byId('rdk-rover');
+  const zh = localizedExample(ex, 'zh');
+  const sw1 = zh.doc.wires.find((w) => w.id === 'sw1');
+  assert.equal(sw1.label, '逻辑流');
+  const { label, ...rest } = sw1;
+  const { label: enLabel, ...enRest } = ex.doc.wires.find((w) => w.id === 'sw1');
+  assert.deepEqual(rest, enRest);
+  assert.equal(enLabel, 'logical flow');
+  assert.equal(zh.doc.wires.find((w) => w.id === 'w6').label, 'CSI-2', 'code-like labels stay');
+});
+
+test('every word-like wire label on every board has a Chinese entry, and code-like labels have none', () => {
+  const missing = [];
+  const stray = [];
+  for (const ex of EXAMPLES) {
+    const wires = EXAMPLE_OVERLAYS_ZH[ex.id]?.wires || {};
+    for (const w of ex.doc.wires) {
+      const wordy = (WORDY.test(w.label) && !CODE_LIKE.has(w.label)) || w.label === 'yes' || w.label === 'no';
+      if (wordy && wires[w.id] === undefined) missing.push(`${ex.id}.${w.id} ${JSON.stringify(w.label)}`);
+      if (!wordy && wires[w.id] !== undefined) stray.push(`${ex.id}.${w.id} ${JSON.stringify(w.label)}`);
+      if (wires[w.id] !== undefined) assert.match(wires[w.id], CJK, `${ex.id}.${w.id}`);
+    }
+    for (const id of Object.keys(wires)) assert.ok(ex.doc.wires.some((w) => w.id === id), `${ex.id}.wires.${id} is not on the board`);
+  }
+  assert.deepEqual(missing, []);
+  assert.deepEqual(stray, []);
+});
+```
+
+Also extend the per-overlay validity test's allowed top-level keys to `['name', 'title', 'nodes', 'zones', 'notes', 'journey', 'wires']`, and extend its `strip()` helper in the round-trip test to blank `wires[].label` too (`wires: doc.wires.map((w) => ({ ...w, label: '' }))`).
+
+Run: `node --test tests/examples-zh.test.js` → the two new tests FAIL (no `wires` applied; 74 missing).
+
+- [ ] **Step 2: Apply wire overlays**
+
+In `src/examples.js` `localizedExample`, after the zones loop add:
+
+```js
+  for (const w of doc.wires) {
+    const label = overlay.wires?.[w.id];
+    if (label !== undefined) w.label = label;
+  }
+```
+
+- [ ] **Step 3: Add the `wires` maps**
+
+Add a `wires` field to each of these overlays in `src/i18n/examples.zh.js` (ids are the wire ids on the board; labels exactly as below). Wires labelled exactly `yes` become `是` and exactly `no` become `否` (find every such wire with a grep of `label: 'no'` / `label: 'yes'` in `src/examples.js` and add each id):
+
+```js
+  // smart-greenhouse
+  wires: { w11: '推送' },
+  // vehicle-can
+  wires: { w10: '诊断分接' },
+  // ota-pipeline
+  wires: { w1: '构建产物', w2: '发布', w3: 'TLS 上行', w4: 'OTA 推送', w5: 'AT 链路', w6: '镜像' },
+  // rdk-rover, rdk-perception, rdk-s100-node
+  wires: { sw1: '逻辑流', sw2: '逻辑流', sw3: '逻辑流' },
+  // rdk-x3-robot
+  wires: { sw1: '逻辑流', sw2: '逻辑流' },
+  // journey-adas
+  wires: { w8: '雷达', w12: '整车 CAN FD' },
+  // mono2-adas
+  wires: { w4: '成像器', w6: '底盘 CAN' },
+  // hsd600-adas
+  wires: { w8: '前雷达', w10: '角雷达', w11: '角雷达', w12: '整车 CAN FD' },
+  // ota-security (plus every `yes` → '是' and `no` → '否' wire on this board)
+  wires: { w4: '签名镜像', w11: '是', w16: '投毒', w17: '篡改', w18: '注入' },
+  // adas-security (plus every `yes`/`no` wire)
+  wires: { w2: '雷达', w8: '诊断 CAN', w9: '镜像流量', w10: '欺骗', w11: 'GNSS 欺骗', w12: '注入', w13: '感染', w14: '回连', w21: '暴露', w17: '是' },
+  // ev-bms (isoSPI and 500 kbit/s stay)
+  wires: { w3: '预充', w9: '菊花链', w18: '状态', w21: '电芯采样线', w23: '电芯采样线', w29: '线圈回路', w30: '线圈回路' },
+  // ot-purdue
+  wires: { w1: 'ERP 客户端', w4: 'IDMZ 通道', w5: '管理访问', w6: '单向复制', w7: 'L3 通道', w9: '历史数据', w13: '受控 400 V', w14: '经跳板机 RDP', w15: '诱饵邮件', w16: 'VPN 登录', w17: '运行', w18: '购买', w19: 'VLAN 间无 ACL' },
+  // secure-boot (plus every `yes`/`no` wire)
+  wires: { w1: '证明 + 密钥', w2: 'QSPI 镜像', w3: 'SWD（已锁定）', w5: '签名镜像 + 证书', w8: '是', w11: '是', w13: '重试', w14: '探测', w15: '在工站被替换', w16: '计数器阻止' },
+```
+
+- [ ] **Step 4: Spec**
+
+In the spec's "Example boards (phase 2)" section add `wires: { id: label }` to the overlay shape and this sentence: word-like wire labels translate; code-like labels (bus codes, voltages, pin names) never do, and the test enforces the split.
+
+- [ ] **Step 5: Run and commit**
+
+Run: `node --test tests/examples-zh.test.js` → all passing (27); `npm test` → all green; `npm run e2e` → `156/156` (the rover e2e checks read node labels, not wire labels).
+
+```bash
+git add src/examples.js src/i18n/examples.zh.js tests/examples-zh.test.js docs/superpowers/specs/2026-09-08-chinese-language-design.md
+git commit -m "i18n(examples): translate word-like wire labels; code-like labels stay"
+```
