@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { compareBoards } from '../src/compare.js';
 import { newDoc } from '../src/state.js';
+import { initI18n, setLang } from '../src/i18n.js';
 
 function fixture() {
   const d = newDoc(); d.nodes = [{id:'a',x:0,y:0,label:'A',fields:{rail:'3.3V',pn:'X'}},{id:'b',x:300,y:0,label:'B'}];
@@ -26,4 +27,11 @@ test('stable IDs preserve rename identity; unrelated IDs become added and remove
 test('journey reordering is detected without treating node array order as a change', () => {
   const a=fixture(); a.journey=[{id:'j1',label:'A'},{id:'j2',label:'B'}]; const b=structuredClone(a); b.journey.reverse();
   assert.equal(compareBoards(a,b).changes[0].fields[0].field,'order');
+});
+test('the journey-order row is labelled in the interface language', () => {
+  initI18n({ storage: null });
+  const a=fixture(); a.journey=[{id:'j1',label:'A'},{id:'j2',label:'B'}]; const b=structuredClone(a); b.journey.reverse();
+  assert.equal(compareBoards(a,b).changes[0].label,'Journey');
+  setLang('zh');
+  try { assert.equal(compareBoards(a,b).changes[0].label,'导览'); } finally { setLang('en'); }
 });

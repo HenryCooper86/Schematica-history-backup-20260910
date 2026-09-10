@@ -314,7 +314,6 @@ g.node:hover .ports,
   font-family: inherit;
 }
 #props input:focus, #props textarea:focus, #props select:focus { outline: none; border-color: var(--accent); }
-#props input[type="color"] { width: 100%; height: 30px; padding: 2px; background: var(--bg0); border: 1px solid var(--line); border-radius: 8px; }
 #props textarea { min-height: 70px; resize: vertical; }
 #props button.danger {
   margin-top: 16px;
@@ -1412,7 +1411,14 @@ html {
 @media (max-width: 650px) { .compare-previews { grid-template-columns: 1fr; } }
 
 .check-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
-.check-tabs button[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
+/* Only the selected tab was styled, so the other one fell back to the
+   browser's default button; both are pills like the part editor's tabs. */
+.check-tabs button {
+  background: var(--bg2); border: 1px solid var(--line); color: var(--muted); border-radius: 999px;
+  padding: 4px 12px; font-size: 12px; cursor: pointer; font-family: inherit;
+}
+.check-tabs button:hover { color: var(--text); border-color: var(--line2); }
+.check-tabs button[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); }
 .drc-row .msg small { display: block; color: var(--muted); margin-top: 5px; }
 
 html[data-theme="dark"] { color-scheme: dark; }
@@ -1448,6 +1454,14 @@ html[data-theme="light"] .ai-result.warn { color: #92400e; }
 #present-stops button[aria-current="true"] { border-color: var(--accent); background: var(--bg3); }
 .journey-stop { margin: 6px 0 6px 12px; padding: 6px; border-left: 2px solid var(--line2); }
 .journey-stop strong { font-size: 12px; }
+/* The stop's ↑/↓/× buttons had no rule of their own; match the step actions
+   they sit under. */
+.journey-stop button {
+  background: var(--bg0); border: 1px solid var(--line); color: var(--muted);
+  border-radius: 6px; padding: 2px 8px; margin-right: 4px; cursor: pointer;
+  font-size: 11.5px; font-family: inherit; line-height: 1.4;
+}
+.journey-stop button:hover { color: var(--text); border-color: var(--line2); }
 #present-relationship { max-width: 100%; max-height: 64px; overflow: auto; white-space: pre-wrap; color: var(--muted); font-size: 12px; text-align: center; }
 #present-relationship:empty { display: none; }
 #canvas .node.story-current .card { stroke-width: 3; }
@@ -1456,7 +1470,10 @@ html[data-theme="light"] .ai-result.warn { color: #92400e; }
 #canvas .portg.story-port .port { stroke-width: 2.5; }
 #story-link-value { width: min(700px, 80vw); }
 #story-link-dialog { max-width: 90vw; }
-#present-chapters button, #present-stops button, #present-speed { background: var(--bg); color: var(--muted); border: 1px solid var(--line2); border-radius: 6px; padding: 5px 8px; font: inherit; font-size: 12px; cursor: pointer; }
+/* --bg1 is what the neighbouring present-mode surfaces use (#present-caption
+   and #present-nav paint it at 94% alpha), so these controls rest on it and
+   lift to --bg3 when hovered or current. */
+#present-chapters button, #present-stops button, #present-speed { background: var(--bg1); color: var(--muted); border: 1px solid var(--line2); border-radius: 6px; padding: 5px 8px; font: inherit; font-size: 12px; cursor: pointer; }
 #present-chapters button:hover, #present-stops button:hover { color: var(--text); background: var(--bg3); }
 #canvas .ports.story-ports .portg:not(.story-port) { opacity: 0; }
 #present-overlay { max-height: 48dvh; overflow-y: auto; }

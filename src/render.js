@@ -1,11 +1,11 @@
 import { connectionFocus, readingDepth } from './explore.js';
 import { displayPart, nodePart } from './rdk/profiles.js';
-import { trd } from './i18n.js';
+import { tr, trd } from './i18n.js';
 import { BUSES } from './buses.js';
 import { CATEGORY_COLORS, DISPOSITIONS, SEVERITY_COLORS } from './palette.js';
 import {
   portPosition, wireGeom, wireGeomToPoint, wireLanes, curvePoint, wrapText, noteHeight,
-  nodeRect, nodeSize, nodeMeta, NOTE_W, LANE_TITLE_H, WIRE_FAN, textUnits, wireLabelRect,
+  nodeRect, nodeSize, nodeMeta, NOTE_W, LANE_TITLE_H, textUnits, wireLabelRect,
 } from './geometry.js';
 
 // The canvas mirrors net_draw's look one to one: gradient cards with a drop
@@ -87,7 +87,7 @@ function parseGeo(s) {
 
 // Move the air-gap footprints along their wires (the one animation CSS
 // cannot express); the live ticker calls this while a sneakernet wire flows.
-export function stepFootsteps(root, nowMs) {
+function stepFootsteps(root, nowMs) {
   for (const g of root.querySelectorAll('.wire[data-g]')) {
     const geo = parseGeo(g.getAttribute('data-g'));
     g.querySelectorAll('.footstep').forEach((el, j) => {
@@ -172,11 +172,12 @@ function portsMarkup(node, part, acc, W, H) {
   for (const port of part.ports) {
     const pos = portPosition(local, port);
     const bus = BUSES[port.bus];
+    const name = port.unsupported ? tr('Unsupported: {name}', { name: port.name }) : port.name;
     s += `<g class="portg${port.unsupported ? ' unsupported' : ''}"${port.unsupported ? ' data-unsupported="true" aria-disabled="true"' : ''} data-node="${esc(node.id)}" data-port="${esc(port.id)}">`
       + `<circle class="port" cx="${pos.x}" cy="${pos.y}" r="5" fill="${CHIP_BG}" stroke="${port.unsupported ? '#f87171' : esc(acc)}" stroke-width="1.6"/>`
       + `<text class="port-name" x="${pos.x}" y="${pos.y - 11}" text-anchor="middle" font-size="9.5" font-weight="600"`
       + ` font-family="${MONO}" fill="#7dd3fc" paint-order="stroke" stroke="${CANVAS_BG}" stroke-width="3"`
-      + ` pointer-events="none">${port.unsupported ? 'Unsupported: ' : ''}${esc(port.name)} · ${esc(bus ? bus.short : '')}</text></g>`;
+      + ` pointer-events="none">${esc(name)} · ${esc(bus ? bus.short : '')}</text></g>`;
   }
   return s + '</g>';
 }
@@ -380,9 +381,9 @@ function wireMarkup(byId, wire, lane, selected, ui, animating, now) {
         + ' pointer-events="none">\u{1F463}</text>';
     }
   }
-  const { label, w, at } = wireLabelRect(wire, geo, lane);
+  const { label, x, y, w, h, at } = wireLabelRect(wire, geo, lane);
   if (label) {
-    s += `<rect data-detail="context" x="${Math.round((at.x - w / 2) * 100) / 100}" y="${Math.round((at.y - 10) * 100) / 100}" width="${w}" height="20" rx="9"`
+    s += `<rect data-detail="context" x="${x}" y="${y}" width="${w}" height="${h}" rx="9"`
       + ` fill="${LABEL_BG}" stroke="${LABEL_LINE}" stroke-width="1"/>`;
     s += `<text x="${at.x}" y="${Math.round((at.y + 3.6) * 100) / 100}" text-anchor="middle" font-size="10.5" fill="${LABEL_TEXT}" data-detail="context"`
       + ` data-edit="label">${esc(label)}</text>`;
@@ -432,7 +433,7 @@ function swimlaneMarkup(zone, selected) {
     + ` stroke-opacity="${selected ? 1 : 0.75}" stroke-width="${selected ? 2 : 1.5}"`
     + ' pointer-events="none"/>';
   // Alternating lane tints, then dividers, then labels.
-  lanes.forEach((lane, i) => {
+  lanes.forEach((_, i) => {
     if (i % 2 === 1) {
       const band = vertical
         ? `x="${zone.x + (i * zone.w) / lanes.length}" y="${bodyY}" width="${zone.w / lanes.length}" height="${bodyH}"`

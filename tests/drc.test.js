@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { checkDoc } from '../src/drc.js';
+import { checkDoc, i2cAddrKey } from '../src/drc.js';
 import { initI18n, setLang } from '../src/i18n.js';
 
 const node = (id, kind, extra = {}) => ({
@@ -35,6 +35,36 @@ test('detects I2C address conflicts on the same net', () => {
   assert.equal(conflict.level, 'error');
   assert.ok(conflict.ids.includes('a') && conflict.ids.includes('b'));
   assert.ok(!conflict.ids.includes('c'));
+});
+
+test('I2C addresses conflict regardless of surrounding space and hex-prefix case', () => {
+  const d = doc(
+    [
+      node('m', 'mcu'),
+      node('a', 'temp', { addr: ' 0x76 ' }),
+      node('b', 'tof', { addr: '0X76' }),
+      node('c', 'rtc', { addr: '0x68' }),
+    ],
+    [
+      wire('w1', 'i2c', 'm', 'i2c', 'a', 'i2c'),
+      wire('w2', 'i2c', 'm', 'i2c', 'b', 'i2c'),
+      wire('w3', 'i2c', 'm', 'i2c', 'c', 'i2c'),
+    ],
+  );
+  const conflict = checkDoc(d).find((f) => f.rule === 'i2c-addr-conflict');
+  assert.ok(conflict, 'a differently spelled address is the same address');
+  assert.deepEqual(conflict.ids, ['a', 'b']);
+  assert.equal(conflict.message, 'I2C address 0x76 is used by a and b on the same bus.', 'the reported address is trimmed as the first node wrote it');
+  assert.equal(i2cAddrKey(' 0X76 '), '0x76');
+  assert.equal(i2cAddrKey(undefined), '', 'a node with no address has no key');
+});
+
+test('a blank or whitespace-only address never conflicts', () => {
+  const d = doc(
+    [node('m', 'mcu'), node('a', 'temp', { addr: '   ' }), node('b', 'tof', { addr: '' })],
+    [wire('w1', 'i2c', 'm', 'i2c', 'a', 'i2c'), wire('w2', 'i2c', 'm', 'i2c', 'b', 'i2c')],
+  );
+  assert.ok(!checkDoc(d).some((f) => f.rule === 'i2c-addr-conflict'));
 });
 
 test('no conflict across separate I2C nets', () => {

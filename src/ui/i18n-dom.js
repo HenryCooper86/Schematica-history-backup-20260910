@@ -6,7 +6,9 @@
 // translates itself: the self-rendering panels (props, journey, assistant,
 // legend, examples menu, toast, palette body) and the dialog bodies (the BOM
 // table, the design-rule list, the part editor's rows) redraw through
-// onLanguageChange.
+// onLanguageChange. Two opt-outs keep the replay off state-dependent text:
+// `data-i18n="off"` for an element's own text, `data-i18n-attrs="off"` for
+// its title/placeholder/aria-label.
 import { trd, getLang, setLang, onLanguageChange } from '../i18n.js';
 
 const ROOTS = ['#toolbar', '#explore-panel', '#canvas', '#palette-search', '#hintbar', '#present-overlay', 'dialog'];
@@ -50,6 +52,10 @@ function translateText(node) {
 
 function translateAttrs(el) {
   if (originals.has(el)) return;
+  // An element whose title/aria-label depends on state (the palette and panel
+  // toggles say Hide or Show) writes them itself and translates them on a
+  // language change: replaying the load-time value would undo that.
+  if (el.getAttribute('data-i18n-attrs') === 'off') return;
   const attrs = {};
   for (const a of ATTRS) if (el.hasAttribute(a) && LETTER.test(el.getAttribute(a))) attrs[a] = el.getAttribute(a);
   if (Object.keys(attrs).length) remember(el, { attrs });

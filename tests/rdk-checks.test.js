@@ -210,13 +210,60 @@ test('S100P omitted software support is unverified, not excluded', () => {
     ),
   );
 });
-test('unknown camera and board pairing still provides a verification reference', () => {
-  const d = {
-    nodes: [n('board', 'aisbc', 'Custom'), n('cam', 'mipicam', 'Custom')],
+test('a pairing with no vendor-profiled side is not an RDK compatibility question', () => {
+  const pair = (board, kind, cam) => ({
+    nodes: [n('board', 'aisbc', board), n('cam', kind, cam)],
     wires: [w('link', 'cam', 'csi', 'board', 'csi1')],
-  };
+  });
+  assert.deepEqual(
+    rule(pair('Raspberry Pi 5', 'depthcam', 'RealSense D435'), 'rdk-compatibility'),
+    [],
+  );
+  // One vendor-profiled side is enough to ask for verification, with a reference.
+  for (const d of [pair('RDK X5', 'mipicam', 'Custom'), pair('Custom', 'mipicam', 'IMX219')])
+    assert.ok(
+      rule(d, 'rdk-compatibility').some((f) => f.message.includes('https://')),
+      d.nodes.map((x) => x.sublabel).join(' + '),
+    );
+});
+test('output-only supplies of any kind are checked against the board input range', () => {
+  for (const [kind, bad] of [
+    ['jack', true],
+    ['solar', true],
+    ['vbat', true],
+    ['battery', true],
+    ['regulator', false],
+    ['charger', false],
+    ['fuse', false],
+  ]) {
+    const d = {
+      nodes: [n('board', 'aisbc', 'RDK X5'), n('psu', kind, '', { rail: '12V' })],
+      wires: [w('supply', 'psu', 'out', 'board', 'vcc', 'power')],
+    };
+    const found = rule(d, 'rdk-power');
+    assert.equal(found.length, bad ? 1 : 0, kind);
+    if (bad) assert.ok(['psu', 'supply'].every((id) => found[0].ids.includes(id)));
+  }
+});
+test('an unwired stereo camera is left to the floating-node rule', () => {
+  const d = { nodes: [n('board', 'aisbc', 'RDK X5'), n('camera', 'depthcam', 'GS130W')], wires: [] };
+  assert.deepEqual(rule(d, 'rdk-stereo-links'), []);
+  assert.ok(checkDoc(d).some((f) => f.rule === 'floating-node' && f.ids.includes('camera')));
+  d.wires.push(w('left', 'camera', 'csi', 'board', 'csi1'));
+  assert.equal(rule(d, 'rdk-stereo-links').length, 1);
+});
+test('messages omit empty requirement and source parts without double spaces', () => {
+  const d = stereo('Custom X5');
+  const found = rdk(d);
+  assert.ok(found.length);
+  for (const f of found) {
+    assert.doesNotMatch(f.message, /\s{2}/, f.message);
+    assert.doesNotMatch(f.message, /\s$/, f.message);
+  }
   assert.ok(
-    rule(d, 'rdk-compatibility').some((f) => f.message.includes('https://')),
+    rule(d, 'rdk-stereo-links').some((f) =>
+      f.message.startsWith('camera: stereo connector pair is unverified. Two separate'),
+    ),
   );
 });
 test('documented runtime allow-list distinguishes supported and excluded runtime', async () => {

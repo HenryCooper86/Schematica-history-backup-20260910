@@ -311,6 +311,26 @@ test('a nested beginBatch keeps the outer snapshot', () => {
   assert.equal(store.doc.nodes.length, 0, 'undo returns to before the outer batch');
 });
 
+test('apply inside a drag folds into the batch: one undo step, redo stack kept', () => {
+  const store = new Store();
+  const id = addNode(store, 'mcu', 0, 0);
+  store.apply((doc) => { doc.title = 'renamed'; });
+  store.undo();
+  assert.equal(store.redoStack.length, 1);
+  const depth = store.undoStack.length;
+  store.beginDrag();
+  store.mutate((doc) => { doc.nodes[0].x = 40; });
+  updateItem(store, id, { label: 'Brain' });
+  assert.equal(store.undoStack.length, depth, 'apply mid-drag pushes nothing of its own');
+  assert.equal(store.redoStack.length, 1, 'apply mid-drag does not clear redo');
+  store.endDrag();
+  assert.equal(store.undoStack.length, depth + 1, 'the drag is exactly one undo step');
+  assert.equal(store.doc.nodes[0].label, 'Brain');
+  store.undo();
+  assert.equal(store.doc.nodes[0].x, 0, 'one undo reverts both the move and the edit');
+  assert.equal(store.doc.nodes[0].label, 'MCU');
+});
+
 test('drag helpers are aliases of the batch', () => {
   const store = new Store();
   store.beginDrag();

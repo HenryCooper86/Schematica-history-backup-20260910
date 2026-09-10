@@ -1,5 +1,6 @@
 // Pure, source-aware architectural checks. Unknown metadata is never support.
 import { profileFor } from './profiles.js';
+import { PARTS } from '../palette.js';
 import { tr, trd } from '../i18n.js';
 
 const refs = (w) => [
@@ -12,6 +13,19 @@ const sources = (...profiles) =>
   ].join(' ');
 const requirements = (...profiles) =>
   [...new Set(profiles.flatMap((p) => p?.requirements || []))].map(trd).join(' ');
+// Optional trailing parts (requirements, sources) may be empty: no double spaces.
+const sentence = (...parts) => parts.filter(Boolean).join(' ');
+// Kinds whose only power port is an output (battery, jack, solar, vbat...):
+// their rail describes what they deliver. Anything with a power input
+// (regulator, charger, fuse) may describe its input instead.
+const SUPPLY_KINDS = new Set(
+  Object.values(PARTS)
+    .filter((part) => {
+      const power = part.ports.filter((port) => port.bus === 'power');
+      return power.length && power.every((port) => port.id === 'out');
+    })
+    .map((part) => part.kind),
+);
 const isBoard = (n) => n?.kind === 'aisbc';
 const isCamera = (n) => ['mipicam', 'depthcam'].includes(n?.kind);
 const voltage = (value) => {
@@ -58,11 +72,11 @@ export function checkRdk(doc) {
     findings.push({ level, rule, message, ids: [...new Set(ids)] });
   for (const n of doc.nodes) {
     const p = profileFor(n);
-    if (p && n.kind !== 'rdksoftware' && !p.ports) {
+    if (p && !p.ports) {
       add(
         'warning',
         'rdk-interface',
-        tr('{label}: connector profile is unverified. {requirements} {sources}', { label: n.label, requirements: requirements(p), sources: sources(p) }),
+        sentence(tr('{label}: connector profile is unverified.', { label: n.label }), requirements(p), sources(p)),
         [n.id],
       );
     }
@@ -106,7 +120,9 @@ export function checkRdk(doc) {
             ),
         ) ||
         all.some((l) => l.wire.bus !== 'mipi');
-      if (malformed)
+      // A camera with no wires at all is reported by the floating-node rule.
+      const wired = all.length > 0;
+      if (wired && malformed)
         add(
           'error',
           'rdk-stereo-links',
@@ -117,7 +133,7 @@ export function checkRdk(doc) {
         add(
           'warning',
           'rdk-stereo-links',
-          tr('{label}: stereo connector pair is unverified. {requirements} {sources}', { label: n.label, requirements: requirements(p, ...hosts.map(profileFor)), sources: sources(p, ...hosts.map(profileFor)) }),
+          sentence(tr('{label}: stereo connector pair is unverified.', { label: n.label }), requirements(p, ...hosts.map(profileFor)), sources(p, ...hosts.map(profileFor))),
           ids,
         );
     }
@@ -129,10 +145,7 @@ export function checkRdk(doc) {
             continue;
           const supply = byId.get(other.node);
           // A regulator's generic rail may describe its input. Do not infer output.
-          if (
-            ['battery', 'vbat'].includes(supply?.kind) &&
-            other.port === 'out'
-          )
+          if (SUPPLY_KINDS.has(supply?.kind) && other.port === 'out')
             supplies.push({ rail: supply.rail, ids: [n.id, supply.id, w.id] });
         }
       for (const supply of supplies) {
@@ -196,11 +209,13 @@ export function checkRdk(doc) {
         );
       const host = byId.get(other.node);
       if (!isCamera(n) || !isBoard(host)) continue;
+      const board = profileFor(host),
+        compatibility = p?.compatibility;
+      // Neither side is a vendor-profiled part: there is nothing to verify.
+      if (!p && !board) continue;
       const key = `${n.id}|${host.id}`;
       if (pairs.has(key)) continue;
       pairs.add(key);
-      const board = profileFor(host),
-        compatibility = p?.compatibility;
       const ids = [
         n.id,
         host.id,
@@ -226,7 +241,7 @@ export function checkRdk(doc) {
         add(
           'warning',
           'rdk-compatibility',
-          tr('{label} with {host}: compatibility is unverified. {requirements} {sources}', { label: n.label, host: host.label, requirements: requirements(p, board), sources: sources(p, board) || 'https://d-robotics.github.io/rdk_doc/en/Quick_start/accessory/' }),
+          sentence(tr('{label} with {host}: compatibility is unverified.', { label: n.label, host: host.label }), requirements(p, board), sources(p, board) || 'https://d-robotics.github.io/rdk_doc/en/Quick_start/accessory/'),
           ids,
         );
     }

@@ -26,6 +26,42 @@ for (const [name, factory, errorBody, partialBody] of fixtures) {
   });
 }
 
+// Malformed arguments the model can retry: the tool is not run, the call is
+// answered with an is_error result, and the turn continues.
+for (const [name, factory, bad, done] of [
+  ['OpenAI-compatible', openaiProvider,
+    sse([{ choices: [{ delta: { tool_calls: [{ index: 0, id: 'c', function: { name: 'apply_edits', arguments: '{"ops":[},' } }] }, finish_reason: 'tool_calls' }] }]),
+    sse([{ choices: [{ delta: { content: 'Sorry.' }, finish_reason: 'stop' }] }])],
+  ['Anthropic', anthropicProvider,
+    sse([{ type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: 'c', name: 'apply_edits', input: {} } },
+      { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: '{"ops":[},' } },
+      { type: 'content_block_stop', index: 0 },
+      { type: 'message_delta', delta: { stop_reason: 'tool_use' } }]),
+    sse([{ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
+      { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Sorry.' } },
+      { type: 'content_block_stop', index: 0 },
+      { type: 'message_delta', delta: { stop_reason: 'end_turn' } }])],
+]) {
+  test(`${name}: unparsable tool arguments are answered with an error result so the model can retry`, async () => {
+    const bodies = [];
+    let edits = 0;
+    const provider = factory({ baseUrl: 'https://example.test', model: 'test', fetchImpl: async (url, init) => {
+      bodies.push(JSON.parse(init.body));
+      return new Response(bodies.length === 1 ? bad : done);
+    } });
+    const result = await runRequest({ provider, executor: { touched: new Set(), resetTouched() {}, run() { edits++; return { text: 'ok' }; } }, system: ['test'], userText: 'edit', boardText: '' });
+    assert.equal(result.error, undefined);
+    assert.equal(edits, 0, 'a call with no arguments is never run');
+    assert.equal(bodies.length, 2, 'the turn continued instead of throwing a SyntaxError');
+    assert.equal(result.text, 'Sorry.');
+    const answer = result.messages.find((m) => m.content.some?.((b) => b.type === 'tool_result'));
+    const block = answer.content.find((b) => b.type === 'tool_result');
+    assert.equal(block.id, 'c');
+    assert.equal(block.isError, true);
+    assert.match(block.text, /not valid JSON/);
+  });
+}
+
 test('OpenAI-compatible: reaching the length limit with incomplete arguments reports a cutoff', async () => {
   const provider = openaiProvider({ baseUrl: 'https://example.test', model: 'test', fetchImpl: async () => new Response(sse([{ choices: [{ delta: { content: 'Working', tool_calls: [{ index: 0, id: 'c', function: { name: 'apply_edits', arguments: '{"ops":[' } }] }, finish_reason: 'length' }] }])) });
   const result = await provider.chat(args);

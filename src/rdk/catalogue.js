@@ -277,17 +277,27 @@ export function profileFor(node) {
     ) || null
   );
 }
+// Words split on underscores as well, so 'hobot' finds hobot_sensor; the
+// joined id is kept as a term so 'hobot_sensor' still matches exactly.
+const tokens = (text) => {
+  const raw = normalize(text).match(/[\p{L}\p{N}_]+/gu) || [];
+  return raw.flatMap((w) => [w, ...w.split('_').filter(Boolean)]);
+};
 export function searchRdk(query) {
-  const words = normalize(query).match(/[\p{L}\p{N}_]+/gu) || [];
+  const words = tokens(query);
   if (!words.length) return [];
+  const exact = new Set([normalize(query), ...words]);
+  const rank = (p) =>
+    [p.id, p.sublabel].some((v) => exact.has(normalize(v))) ? 0 : 1;
   return RDK_PRODUCTS.filter((p) => {
     const terms = new Set(
-      normalize([p.name, p.sublabel, ...p.aliases, p.notes].join(' ')).match(
-        /[\p{L}\p{N}_]+/gu,
-      ),
+      tokens([p.name, p.sublabel, ...p.aliases, p.notes].join(' ')),
     );
     return words.every((w) => terms.has(w));
-  }).slice(0, 12);
+  })
+    // Products named by the query outrank ones that only mention it in notes.
+    .sort((a, b) => rank(a) - rank(b))
+    .slice(0, 12);
 }
 export function rdkPresets(kind) {
   return RDK_PRODUCTS.filter((p) => p.kind === kind).map((p) => ({

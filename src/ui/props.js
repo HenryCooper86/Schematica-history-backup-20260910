@@ -5,7 +5,7 @@ import { presetsFor, presetPatch } from '../presets.js';
 import { DISPOSITIONS } from '../palette.js';
 import { partOf, definitionFrom } from '../custom.js';
 import { nodePart } from '../rdk/profiles.js';
-import { onPress, escAttr, toast } from './press.js';
+import { onPress, escAttr, toast, keepFocus } from './press.js';
 import { panelHeader, bindCollapsible } from './collapsible.js';
 
 import { rdkDetails, targetOptions } from './rdk-details.js';
@@ -27,8 +27,17 @@ export const ACCENT_SWATCHES = [
   '#f87171', '#fb923c', '#fbbf24', '#34d399', '#2dd4bf', '#94a3b8',
 ];
 
-function propField(label, inner) {
-  return `<label>${escAttr(label)}</label>${inner}`;
+// A field label points at its control by id, so clicking the label focuses
+// the control and readers announce it. The id comes from the control's
+// data-prop/data-field attribute, which is unique within one item's panel.
+export function propField(label, inner) {
+  const m = /\sdata-(prop|field)="([^"]*)"/.exec(inner);
+  const id = m && `props-${m[1]}-${m[2].replace(/[^\w-]/g, '_')}`;
+  // Only pair them when the id really landed on the leading control; a `for`
+  // pointing at nothing is worse than a bare label.
+  const tagged = id ? inner.replace(/^(<(?:input|textarea|select)\b)/, `$1 id="${id}"`) : inner;
+  if (tagged === inner) return `<label>${escAttr(label)}</label>${inner}`;
+  return `<label for="${id}">${escAttr(label)}</label>${tagged}`;
 }
 
 // Zone and swimlane color rows use the same swatch picker as net_draw
@@ -175,7 +184,8 @@ export function createPropsPanel({ store, editor }) {
         const fields = { ...(cur.fields || {}) };
         if (input.value.trim()) fields[input.dataset.field] = input.value.trim();
         else delete fields[input.dataset.field];
-        updateItem(store, item.id, { fields });
+        // An empty map is dropped on load; no key keeps the doc round-trip clean.
+        updateItem(store, item.id, { fields: Object.keys(fields).length ? fields : undefined });
       });
     });
     const toggleIn = (selector, apply) => {
@@ -232,19 +242,33 @@ export function createPropsPanel({ store, editor }) {
     if (del) onPress(del, () => deleteItems(store, [item.id]));
   }
 
+  // What the panel currently shows, as the selection it was rendered for.
+  let rendered = null;
+
   function render() {
     if (!document.getElementById('journey-panel').hidden) {
       props.hidden = true;
+      rendered = null;
       return;
     }
-    const ae = document.activeElement;
-    if (props.contains(ae) && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
     const ids = [...store.selection];
+    const signature = ids.join('\n');
+    // A field being edited keeps its panel: a store change while it has focus
+    // (Enter in an input, a select) must not rebuild the markup under it. A
+    // selection change is not that case — pointerdown on the canvas fires
+    // before focus leaves the field, and the panel must follow the selection.
+    const ae = document.activeElement;
+    const same = rendered === signature;
+    if (same && props.contains(ae) && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
+    // A keyboard press on a chip or button rebuilds the panel: put focus back.
+    const refocus = same ? keepFocus(props) : () => {};
     if (!ids.length) {
       props.hidden = true;
+      rendered = null;
       return;
     }
     props.hidden = false;
+    rendered = signature;
     if (ids.length > 1) {
       props.innerHTML = panelHeader(tr('{n} items selected', { n: ids.length }), 'props')
         + `<button id="props-delete" class="danger">${escAttr(tr('Delete selection'))}</button>`;
@@ -252,11 +276,13 @@ export function createPropsPanel({ store, editor }) {
         deleteItems(store, [...store.selection]);
       });
       bindCollapsible(props, 'props');
+      refocus();
       return;
     }
     const found = findItem(store.doc, ids[0]);
     if (!found) {
       props.hidden = true;
+      rendered = null;
       return;
     }
     const { type, item } = found;
@@ -276,6 +302,7 @@ export function createPropsPanel({ store, editor }) {
     props.innerHTML = html;
     bind(item);
     bindCollapsible(props, 'props');
+    refocus();
   }
 
   onLanguageChange(() => render());

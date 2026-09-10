@@ -8,6 +8,7 @@ import { presetsFor } from './presets.js';
 import { trd } from './i18n.js';
 
 const CATEGORY_NAME = Object.fromEntries(CATEGORIES.map((c) => [c.id, c.name]));
+const words = (query) => String(query ?? '').toLowerCase().split(/\s+/).filter(Boolean);
 
 export function partHaystack(part) {
   const category = CATEGORY_NAME[part.category] || part.category;
@@ -20,16 +21,14 @@ export function partHaystack(part) {
 }
 
 export function filterParts(query) {
-  const words = String(query ?? '').toLowerCase().split(/\s+/).filter(Boolean);
+  const ws = words(query);
   const hits = new Set();
   for (const part of Object.values(PARTS)) {
     const hay = partHaystack(part);
-    if (words.every((w) => hay.includes(w))) hits.add(part.kind);
+    if (ws.every((w) => hay.includes(w))) hits.add(part.kind);
   }
   return hits;
 }
-
-const words = (query) => String(query ?? '').toLowerCase().split(/\s+/).filter(Boolean);
 
 // Library templates (custom part definitions with an id) search the same way.
 // The list is passed in so this module stays free of storage.

@@ -1,18 +1,30 @@
 // Read-only board exploration. Endpoint order is not signal direction: hardware
 // buses are traversed as undirected connections, only over actual drawn wires.
 import { partOf } from './custom.js';
+import { CATEGORIES } from './palette.js';
 import { BUSES } from './buses.js';
 import { trd } from './i18n.js';
+
+// A part carries the category id; the dictionary knows the display name.
+const CATEGORY_NAME = Object.fromEntries(CATEGORIES.map((c) => [c.id, c.name]));
+
+// Everything a board search can match on one node, in the current language.
+// The offline HTML export embeds this text per node, so a search in the
+// downloaded file finds the same parts as the search in the app.
+export function nodeHaystack(node) {
+  const part = partOf(node);
+  const category = CATEGORY_NAME[part.category] || part.category;
+  return [node.id, node.label, node.sublabel, node.addr, node.rail, node.notes,
+    node.kind, part.name, trd(part.name), part.category, category, trd(category),
+    ...Object.values(node.fields || {}),
+    ...part.ports.flatMap((p) => [p.name, p.bus, BUSES[p.bus]?.name, trd(BUSES[p.bus]?.name)]),
+  ].filter(Boolean).join(' ').toLowerCase();
+}
 
 export function searchBoard(doc, query) {
   const words = String(query ?? '').trim().toLowerCase().split(/\s+/).filter(Boolean);
   return doc.nodes.filter((node) => {
-    const part = partOf(node);
-    const hay = [node.id, node.label, node.sublabel, node.addr, node.rail, node.notes,
-      node.kind, part.name, trd(part.name), part.category, trd(part.category),
-      ...Object.values(node.fields || {}),
-      ...part.ports.flatMap((p) => [p.name, p.bus, BUSES[p.bus]?.name, trd(BUSES[p.bus]?.name)]),
-    ].filter(Boolean).join(' ').toLowerCase();
+    const hay = nodeHaystack(node);
     return words.every((word) => hay.includes(word));
   });
 }

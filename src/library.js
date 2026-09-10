@@ -4,6 +4,7 @@
 // the assistant settings have). Storage is injected so tests pass a Map.
 import { normalizePart, LIMITS } from './custom.js';
 import { uid } from './state.js';
+import { tr } from './i18n.js';
 
 export const LIBRARY_KEY = 'schematica.parts';
 export const EXPORT_MARK = 'schematicaParts';
@@ -53,12 +54,12 @@ export function createLibrary(storage) {
   // Returns the id. Throws when the library is full or the part has no name.
   function save(def, id = null) {
     const { part, warnings } = normalizePart(def);
-    if (!part) throw new Error(`The part cannot be saved: ${warnings.join(' ')}`);
-    if (id && !ID_RE.test(id)) throw new Error('Invalid template id.');
+    if (!part) throw new Error(tr('The part cannot be saved: {reasons}', { reasons: warnings.join(' ') }));
+    if (id && !ID_RE.test(id)) throw new Error(tr('Invalid template id.'));
     delete part.lib;
     const parts = load();
     const at = id ? parts.findIndex((t) => t.id === id) : -1;
-    if (at < 0 && parts.length >= LIMITS.library) throw new Error(`My parts is full (${LIMITS.library} templates).`);
+    if (at < 0 && parts.length >= LIMITS.library) throw new Error(tr('My parts is full ({max} templates).', { max: LIMITS.library }));
     const entry = { id: at >= 0 ? id : (id || uid('lp')), ...part, updated: new Date().toISOString() };
     if (at >= 0) parts[at] = entry;
     else parts.push(entry);
@@ -78,12 +79,14 @@ export function createLibrary(storage) {
   const exportJSON = () => JSON.stringify({ [EXPORT_MARK]: 1, parts: load() }, null, 2);
 
   // Merges a parts file: the same id replaces, a new id adds, an unusable
-  // entry is skipped with a warning. Throws when the text is not a parts file.
+  // entry is skipped with a warning. Throws when the text is not a parts file:
+  // the export mark tells a parts file from a board or any other JSON that
+  // happens to carry a "parts" list.
   function importJSON(text) {
     let raw;
-    try { raw = JSON.parse(text); } catch { throw new Error('Not a parts file: could not parse JSON.'); }
-    if (!raw || typeof raw !== 'object' || !Array.isArray(raw.parts)) {
-      throw new Error(`Not a parts file: expected { "${EXPORT_MARK}": 1, "parts": [...] }.`);
+    try { raw = JSON.parse(text); } catch { throw new Error(tr('Not a parts file: could not parse JSON.')); }
+    if (!raw || typeof raw !== 'object' || !raw[EXPORT_MARK] || !Array.isArray(raw.parts)) {
+      throw new Error(tr('Not a parts file: expected { "{mark}": 1, "parts": [...] }.', { mark: EXPORT_MARK }));
     }
     const parts = load();
     const warnings = [];
@@ -91,14 +94,14 @@ export function createLibrary(storage) {
     let replaced = 0;
     raw.parts.forEach((entry, i) => {
       const { part, warnings: w } = normalizePart(entry);
-      if (!part) { warnings.push(`Entry ${i + 1}: ${w.join(' ')}`); return; }
-      warnings.push(...w.map((x) => `Entry ${i + 1}: ${x}`));
+      if (!part) { warnings.push(tr('Entry {n}: {text}', { n: i + 1, text: w.join(' ') })); return; }
+      warnings.push(...w.map((x) => tr('Entry {n}: {text}', { n: i + 1, text: x })));
       delete part.lib;
       const id = typeof entry.id === 'string' && ID_RE.test(entry.id) ? entry.id : uid('lp');
       const item = { id, ...part, updated: typeof entry.updated === 'string' ? entry.updated : new Date().toISOString() };
       const at = parts.findIndex((t) => t.id === id);
       if (at >= 0) { parts[at] = item; replaced += 1; }
-      else if (parts.length >= LIMITS.library) warnings.push(`Entry ${i + 1}: My parts is full; skipped.`);
+      else if (parts.length >= LIMITS.library) warnings.push(tr('Entry {n}: My parts is full; skipped.', { n: i + 1 }));
       else { parts.push(item); added += 1; }
     });
     persist(parts);

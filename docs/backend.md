@@ -104,8 +104,11 @@ and does not persist keys, conversations, or boards. Keys are forwarded only
 to enabled endpoints over the configured connection. Browser storage remains
 opt-in through **Remember**. The backend is not an account/login service.
 
-Requests are limited to 8 MiB, 16 concurrent provider calls, and 120 seconds
-per call. Invalid input and provider failures return readable errors; an
+Requests are limited to 8 MiB and 16 concurrent provider calls. A call has
+120 seconds to deliver its body and receive the provider's response headers;
+once the reply is streaming, only 120 seconds of silence between chunks ends
+it, so a long reply that keeps arriving is never cut off mid-stream.
+Invalid input and provider failures return readable errors; an
 interrupted stream remains an error instead of being treated as a complete
 assistant reply. No automatic fallback sends a failed backend request
 directly from the browser or through Cloudflare.

@@ -22,7 +22,7 @@ const WIRE_STYLES = ['solid', 'dashed', 'dotted', 'sneakernet'];
 const HEX_COLOR = /^#[0-9a-fA-F]{3,8}$/;
 const DEFAULT_ZONE_COLOR = '#4a90d9';
 
-export class OpError extends Error {}
+class OpError extends Error {}
 export function fail(message) { throw new OpError(message); }
 
 // One object shape for every op: `op` says which fields matter, and the
@@ -102,15 +102,15 @@ export function resolve(ctx, key) {
   return key;
 }
 
-export function findNode(ctx, key) {
+function findNode(ctx, key) {
   const id = resolve(ctx, key);
   return ctx.work.nodes.find((n) => n.id === id) || fail(`no node "${key}"`);
 }
-export function findWire(ctx, key) {
+function findWire(ctx, key) {
   const id = resolve(ctx, key);
   return ctx.work.wires.find((w) => w.id === id) || fail(`no wire "${key}"`);
 }
-export function findZone(ctx, key) {
+function findZone(ctx, key) {
   const id = resolve(ctx, key);
   return ctx.work.zones.find((z) => z.id === id) || fail(`no zone "${key}"`);
 }
@@ -122,12 +122,12 @@ function plainZone(ctx, key) {
   if (zone.kind === 'swimlane') fail(`zone "${key}" is a swimlane; the assistant edits plain zones only`);
   return zone;
 }
-export function findNote(ctx, key) {
+function findNote(ctx, key) {
   const id = resolve(ctx, key);
   return ctx.work.notes.find((t) => t.id === id) || fail(`no note "${key}"`);
 }
 
-export function claimRef(ctx, ref, what) {
+function claimRef(ctx, ref, what) {
   if (typeof ref !== 'string' || !ref) fail(`${what} needs a ref`);
   if (ctx.refs.has(ref) || findAny(ctx.work, ref)) fail(`ref "${ref}" is already taken`);
 }
@@ -141,7 +141,7 @@ export function text(ctx, value, what) {
 
 // The node fields an op may set, validated the way deserialize validates a
 // file. Returns a patch; `node` is the current node for merging fields.
-export function nodePatch(ctx, part, op, node) {
+function nodePatch(ctx, part, op, node) {
   const patch = {};
   for (const k of ['label', 'sublabel', 'addr', 'rail', 'notes']) {
     if (op[k] !== undefined) patch[k] = text(ctx, op[k], k);
@@ -187,7 +187,7 @@ export function nodePatch(ctx, part, op, node) {
 }
 
 // Null disposition and empty fields are absent keys, as in a saved file.
-export function assignPatch(node, patch) {
+function assignPatch(node, patch) {
   for (const [k, v] of Object.entries(patch)) {
     if (k === 'disposition' && v === null) delete node.disposition;
     else if (k === 'fields' && !Object.keys(v).length) delete node.fields;
@@ -198,6 +198,11 @@ export function assignPatch(node, patch) {
 const RAILS = new Set(['power', 'gnd']);
 const portList = (ports) => ports.map((p) => `${p.id}(${p.bus})`).join(', ');
 const busList = (ports) => [...new Set(ports.map((p) => p.bus))].join(', ');
+// A port of a shared or untyped bus carries any number of wires; every other
+// port takes one, whichever way the wire runs.
+const sharedPort = (bus) => SHARED_BUSES.has(bus) || UNTYPED_BUSES.has(bus);
+const portInUse = (doc, nodeId, port) => doc.wires.some((w) => (w.from.node === nodeId && w.from.port === port)
+  || (w.to.node === nodeId && w.to.port === port));
 
 // The port on `node` that a wire of `bus` should use: the first port of that
 // bus when the bus is shared, the first free one otherwise, a side port for
@@ -212,7 +217,7 @@ export function pickPort(doc, node, bus) {
     }
     fail(`node ${node.id} (${node.kind}) has no ${bus} port; ports: ${portList(ports)}`);
   }
-  if (SHARED_BUSES.has(bus) || UNTYPED_BUSES.has(bus)) return ofBus[0].id;
+  if (sharedPort(bus)) return ofBus[0].id;
   const used = new Set();
   for (const w of doc.wires) {
     if (w.from.node === node.id) used.add(w.from.port);
@@ -234,6 +239,12 @@ export function pickPorts(doc, a, b, portA, portB, bus) {
     if (portA === undefined || portB === undefined) fail('give both ports or neither');
     const A = pa.find((p) => p.id === portA) || fail(`node ${a.id} has no port "${portA}"; ports: ${portList(pa)}`);
     const B = pb.find((p) => p.id === portB) || fail(`node ${b.id} has no port "${portB}"; ports: ${portList(pb)}`);
+    // Named ports obey the same rule pickPort enforces when it chooses one.
+    for (const [node, port] of [[a, A], [b, B]]) {
+      if (!sharedPort(port.bus) && portInUse(doc, node.id, port.id)) {
+        fail(`port ${port.id} on ${node.id} is already in use; ${port.bus} is point-to-point`);
+      }
+    }
     if (A.bus === B.bus) {
       if (bus && bus !== A.bus && !UNTYPED_BUSES.has(bus)) fail(`ports ${portA} and ${portB} carry ${A.bus}, not ${bus}`);
       return { from: A.id, to: B.id, bus: bus || A.bus, warning: null };
@@ -263,7 +274,7 @@ function parseStyle(v) {
   return fail(`style must be one of ${WIRE_STYLES.join(', ')} or null`);
 }
 
-export const HANDLERS = {};
+const HANDLERS = {};
 
 HANDLERS.add_part = (ctx, op) => {
   claimRef(ctx, op.ref, 'add_part');
@@ -367,6 +378,12 @@ HANDLERS.connect = (ctx, op) => {
   if (a.id === b.id) fail('cannot connect a node to itself');
   if (op.bus !== undefined && !Object.hasOwn(BUSES, op.bus)) fail(`unknown bus "${op.bus}"`);
   const pick = pickPorts(ctx.work, a, b, op.from.port, op.to.port, op.bus);
+  // The same pair of endpoints twice is a second wire drawn on top of the
+  // first: the model meant update_wire, or the edit is a repeat.
+  const same = (e, node, port) => e.node === node && e.port === port;
+  const dup = ctx.work.wires.find((w) => (same(w.from, a.id, pick.from) && same(w.to, b.id, pick.to))
+    || (same(w.from, b.id, pick.to) && same(w.to, a.id, pick.from)));
+  if (dup) fail(`wire ${dup.id} already connects ${a.id}.${pick.from} to ${b.id}.${pick.to}; use update_wire to change it`);
   const w = {
     id: uid('w'), bus: pick.bus,
     from: { node: a.id, port: pick.from }, to: { node: b.id, port: pick.to },
@@ -385,6 +402,15 @@ HANDLERS.update_wire = (ctx, op) => {
   const changed = [];
   if (op.bus !== undefined) {
     if (!Object.hasOwn(BUSES, op.bus)) fail(`unknown bus "${op.bus}"`);
+    // A bus neither end carries gets the warning connect gives for the same
+    // mismatch; an untyped bus over two ports that agree is deliberate.
+    const portOf = (end) => nodePart(findNode(ctx, end.node)).ports.find((p) => p.id === end.port);
+    const from = portOf(w.from);
+    const to = portOf(w.to);
+    if (from && to && op.bus !== from.bus && op.bus !== to.bus
+      && !(UNTYPED_BUSES.has(op.bus) && from.bus === to.bus)) {
+      ctx.warnings.push(`wire ${op.bus} joins a ${from.bus} port to a ${to.bus} port`);
+    }
     w.bus = op.bus;
     changed.push('bus');
   }

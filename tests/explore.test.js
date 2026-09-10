@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { connectionFocus, searchBoard, readingDepth } from '../src/explore.js';
+import { connectionFocus, searchBoard, readingDepth, nodeHaystack } from '../src/explore.js';
 import { newDoc } from '../src/state.js';
 import { buildExportSVG } from '../src/export.js';
 import { diagramMarkup } from '../src/render.js';
+import { initI18n, setLang } from '../src/i18n.js';
 
 function fixture() {
   const doc = newDoc();
@@ -74,4 +75,20 @@ test('canonical export retains metadata and is free of exploration state', () =>
   assert.match(svg, /ESP32-S3/);
   assert.match(svg, /3.3V/);
   assert.doesNotMatch(svg, /explore-muted|explore-match|data-depth|visibility="hidden"/);
+});
+
+test('a Chinese query matches the translated category name of a board part', () => {
+  initI18n({ storage: null });
+  const doc = fixture();
+  assert.equal(searchBoard(doc, '计算').length, 0, 'English keeps English names');
+  assert.equal(searchBoard(doc, 'compute').length, 5, 'the category id still matches');
+  setLang('zh');
+  try {
+    assert.equal(searchBoard(doc, '计算').length, 5, 'the MCU category name is translated');
+    assert.equal(searchBoard(doc, '微控制器').length, 5, 'the part name is translated');
+    assert.equal(searchBoard(doc, 'compute').length, 5, 'the category id still matches');
+    assert.deepEqual(nodeHaystack(doc.nodes[0]).includes('计算'), true);
+  } finally {
+    setLang('en');
+  }
 });

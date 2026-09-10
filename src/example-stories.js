@@ -1,6 +1,6 @@
 // Authored presentation order, independent of electrical wire direction.
 // Each entry is [part ID, English caption, Chinese caption].
-export const EXAMPLE_STORIES = {
+const EXAMPLE_STORIES = {
   'weather-station': {
     j1: [
       ['n1', 'Start with the solar source feeding the charger.', '从为充电器供电的太阳能电池板开始。'],

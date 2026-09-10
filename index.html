@@ -17,22 +17,22 @@
       </div>
       <input id="title" type="text" spellcheck="false" aria-label="Board title">
       <div class="group" role="group" aria-label="Tools">
-        <button id="tool-select" data-tool="select" class="tool active" title="Select / move (V)">
+        <button data-tool="select" class="tool active" title="Select / move (V)">
           <svg viewBox="0 0 18 18" aria-hidden="true"><path d="M5 2l9 6.5-4.6 1L7.5 14z"/></svg>
         </button>
-        <button id="tool-wire" data-tool="wire" class="tool" title="Draw wire (C)">
+        <button data-tool="wire" class="tool" title="Draw wire (C)">
           <svg viewBox="0 0 18 18" aria-hidden="true"><path d="M4 14c5 0 5-10 10-10"/><circle cx="4" cy="14" r="1.8"/><circle cx="14" cy="4" r="1.8"/></svg>
         </button>
-        <button id="tool-zone" data-tool="zone" class="tool" title="Draw zone (Z)">
+        <button data-tool="zone" class="tool" title="Draw zone (Z)">
           <svg viewBox="0 0 18 18" aria-hidden="true"><path d="M3 6V3h3 M12 3h3v3 M15 12v3h-3 M6 15H3v-3"/></svg>
         </button>
-        <button id="tool-lane" data-tool="lane" class="tool" title="Draw swimlane (L)">
+        <button data-tool="lane" class="tool" title="Draw swimlane (L)">
           <svg viewBox="0 0 18 18" aria-hidden="true"><path d="M3 3h12v12H3z M3 7h12 M3 11h12"/></svg>
         </button>
-        <button id="tool-note" data-tool="note" class="tool" title="Add note (N)">
+        <button data-tool="note" class="tool" title="Add note (N)">
           <svg viewBox="0 0 18 18" aria-hidden="true"><path d="M4 3h8l3 3v9H4z M12 3v3h3 M7 9h5 M7 12h4"/></svg>
         </button>
-        <button id="tool-pan" data-tool="pan" class="tool" title="Pan (H, or hold Space)">
+        <button data-tool="pan" class="tool" title="Pan (H, or hold Space)">
           <svg viewBox="0 0 18 18" aria-hidden="true"><path d="M6 8V3.8a1.1 1.1 0 0 1 2.2 0V8 M8.2 7.5V3a1.1 1.1 0 0 1 2.2 0v4.5 M10.4 7.8V4a1.1 1.1 0 0 1 2.2 0v6.5c0 3-1.8 5-4.6 5-2.3 0-3.5-1.2-4.6-3.2L2.3 9.9c-.5-.9.6-1.8 1.5-1.2L6 10.3"/></svg>
         </button>
       </div>
@@ -50,29 +50,29 @@
         <button id="btn-fullscreen" title="Toggle fullscreen">&#x26F6;</button>
       </div>
       <div class="group">
-        <button id="btn-grid" class="active" title="Grid dots">
+        <button id="btn-grid" class="active" aria-pressed="true" title="Grid dots">
           <svg viewBox="0 0 18 18" aria-hidden="true"><g fill="currentColor" stroke="none"><circle cx="4" cy="4" r="1.4"/><circle cx="9" cy="4" r="1.4"/><circle cx="14" cy="4" r="1.4"/><circle cx="4" cy="9" r="1.4"/><circle cx="9" cy="9" r="1.4"/><circle cx="14" cy="9" r="1.4"/><circle cx="4" cy="14" r="1.4"/><circle cx="9" cy="14" r="1.4"/><circle cx="14" cy="14" r="1.4"/></g></svg>
         </button>
-        <button id="btn-snap" class="active" title="Snap to grid + swimlane lanes">
+        <button id="btn-snap" class="active" aria-pressed="true" title="Snap to grid + swimlane lanes">
           <svg viewBox="0 0 18 18" aria-hidden="true"><path d="M5 2.5v6a4 4 0 0 0 8 0v-6 M5 2.5h2.6 M10.4 2.5H13 M5 6h2.6 M10.4 6H13"/></svg>
         </button>
-        <button id="btn-animate" title="Signal-flow animation">
+        <button id="btn-animate" aria-pressed="false" title="Signal-flow animation">
           <svg viewBox="0 0 18 18" aria-hidden="true"><path d="M2 9h3l2.5-5 3 10L13 9h3"/></svg>
         </button>
         <button id="btn-explore" title="Explore this board (/)" aria-expanded="false" aria-controls="explore-panel" aria-label="Explore this board (/)"><svg viewBox="0 0 18 18" aria-hidden="true"><circle cx="7.5" cy="7.5" r="4.5"/><path d="M11 11l4 4"/></svg></button>
-        <button id="btn-legend" title="Bus legend">
+        <button id="btn-legend" aria-pressed="false" title="Bus legend">
           <svg viewBox="0 0 18 18" aria-hidden="true"><path d="M7 4.5h8 M7 9h8 M7 13.5h8"/><g fill="currentColor" stroke="none"><circle cx="3.5" cy="4.5" r="1.2"/><circle cx="3.5" cy="9" r="1.2"/><circle cx="3.5" cy="13.5" r="1.2"/></g></svg>
         </button>
-        <button id="btn-journey" title="Journey steps + presenting">
+        <button id="btn-journey" aria-pressed="false" title="Journey steps + presenting">
           <svg viewBox="0 0 18 18" aria-hidden="true"><path d="M5 16V3 M5 3.5h8.5l-2.2 3 2.2 3H5"/></svg>
         </button>
-        <button id="btn-assistant" title="Assistant (A)">
+        <button id="btn-assistant" aria-pressed="false" title="Assistant (A)">
           <svg viewBox="0 0 18 18" aria-hidden="true"><path d="M9 2l1.6 4.4L15 8l-4.4 1.6L9 14l-1.6-4.4L3 8l4.4-1.6z M14.5 12.5l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6z"/></svg>
         </button>
-        <button id="btn-palette" class="active" title="Hide the parts palette (B)">
+        <button id="btn-palette" class="active" aria-pressed="true" data-i18n-attrs="off" title="Hide the parts palette (B)">
           <svg viewBox="0 0 18 18" aria-hidden="true"><rect x="2.5" y="3.5" width="13" height="11" rx="2"/><path d="M7 3.5v11 M4.5 7h.01 M4.5 9.5h.01"/></svg>
         </button>
-        <button id="btn-panels" class="active" title="Hide the right panels (P)">
+        <button id="btn-panels" class="active" aria-pressed="true" data-i18n-attrs="off" title="Hide the right panels (P)">
           <svg viewBox="0 0 18 18" aria-hidden="true"><rect x="2.5" y="3.5" width="13" height="11" rx="2"/><path d="M11 3.5v11 M13 7h.01 M13 9.5h.01"/></svg>
         </button>
       </div>

@@ -103,6 +103,18 @@ test('dangling wire is dropped with warning', () => {
   assert.equal(warnings.length, 2);
 });
 
+test('a self-loop wire (both ends on one node) is dropped with a warning', () => {
+  const { doc, warnings } = deserialize(JSON.stringify({
+    nodes: [{ id: 'n1', kind: 'mcu', x: 0, y: 0 }, { id: 'n2', kind: 'temp', x: 300, y: 0 }],
+    wires: [
+      { id: 'loop', bus: 'i2c', from: { node: 'n1', port: 'i2c' }, to: { node: 'n1', port: 'spi' } },
+      { id: 'ok', bus: 'i2c', from: { node: 'n1', port: 'i2c' }, to: { node: 'n2', port: 'i2c' } },
+    ],
+  }));
+  assert.deepEqual(doc.wires.map((w) => w.id), ['ok']);
+  assert.deepEqual(warnings, ['Dropped wire "loop": both ends are on the same node.']);
+});
+
 test('unknown bus falls back to gpio with warning', () => {
   const { doc, warnings } = deserialize(JSON.stringify({
     nodes: [
@@ -280,6 +292,33 @@ test('invalid node status and unknown flags are neutralized with warnings', () =
   assert.equal(doc.nodes[0].status, null);
   assert.deepEqual(doc.nodes[0].flags, ['bug']);
   assert.equal(warnings.length, 2);
+});
+
+test('a missing label gets the part default, as a freshly placed card does', () => {
+  initI18n({ storage: null });
+  const text = JSON.stringify({
+    nodes: [
+      { id: 'a', kind: 'startend', x: 0, y: 0 },
+      { id: 'b', kind: 'connector', x: 0, y: 0 },
+      { id: 'c', kind: 'mcu', x: 0, y: 0 },
+    ],
+  });
+  assert.deepEqual(deserialize(text).doc.nodes.map((n) => n.label), ['Start', 'A', 'MCU']);
+  setLang('zh');
+  try {
+    assert.deepEqual(deserialize(text).doc.nodes.map((n) => n.label), ['开始', 'A', '微控制器']);
+  } finally {
+    setLang('en');
+  }
+});
+
+test('a non-string label is replaced by the default with a warning', () => {
+  const { doc, warnings } = deserialize(JSON.stringify({
+    nodes: [{ id: 'n1', kind: 'mcu', x: 0, y: 0, label: 42 }, { id: 'n2', kind: 'mcu', x: 0, y: 0, label: '' }],
+  }));
+  assert.equal(doc.nodes[0].label, 'MCU');
+  assert.equal(doc.nodes[1].label, '', 'an empty string is a label the user chose');
+  assert.deepEqual(warnings, ['Ignored invalid label on node "n1".']);
 });
 
 test('legacy fixed card sizes are dropped and the card keeps its old center', () => {

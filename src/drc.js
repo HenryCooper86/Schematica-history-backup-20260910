@@ -33,6 +33,12 @@ function i2cComponents(doc) {
   return [...groups.values()];
 }
 
+// The comparison form of an I2C address: surrounding whitespace and the case
+// of the hex prefix and digits carry no meaning. Empty when there is none.
+export function i2cAddrKey(addr) {
+  return String(addr ?? '').trim().toLowerCase();
+}
+
 export function checkDoc(doc) {
   const findings = [];
   const byId = new Map(doc.nodes.map((n) => [n.id, n]));
@@ -45,18 +51,22 @@ export function checkDoc(doc) {
     wiredNodes.add(w.to.node);
   }
 
-  // 1. I2C address conflicts within one net.
+  // 1. I2C address conflicts within one net. "0x76", " 0X76 " and "0x76"
+  //    are the same device address, so compare a normalised key and report
+  //    the address as the first conflicting node wrote it.
   for (const component of i2cComponents(doc)) {
     const byAddr = new Map();
     for (const id of component) {
       const n = byId.get(id);
-      if (n && n.addr) {
-        if (!byAddr.has(n.addr)) byAddr.set(n.addr, []);
-        byAddr.get(n.addr).push(n);
+      const key = i2cAddrKey(n?.addr);
+      if (key) {
+        if (!byAddr.has(key)) byAddr.set(key, []);
+        byAddr.get(key).push(n);
       }
     }
-    for (const [addr, nodes] of byAddr) {
+    for (const nodes of byAddr.values()) {
       if (nodes.length > 1) {
+        const addr = String(nodes[0].addr).trim();
         findings.push({
           level: 'error',
           rule: 'i2c-addr-conflict',
@@ -67,8 +77,8 @@ export function checkDoc(doc) {
     }
   }
 
-  // 2. Unconnected supply pins. Built-in parts: VCC/GND/VIN* consumption pins
-  //    by name. Custom parts: every port the definition marks required, on any
+  // 2. Unconnected supply pins. Built-in parts: the VCC/GND consumption pins
+  //    by id. Custom parts: every port the definition marks required, on any
   //    bus; power and ground report under the same rule as built-ins.
   for (const n of doc.nodes) {
     const part = nodePart(n);
@@ -76,7 +86,7 @@ export function checkDoc(doc) {
       const supply = port.bus === 'power' || port.bus === 'gnd';
       const must = part.custom
         ? port.required === true
-        : supply && (port.id === 'vcc' || port.id === 'gnd' || port.id.startsWith('vin'));
+        : supply && (port.id === 'vcc' || port.id === 'gnd');
       if (must && !wiredPorts.has(`${n.id}|${port.id}`)) {
         findings.push({
           level: 'warning',

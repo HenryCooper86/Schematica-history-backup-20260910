@@ -201,12 +201,17 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
     result.hidden = true;
   }
 
-  function fillForm() {
-    const s = settings.get();
+  // What the sheet holds, saved or not, so a chrome rebuild can put it back.
+  const formDraft = () => ({ ...formSettings(), key: el('ai-key').value, remember: el('ai-remember').checked });
+
+  // Fills the sheet from the saved settings, or from a draft taken with
+  // formDraft() when unsaved edits must survive a rebuild.
+  function fillForm(draft = null) {
+    const s = draft ? { ...settings.get(), ...draft } : settings.get();
     el('ai-provider').value = s.provider;
     el('ai-model').value = s.model;
     el('ai-base').value = s.baseUrl;
-    el('ai-key').value = settings.getKey();
+    el('ai-key').value = draft ? draft.key : settings.getKey();
     el('ai-remember').checked = s.remember;
     el('ai-effort').value = s.effort;
     const p = PROVIDERS[s.provider];
@@ -329,8 +334,14 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
 
   function isOpen() { return !panel.hidden; }
   function open() {
+    // Opening the assistant is a request to see panels, whichever path asks
+    // (the button, the A shortcut, a DRC "Fix"): a hidden container would
+    // leave the panel display:none and the focus below would not land.
+    const app = document.getElementById('app');
+    if (app.classList.contains('panels-hidden')) document.getElementById('btn-panels').click();
     panel.hidden = false;
     btn.classList.add('active');
+    btn.setAttribute('aria-pressed', 'true');
     // Settings are read from storage on every call, so a seed written after
     // boot shows up here.
     refreshMeta();
@@ -343,6 +354,7 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
   function close() {
     panel.hidden = true;
     btn.classList.remove('active');
+    btn.setAttribute('aria-pressed', 'false');
   }
   function toggle() { if (isOpen()) close(); else open(); }
 
@@ -358,11 +370,6 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
   if (typeof ResizeObserver === 'function') new ResizeObserver(reserve).observe(panel);
   reserve();
   btn.addEventListener('click', toggle);
-  // Like the journey button, opening the assistant is a request to see panels.
-  btn.addEventListener('click', () => {
-    const app = document.getElementById('app');
-    if (app.classList.contains('panels-hidden')) document.getElementById('btn-panels').click();
-  }, true);
 
   window.addEventListener('keydown', (e) => {
     const t = e.target;
@@ -375,11 +382,13 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
   refreshMeta();
 
   onLanguageChange(() => {
+    // The rebuild replaces the form; unsaved edits in an open sheet come back.
+    const draft = settingsOpen ? formDraft() : null;
     renderChrome();
     repaintUsage();
     attachments.relabel();
     refreshMeta();
-    if (settingsOpen) fillForm();
+    if (settingsOpen) fillForm(draft);
     renderThread();
   });
 

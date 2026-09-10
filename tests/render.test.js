@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { PARTS, CATEGORY_COLORS } from '../src/palette.js';
 import { diagramMarkup, defsMarkup, flowOffset, LOOP_MS, overlayMarkup } from '../src/render.js';
 import { EXAMPLES } from '../src/examples.js';
+import { initI18n, setLang } from '../src/i18n.js';
 
 // Cards size to their content (net_draw): a one-letter label gives 104x74.
 const node = (id, kind, x, y, extra = {}) => ({
@@ -235,6 +236,25 @@ test('ports render for every node in a ports group that CSS reveals on hover', (
   assert.ok(port.includes('stroke-width="1.6"'));
   assert.ok(port.includes('class="port-name"') && port.includes('I2C · I2C'), 'pin name shown on hover');
   assert.ok(!diagramMarkup(sampleDoc(), { ports: false }).includes('class="ports"'), 'exports omit ports');
+});
+
+test('the unsupported-port prefix follows the interface language', () => {
+  initI18n({ storage: null });
+  // An RDK preset switch keeps a wired endpoint the new profile lacks.
+  const doc = {
+    ...sampleDoc(),
+    nodes: [node('b', 'aisbc', 0, 0, { sublabel: 'RDK X3' }), node('c', 'mipicam', 400, 0)],
+    wires: [
+      { id: 'w', bus: 'mipi', from: { node: 'b', port: 'csi2' }, to: { node: 'c', port: 'i2c' }, label: '', arrow: null, style: null },
+    ],
+  };
+  assert.match(diagramMarkup(doc), /class="port-name"[^>]*>Unsupported: CSI2 · CSI</);
+  setLang('zh');
+  try {
+    assert.match(diagramMarkup(doc), /class="port-name"[^>]*>不支持：CSI2 · CSI</);
+  } finally {
+    setLang('en');
+  }
 });
 
 test('node cards use the net_draw surface: gradient, shadow, hairline border, selection ring', () => {

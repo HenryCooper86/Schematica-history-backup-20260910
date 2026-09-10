@@ -109,6 +109,19 @@ test('catalogue lookup is exact, searchable and provenance-backed', async () => 
   assert.equal(searchRdk('X5')[0].id, 'rdk-x5');
   assert.equal(searchRdk('X')[0], undefined);
   assert.ok(searchRdk('rdk').length <= 12);
+  // Underscored ids are searchable by either half or in full.
+  assert.deepEqual(
+    searchRdk('hobot').map((p) => p.id),
+    ['hobot_sensor', 'hobot_dnn', 'hobot_codec', 'hobot_render'],
+  );
+  assert.deepEqual(
+    searchRdk('hobot_sensor').map((p) => p.id),
+    ['hobot_sensor'],
+  );
+  assert.ok(searchRdk('sensor').some((p) => p.id === 'hobot_sensor'));
+  // A product named by the query outranks one that only mentions it in notes.
+  assert.equal(searchRdk('GS130W')[0].id, 'gs130w');
+  assert.ok(searchRdk('GS130W').some((p) => p.id === 'rdk-stereo-legacy'));
   assert.ok(rdkPresets('aisbc').some((p) => p.sublabel === 'RDK X3'));
   assert.equal(
     nodePart({ kind: 'aisbc', sublabel: 'RDK X3' }).ports.filter(

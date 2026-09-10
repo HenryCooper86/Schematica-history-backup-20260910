@@ -1,4 +1,4 @@
-export const THEME_KEY = 'schematica.theme';
+const THEME_KEY = 'schematica.theme';
 let preference = 'dark';
 let storage = null;
 let media = null;

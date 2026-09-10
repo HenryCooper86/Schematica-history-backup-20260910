@@ -39,7 +39,7 @@ export function nodeLine(doc, node) {
   return s;
 }
 
-export function wireLine(w) {
+function wireLine(w) {
   const arrow = w.arrow === 'fwd' ? '->' : (w.arrow === 'both' ? '<->' : '--');
   let s = `wire ${w.id} ${w.bus} ${w.from.node}.${w.from.port} ${arrow} ${w.to.node}.${w.to.port}`;
   if (w.label) s += ` ${quote(w.label)}`;
@@ -48,7 +48,7 @@ export function wireLine(w) {
   return s;
 }
 
-export function zoneLine(doc, z) {
+function zoneLine(doc, z) {
   const members = zoneMembers(doc, z).filter((id) => doc.nodes.some((n) => n.id === id));
   const list = members.join(' ') || '-';
   if (z.kind === 'swimlane') return `swimlane ${z.id} ${quote(z.label)} lanes: ${z.lanes.map(quote).join(', ')} members: ${list}`;

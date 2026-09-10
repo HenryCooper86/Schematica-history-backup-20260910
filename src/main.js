@@ -126,16 +126,19 @@ function animTick(now) {
   animRaf = requestAnimationFrame(animTick);
 }
 
+// A toggle button carries its state twice: `.active` for the eye and
+// aria-pressed for a screen reader, so the two never drift apart.
+function setToggle(el, on) {
+  el.classList.toggle('active', on);
+  el.setAttribute('aria-pressed', on ? 'true' : 'false');
+}
+
 function syncAnimation() {
-  document.getElementById('btn-animate').classList.toggle('active', tools.ui.animate);
+  setToggle(document.getElementById('btn-animate'), tools.ui.animate);
   if (needsTicker() && !animRaf) animRaf = requestAnimationFrame(animTick);
 }
 
 store.subscribe(syncAnimation);
-
-if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-  tools.ui.animate = false;
-}
 
 document.getElementById('btn-animate').addEventListener('click', () => {
   tools.ui.animate = !tools.ui.animate;
@@ -190,12 +193,12 @@ document.getElementById('zoom-reset').addEventListener('click', () => tools.zoom
 document.getElementById('btn-fit').addEventListener('click', () => tools.zoomFit());
 document.getElementById('btn-grid').addEventListener('click', (e) => {
   tools.ui.grid = !tools.ui.grid;
-  e.currentTarget.classList.toggle('active', tools.ui.grid);
+  setToggle(e.currentTarget, tools.ui.grid);
   render();
 });
 document.getElementById('btn-snap').addEventListener('click', (e) => {
   tools.ui.snapOn = !tools.ui.snapOn;
-  e.currentTarget.classList.toggle('active', tools.ui.snapOn);
+  setToggle(e.currentTarget, tools.ui.snapOn);
 });
 
 const titleInput = document.getElementById('title');

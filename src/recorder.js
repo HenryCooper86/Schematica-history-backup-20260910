@@ -131,13 +131,17 @@ export function createRecorder(svg, { notify: notifyUser = (m) => alert(m) } = {
       clone.setAttribute('font-family', "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif");
       const blob = new Blob([new XMLSerializer().serializeToString(clone)], { type: 'image/svg+xml' });
       const url = URL.createObjectURL(blob);
-      const img = new Image();
-      img.src = url;
-      await img.decode();
-      ctx.fillStyle = themeBackground();
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, box.x, box.y, box.w, box.h);
-      URL.revokeObjectURL(url);
+      try {
+        const img = new Image();
+        img.src = url;
+        await img.decode();
+        ctx.fillStyle = themeBackground();
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, box.x, box.y, box.w, box.h);
+      } finally {
+        // A failed decode must not leak the blob: the loop runs every frame.
+        URL.revokeObjectURL(url);
+      }
       drew = true;
       try { drawOverlay(); } catch { /* caption box is best-effort */ }
       failures = 0;

@@ -10,8 +10,8 @@ import { nodeSize, nodeRect, snap, contentBounds, zoneMembers, NOTE_W, noteHeigh
 export const COL_GAP = 96;
 export const ROW_GAP = 40;
 export const ZONE_PAD = 28;
-export const NOTE_GAP = 16;
-export const SLOT_MARGIN = 24;
+const NOTE_GAP = 16;
+const SLOT_MARGIN = 24;
 export const ORIGIN = 40;
 
 const CAT_INDEX = new Map(CATEGORIES.map((c, i) => [c.id, i]));
@@ -139,8 +139,8 @@ export function layoutAll(doc, zoneOf = new Map()) {
 
 const down = (v) => Math.floor(v / 8) * 8;
 const up = (v) => Math.ceil(v / 8) * 8;
-export const noteRect = (t) => ({ x: t.x, y: t.y, w: NOTE_W, h: noteHeight(t.text) });
-export const zoneRect = (z) => ({ x: z.x, y: z.y, w: z.w, h: z.h });
+const noteRect = (t) => ({ x: t.x, y: t.y, w: NOTE_W, h: noteHeight(t.text) });
+const zoneRect = (z) => ({ x: z.x, y: z.y, w: z.w, h: z.h });
 
 // The zone rectangle around its members: padding all round plus room for
 // the title pill on the top edge.
@@ -245,7 +245,7 @@ export function arrangeAll(doc) {
 // neighbour it shares the most wires with), on the power side for power
 // parts, in the first free slot scanning down then up. With `zone`, the
 // search stays inside that zone and the zone grows when it is full.
-export function placeOne(doc, nodeId, hint = {}, skip = new Set(), newZoneIds = new Set()) {
+function placeOne(doc, nodeId, hint = {}, skip = new Set(), newZoneIds = new Set()) {
   const node = doc.nodes.find((n) => n.id === nodeId);
   if (!node) return;
   const size = nodeSize(node);

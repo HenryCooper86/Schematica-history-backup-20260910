@@ -1,5 +1,7 @@
 // Compare stable identities in two snapshots. A move is not a wiring change;
 // endpoint order is reported exactly as authored, without inferring impact.
+import { tr } from './i18n.js';
+
 const canonical = value => Array.isArray(value) ? value.map(canonical)
   : value && typeof value === 'object' ? Object.fromEntries(Object.keys(value).sort().map(k => [k, canonical(value[k])])) : value;
 const equal = (a, b) => JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
@@ -31,7 +33,7 @@ export function compareBoards(before, after) {
   // Step order is semantic even when the steps themselves are unchanged.
   const shared = new Set((before.journey || []).filter(s => (after.journey || []).some(t => t.id === s.id)).map(s => s.id));
   const order = doc => (doc.journey || []).filter(s => shared.has(s.id)).map(s => s.id);
-  if (!equal(order(before), order(after))) changes.push({ type: 'changed', collection: 'journey', id: '', label: 'Journey',
+  if (!equal(order(before), order(after))) changes.push({ type: 'changed', collection: 'journey', id: '', label: tr('Journey'),
     fields: [{ field: 'order', before: order(before), after: order(after) }] });
   return { version: 1, beforeTitle: before.title, afterTitle: after.title, changes,
     counts: Object.fromEntries(['added', 'removed', 'changed', 'rewired', 'moved'].map(type => [type, changes.filter(c => c.type === type).length])) };

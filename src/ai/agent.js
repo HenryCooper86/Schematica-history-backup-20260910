@@ -62,7 +62,7 @@ export async function runRequest({
       messages.push({ role: 'assistant', content, raw: res.raw });
       stop = res.stop;
       stopDetails = res.stopDetails || null;
-      if (stop === 'aborted' || stop === 'max_tokens') cutOff = true;
+      if (stop === 'max_tokens') cutOff = true;
       if (!calls.length) break;
       // Every tool_use gets a tool_result, or the history is unusable for the
       // next request: calls the model made before being cut off are answered
@@ -73,6 +73,12 @@ export async function runRequest({
       for (const tc of calls) {
         if (stop !== 'tool_use') {
           results.push({ type: 'tool_result', id: tc.id, text: `Not run: the reply stopped before this call completed (${stop}).`, isError: true });
+          continue;
+        }
+        // Arguments the adapter could not parse: tell the model so it can
+        // send the call again rather than ending the turn on a SyntaxError.
+        if (tc.inputError) {
+          results.push({ type: 'tool_result', id: tc.id, text: `Not run: the arguments for ${tc.name} were not valid JSON (${tc.inputError}). Call the tool again with valid JSON arguments.`, isError: true });
           continue;
         }
         let r;

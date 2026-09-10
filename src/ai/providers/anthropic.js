@@ -2,7 +2,7 @@
 // the assistant's raw blocks (thinking with its signature, text, tool_use)
 // are replayed verbatim on later turns, as the API requires.
 import { sseParser, readStream } from './stream.js';
-import { ProviderError, mapHttpError, networkError, MAX_TOOL_INPUT } from './errors.js';
+import { ProviderError, mapHttpError, networkError, MAX_TOOL_INPUT, MAX_STREAM_TEXT } from './errors.js';
 import { tr } from '../../i18n.js';
 import { providerFetch } from './transport.js';
 
@@ -15,13 +15,14 @@ const STOP = { end_turn: 'end', tool_use: 'tool_use', max_tokens: 'max_tokens', 
 // turn that has nothing left to say.
 const nonEmpty = (blocks) => blocks.filter((b) => !(b.type === 'text' && !b.text));
 
-export function anthropicMessages(messages) {
+function anthropicMessages(messages) {
   const out = [];
   for (const m of messages) {
     if (m.role === 'assistant') {
       const raw = Array.isArray(m.raw) && m.raw.length ? m.raw : null;
+      // A call whose arguments never parsed has input null; the wire needs an object.
       const content = raw || m.content.map((b) => (b.type === 'tool_use'
-        ? { type: 'tool_use', id: b.id, name: b.name, input: b.input }
+        ? { type: 'tool_use', id: b.id, name: b.name, input: b.input ?? {} }
         : { type: 'text', text: b.text }));
       const kept = nonEmpty(content);
       if (kept.length) out.push({ role: 'assistant', content: kept });
@@ -73,6 +74,9 @@ export function createAnthropicAccumulator(onText) {
   let stopReason = null;
   let stopDetails = null;
   let failure = null;
+  // Thrown from push so readStream cancels the reader: accumulation stops
+  // at the cap instead of growing until the stream ends.
+  const overflow = (message) => { failure = failure || new ProviderError(message, { code: 'request' }); throw failure; };
   return {
     push({ event, data }) {
       const type = event || data?.type;
@@ -91,13 +95,17 @@ export function createAnthropicAccumulator(onText) {
         const b = blocks[data.index];
         const d = data.delta || {};
         if (!b) return;
-        if (d.type === 'text_delta') { b.text += d.text; onText?.(d.text); }
-        else if (d.type === 'input_json_delta') {
+        if (d.type === 'text_delta') {
+          b.text += d.text;
+          if (b.text.length > MAX_STREAM_TEXT) overflow(tr('The reply exceeded 2 MB of text; ask for a shorter answer.'));
+          onText?.(d.text);
+        } else if (d.type === 'input_json_delta') {
           partial[data.index] += d.partial_json;
-          if (partial[data.index].length > MAX_TOOL_INPUT) failure = failure || new ProviderError(tr('A tool call input exceeded 256 KB; split the work into smaller batches.'), { code: 'request' });
-        }
-        else if (d.type === 'thinking_delta') b.thinking += d.thinking;
-        else if (d.type === 'signature_delta') b.signature = d.signature;
+          if (partial[data.index].length > MAX_TOOL_INPUT) overflow(tr('A tool call input exceeded 256 KB; split the work into smaller batches.'));
+        } else if (d.type === 'thinking_delta') {
+          b.thinking += d.thinking;
+          if (b.thinking.length > MAX_STREAM_TEXT) overflow(tr('The reply exceeded 2 MB of text; ask for a shorter answer.'));
+        } else if (d.type === 'signature_delta') b.signature = d.signature;
       } else if (type === 'content_block_stop') {
         // Parse after the stop reason arrives: max_tokens can leave partial JSON.
       } else if (type === 'message_delta') {
@@ -111,15 +119,26 @@ export function createAnthropicAccumulator(onText) {
     result() {
       if (failure) throw failure;
       if (!stopReason) throw new ProviderError(tr('The response stream ended before the reply completed. Try again.'), { code: 'network' });
+      // Arguments that do not parse are the model's mistake, not a broken
+      // stream: the call is surfaced with input null and an inputError so the
+      // agent can answer it with an error result and let the model retry.
+      // The replayed raw block keeps an object, as the API requires.
+      const inputErrors = new Map();
       const raw = blocks.flatMap((b, i) => {
         if (b.type !== 'tool_use') return [b];
         if (stopReason === 'max_tokens' || stopReason === 'refusal') return [];
         const json = partial[i] || '';
-        return [{ ...b, input: json.trim() ? JSON.parse(json) : (b.input || {}) }];
+        let input = b.input || {};
+        if (json.trim()) {
+          try { input = JSON.parse(json); } catch (err) { inputErrors.set(b.id, err.message); input = {}; }
+        }
+        return [{ ...b, input }];
       });
       return {
         text: raw.filter((b) => b.type === 'text').map((b) => b.text).join(''),
-        toolCalls: raw.filter((b) => b.type === 'tool_use').map((b) => ({ id: b.id, name: b.name, input: b.input })),
+        toolCalls: raw.filter((b) => b.type === 'tool_use').map((b) => (inputErrors.has(b.id)
+          ? { id: b.id, name: b.name, input: null, inputError: inputErrors.get(b.id) }
+          : { id: b.id, name: b.name, input: b.input })),
         usage,
         stop: STOP[stopReason] || 'end',
         stopDetails,
@@ -177,7 +196,14 @@ export function anthropicProvider({ baseUrl, apiKey, model, effort, fetchImpl = 
       }
       if (!res.ok) throw mapHttpError(res.status, await res.text(), 'Anthropic');
       const acc = createAnthropicAccumulator(onText);
-      await readStream(res, sseParser((e) => acc.push(e)));
+      try {
+        await readStream(res, sseParser((e) => acc.push(e)));
+      } catch (err) {
+        // A stream that breaks mid-reply is a network failure; a parser that
+        // threw already carries its own ProviderError.
+        if (err?.name === 'AbortError' || err instanceof ProviderError) throw err;
+        throw networkError('Anthropic', err);
+      }
       return acc.result();
     },
   };

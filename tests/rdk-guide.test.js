@@ -76,6 +76,23 @@ test('unknown connector profile and authoritative package remain explicit', () =
   assert.doesNotMatch(rdkDetails(d.nodes[2], d), /Web\/HDMI/);
 });
 
+test('a BOM line without a part number names the part, not the kind id', () => {
+  initI18n({ storage: null });
+  const d = sample();
+  d.nodes.push(node('psu', 'jack', ''), node('link', 'custom', ''));
+  const g = rdkGuide(d).replace(/&#(\d+);/g, (_, c) => String.fromCharCode(Number(c)));
+  assert.match(g, /- psu \(psu\): Power jack/);
+  assert.match(g, /- link \(link\): Custom box/);
+  assert.doesNotMatch(g, /\(psu\): jack/);
+  setLang('zh');
+  try {
+    const zh = rdkGuide(d).replace(/&#(\d+);/g, (_, c) => String.fromCharCode(Number(c)));
+    assert.match(zh, /- psu \(psu\): 电源插座/);
+  } finally {
+    setLang('en');
+  }
+});
+
 test('source links allow HTTPS only and escape hostile source labels', () => {
   assert.deepEqual(
     safeSources({

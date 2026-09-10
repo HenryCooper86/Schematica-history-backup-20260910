@@ -55,6 +55,12 @@ export class Store {
   }
 
   apply(fn) {
+    // Inside a batch the batch's own snapshot is the undo step: pushing one
+    // here too would leave a second, half-way entry and clear the redo stack.
+    if (this._batchSnap !== null) {
+      this.mutate(fn);
+      return;
+    }
     const snap = structuredClone(this.doc);
     fn(this.doc);
     // A mutation that changed nothing (e.g. a blur committing an unedited

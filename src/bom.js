@@ -48,9 +48,15 @@ export function buildBOM(doc) {
   );
 }
 
+// A cell that a spreadsheet would evaluate as a formula (leading = + - @, or
+// a tab or return that lets one hide behind whitespace) is prefixed with an
+// apostrophe, the convention spreadsheets read as "this is text", and quoted
+// so the apostrophe survives the CSV parser.
 function csvCell(v) {
   const s = String(v ?? '');
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  const formula = /^[=+\-@\t\r]/.test(s);
+  const text = formula ? `'${s}` : s;
+  return formula || /[",\n\r]/.test(s) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
 export function bomCSV(rows) {

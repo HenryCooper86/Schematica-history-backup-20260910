@@ -3,7 +3,7 @@ import { realpath, stat } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import { dirname, extname, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { Readable } from 'node:stream';
+import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -23,10 +23,13 @@ const MIME = {
 };
 const FORWARD_HEADERS = ['authorization', 'content-type', 'accept', 'x-api-key', 'anthropic-version'];
 
-function error(status, message) { return Object.assign(new Error(message), { status }); }
-function json(res, status, message) {
+// Refusals the server makes itself (as opposed to a forwarded provider
+// reply) carry this code so the browser does not read a 403 as a bad key.
+export const POLICY_CODE = 'schematica_policy';
+function error(status, message, code) { return Object.assign(new Error(message), { status, code }); }
+function json(res, status, message, code) {
   res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' });
-  res.end(JSON.stringify({ error: { message } }));
+  res.end(JSON.stringify({ error: code ? { message, code } : { message } }));
 }
 
 function parseBase(value) {
@@ -45,7 +48,7 @@ function targetFor(req, allowed) {
   if (url.username || url.password || url.search || url.hash) throw error(400, 'Provider URLs cannot contain credentials, queries, or fragments.');
   const endpoints = req.method === 'GET' ? ['/models'] : ['/chat/completions', '/messages'];
   if (!allowed.some((base) => endpoints.some((suffix) => url.href === base + suffix))) {
-    throw error(403, 'This provider endpoint is not enabled on this server. Ask the operator to add its Base URL to AI_BASE_URLS.');
+    throw error(403, 'This provider endpoint is not enabled on this server. Ask the operator to add its Base URL to AI_BASE_URLS.', POLICY_CODE);
   }
   return url.href;
 }
@@ -68,7 +71,7 @@ async function readBody(req, limit) {
 
 export function createAppServer({
   root = ROOT, fetchImpl = globalThis.fetch, baseUrls = DEFAULT_BASE_URLS,
-  publicOrigin = '', maxBodyBytes = 8 * 1024 * 1024, timeoutMs = 120_000, maxConcurrent = 16,
+  publicOrigin = '', maxBodyBytes = 8 * 1024 * 1024, timeoutMs = 120_000, idleTimeoutMs = 120_000, maxConcurrent = 16,
 } = {}) {
   const allowed = baseUrls.map(parseBase);
   const publicUrl = publicOrigin ? new URL(publicOrigin) : null;
@@ -94,7 +97,7 @@ export function createAppServer({
         if (req.headers['x-schematica-client'] !== '1'
           || (req.headers.origin && req.headers.origin !== origin)
           || (req.headers['sec-fetch-site'] && req.headers['sec-fetch-site'] !== 'same-origin')) {
-          throw error(403, 'Use the assistant from this website. Cross-origin API access is not enabled.');
+          throw error(403, 'Use the assistant from this website. Cross-origin API access is not enabled.', POLICY_CODE);
         }
         const target = targetFor(req, allowed);
         if (req.method === 'POST' && !/^application\/json(?:;|$)/i.test(req.headers['content-type'] || '')) throw error(415, 'Use application/json for assistant requests.');
@@ -103,7 +106,11 @@ export function createAppServer({
         active++;
         const controller = new AbortController();
         let timedOut = false;
-        const timer = setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs);
+        // A total cap covers reading the body and waiting for the provider's
+        // headers; once the reply streams, only silence between chunks times
+        // out, so a long reply that keeps arriving is never cut mid-stream.
+        let timer = setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs);
+        const rearm = () => { clearTimeout(timer); timer = setTimeout(() => { timedOut = true; controller.abort(); }, idleTimeoutMs); };
         const disconnected = () => controller.abort();
         req.on('aborted', disconnected);
         res.on('close', disconnected);
@@ -124,8 +131,11 @@ export function createAppServer({
             if (value) res.setHeader(name, value);
           }
           res.flushHeaders();
-          if (upstream.body) await pipeline(Readable.fromWeb(upstream.body), res);
-          else res.end();
+          rearm();
+          if (upstream.body) {
+            const heartbeat = new Transform({ transform(chunk, encoding, callback) { rearm(); callback(null, chunk); } });
+            await pipeline(Readable.fromWeb(upstream.body), heartbeat, res);
+          } else res.end();
         } catch (err) {
           if (res.headersSent || res.destroyed) { res.destroy(); return; }
           if (err.status) throw err;
@@ -167,7 +177,7 @@ export function createAppServer({
       else await pipeline(createReadStream(path), res);
     } catch (err) {
       if (res.headersSent || res.destroyed) res.destroy();
-      else json(res, err.status || 500, err.status ? err.message : 'The server could not complete the request.');
+      else json(res, err.status || 500, err.status ? err.message : 'The server could not complete the request.', err.status ? err.code : undefined);
     }
   });
   server.requestTimeout = 30_000;

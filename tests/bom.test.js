@@ -52,6 +52,26 @@ test('bomCSV escapes quotes, commas, and newlines correctly', () => {
   assert.ok(csv.includes('Base servo; Elbow servo'));
 });
 
+test('bomCSV neutralises cells a spreadsheet would run as a formula', () => {
+  const doc = sampleDoc();
+  // Every leading character a spreadsheet treats as "this is a formula",
+  // including the two whitespace ones that hide behind a leading blank.
+  const hostile = ['=1+1', '+1', '-1', '@SUM(A1)', '\tcmd', '\rcmd', '=HYPERLINK("http://x","go")'];
+  doc.nodes = hostile.map((label, i) => node(`n${i}`, 'servo', label, `S${i}`));
+  const lines = bomCSV(buildBOM(doc)).split('\n').slice(1);
+  assert.equal(lines.length, hostile.length);
+  for (const line of lines) {
+    const cell = line.split(',')[3]; // Refs, where the label lands
+    assert.ok(cell.startsWith(`"'`), `neutralised and quoted: ${line}`);
+  }
+  assert.ok(lines.some((l) => l.includes(`"'=HYPERLINK(""http://x"",""go"")"`)), 'quotes are still doubled inside a neutralised cell');
+  // An ordinary cell is untouched: no stray apostrophes, no needless quoting.
+  const plain = bomCSV(buildBOM(sampleDoc()));
+  assert.ok(plain.includes('Base servo; Elbow servo'));
+  assert.ok(!plain.includes("'"), plain);
+  assert.ok(plain.includes('"has ""quotes"", commas"'), 'ordinary quoting is unchanged');
+});
+
 test('bomMarkdown renders a table and escapes pipes', () => {
   const doc = sampleDoc();
   doc.nodes[3].label = 'A|B';

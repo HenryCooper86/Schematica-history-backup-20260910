@@ -43,7 +43,10 @@ export function initExamplesMenu({ store }) {
     });
     setTimeout(() => {
       dismiss = (ev) => {
-        if (!menu.contains(ev.target) && ev.target !== btn) close();
+        // The button holds a caret span: a press on it targets the span, not
+        // the button, and an identity test would close the menu here and let
+        // the button's own click reopen it.
+        if (!menu.contains(ev.target) && !btn.contains(ev.target)) close();
       };
       window.addEventListener('pointerdown', dismiss);
     }, 0);

@@ -86,6 +86,21 @@ test('name, category, accent, and icon fall back with warnings', () => {
   assert.deepEqual(normalizePart({ name: 'Ab', icon: { path: 'x1' } }).part.icon, { text: 'AB' }, 'a path must start with M');
 });
 
+test('an icon that is not an icon object warns instead of silently becoming initials', () => {
+  // A parts file written by hand often says icon: "mcu"; it must say why it
+  // did not take, exactly as an unusable object does.
+  for (const icon of ['mcu', 'M1 1h2', 42, true, ['mcu'], {}]) {
+    const res = normalizePart({ name: 'Ab Cd', icon });
+    assert.deepEqual(res.part.icon, { text: 'AC' }, `icon ${JSON.stringify(icon)} falls back to initials`);
+    assert.match(res.warnings[0] || '', /Icon on "Ab Cd" was not usable/, `icon ${JSON.stringify(icon)} warns`);
+  }
+  for (const icon of [undefined, null]) {
+    const res = normalizePart({ name: 'Ab Cd', icon });
+    assert.deepEqual(res.part.icon, { text: 'AC' });
+    assert.deepEqual(res.warnings, [], 'no icon at all is the default, not a warning');
+  }
+});
+
 test('ports: ids are generated and unique, bad entries drop, buses fall back, same-side duplicates drop', () => {
   const res = normalizePart({
     name: 'P',

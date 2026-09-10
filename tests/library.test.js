@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createLibrary, LIBRARY_KEY, EXPORT_MARK } from '../src/library.js';
 import { LIMITS } from '../src/custom.js';
+import { initI18n, setLang } from '../src/i18n.js';
 
 function mapStorage() {
   const m = new Map();
@@ -99,4 +100,35 @@ test('export and import round-trip; import merges by id, adds the rest, skips ju
   assert.ok(junk.warnings.some((w) => /Entry 2/.test(w) && /no name or side/.test(w)));
   assert.throws(() => b.importJSON('{nope'), /could not parse/);
   assert.throws(() => b.importJSON('{"parts": 5}'), /Not a parts file/);
+});
+
+test('import demands the export mark the error message names', () => {
+  const lib = createLibrary(mapStorage());
+  // A board file, or any other JSON that happens to carry a "parts" list, is
+  // not a parts file however well-formed its entries are.
+  assert.throws(
+    () => lib.importJSON(JSON.stringify({ schema: 2, parts: [{ id: 'z', name: 'Z' }] })),
+    new RegExp(`Not a parts file: expected .*${EXPORT_MARK}`),
+  );
+  assert.equal(lib.list().length, 0, 'nothing was merged from the rejected file');
+  const marked = lib.importJSON(JSON.stringify({ [EXPORT_MARK]: 1, parts: [{ id: 'z', name: 'Z' }] }));
+  assert.deepEqual([marked.added, marked.replaced], [1, 0], 'the mark is all it takes');
+  assert.doesNotThrow(() => lib.importJSON(lib.exportJSON()), 'our own export always passes');
+});
+
+test('library errors and import warnings come out in Chinese under zh', () => {
+  initI18n({ storage: null });
+  const lib = createLibrary(mapStorage());
+  assert.throws(() => lib.save({ name: '' }), /The part cannot be saved/);
+  setLang('zh');
+  try {
+    assert.throws(() => lib.save({ name: '' }), /无法保存该部件/);
+    assert.throws(() => lib.save(DEF, 'bad id'), /模板 ID 无效。/);
+    assert.throws(() => lib.importJSON('{nope'), /不是部件文件：无法解析 JSON。/);
+    assert.throws(() => lib.importJSON('{"parts": []}'), /不是部件文件/);
+    const res = lib.importJSON(JSON.stringify({ [EXPORT_MARK]: 1, parts: [{ name: '' }] }));
+    assert.match(res.warnings[0], /^条目 1：/);
+  } finally {
+    setLang('en');
+  }
 });

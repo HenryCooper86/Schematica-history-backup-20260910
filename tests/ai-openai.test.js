@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { toOpenAIRequest, createOpenAIAccumulator, openaiProvider, listOpenAIModels } from '../src/ai/providers/openai.js';
-import { MAX_TOOL_INPUT, ProviderError } from '../src/ai/providers/errors.js';
+import { MAX_TOOL_INPUT, MAX_STREAM_TEXT, ProviderError } from '../src/ai/providers/errors.js';
 
 const TOOLS = [{ name: 'get_board', description: 'd', input_schema: { type: 'object', properties: {} } }];
 const SYSTEM = ['STABLE', 'PER'];
@@ -45,11 +45,58 @@ test('the accumulator joins text and tool-call argument fragments and reads usag
   assert.equal(a2.result().stop, 'max_tokens');
 });
 
-test('a tool input past 256 KB fails the reply instead of being parsed', () => {
+test('a tool input past 256 KB fails the reply from push, so accumulation stops there', () => {
   const acc = createOpenAIAccumulator(() => {});
-  acc.push({ choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_1', function: { name: 'apply_edits', arguments: '{"ops":[' + '1,'.repeat(MAX_TOOL_INPUT / 2) } }] } }] });
+  const isCap = (e) => e instanceof ProviderError && e.code === 'request' && /256 KB/.test(e.message);
+  assert.throws(() => acc.push({ choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_1', function: { name: 'apply_edits', arguments: '{"ops":[' + '1,'.repeat(MAX_TOOL_INPUT / 2) } }] } }] }), isCap);
+  assert.throws(() => acc.result(), isCap);
+});
+
+test('text and reasoning are capped too, and the cap throws out of push', () => {
+  const isCap = (e) => e instanceof ProviderError && e.code === 'request' && /2 MB/.test(e.message);
+  const big = 'x'.repeat(MAX_STREAM_TEXT + 1);
+  const text = createOpenAIAccumulator(() => {});
+  assert.throws(() => text.push({ choices: [{ delta: { content: big } }] }), isCap);
+  const reasoning = createOpenAIAccumulator(() => {});
+  assert.throws(() => reasoning.push({ choices: [{ delta: { reasoning_content: big } }] }), isCap);
+  assert.throws(() => reasoning.result(), isCap);
+});
+
+test('a tool call whose arguments never parse is surfaced with input null and an inputError', () => {
+  const acc = createOpenAIAccumulator(() => {});
+  acc.push({ choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_1', function: { name: 'apply_edits', arguments: '{"ops":[},' } }] } }] });
   acc.push({ choices: [{ delta: {}, finish_reason: 'tool_calls' }] });
-  assert.throws(() => acc.result(), (e) => e instanceof ProviderError && e.code === 'request' && /256 KB/.test(e.message));
+  const r = acc.result();
+  assert.equal(r.toolCalls.length, 1);
+  assert.equal(r.toolCalls[0].input, null);
+  assert.ok(r.toolCalls[0].inputError, 'the parser message is carried for the model');
+  assert.equal(r.stop, 'tool_use');
+});
+
+test('an assistant turn with neither text nor tool calls is not replayed as content: null', () => {
+  const body = toOpenAIRequest({ model: 'gpt-x', system: SYSTEM, tools: TOOLS, messages: [
+    { role: 'user', content: [{ type: 'text', text: 'q' }] },
+    { role: 'assistant', content: [] },
+    { role: 'assistant', content: [{ type: 'text', text: '' }] },
+    { role: 'assistant', content: [{ type: 'text', text: 'a' }] },
+  ] });
+  assert.deepEqual(body.messages.map((m) => m.role), ['system', 'user', 'assistant']);
+  assert.equal(body.messages[2].content, 'a');
+  assert.equal(body.messages.some((m) => m.content === null && !m.tool_calls), false, 'no endpoint gets a null content with nothing else');
+});
+
+test('a stream that breaks mid-reply is a ProviderError, not a bare TypeError', async () => {
+  const body = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"partial"}}]}\n\n'));
+      controller.error(new TypeError('network error'));
+    },
+  });
+  const p = openaiProvider({ baseUrl: 'https://example.test/v1', apiKey: 'sk', model: 'm', fetchImpl: async () => new Response(body, { status: 200 }) });
+  await assert.rejects(
+    () => p.chat({ system: SYSTEM, messages: [], tools: [] }),
+    (e) => e instanceof ProviderError && e.code === 'network' && /endpoint/.test(e.message),
+  );
 });
 
 function sse(objs) {

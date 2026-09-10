@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { request as httpRequest } from 'node:http';
-import { createAppServer } from '../server/index.js';
+import { createAppServer, POLICY_CODE } from '../server/index.js';
 import { providerFetch } from '../src/ai/providers/transport.js';
+import { mapHttpError, POLICY_CODE as CLIENT_POLICY_CODE } from '../src/ai/providers/errors.js';
 import { backendBaseUrl, RELAY } from '../src/ai/settings.js';
 
 async function start(t, options = {}) {
@@ -140,6 +141,58 @@ test('request limits and timeouts free the connection slot', async (t) => {
   assert.equal((await request(TARGET, POST)).status, 429);
   assert.equal((await first).status, 504);
   assert.equal((await request(TARGET, POST)).status, 200);
+});
+
+test('the server marks its own refusals so the panel does not blame the key', async (t) => {
+  const { request, origin } = await start(t, { fetchImpl: async () => Response.json({ ok: true }) });
+  assert.equal(POLICY_CODE, CLIENT_POLICY_CODE, 'both sides agree on the code');
+  const refusals = [
+    await request('https://not-enabled.example/v1/chat/completions', POST),
+    await request(TARGET, { ...POST, headers: { ...POST.headers, origin: 'https://evil.example' } }),
+  ];
+  for (const response of refusals) {
+    assert.equal(response.status, 403);
+    const body = await response.text();
+    assert.equal(JSON.parse(body).error.code, POLICY_CODE);
+    const err = mapHttpError(403, body, 'The endpoint');
+    assert.equal(err.code, 'request', 'a policy refusal is not an auth failure');
+    assert.equal(err.message, JSON.parse(body).error.message, 'the server explains what to do');
+  }
+  // A provider's own 403 still reads as a rejected key.
+  assert.equal(mapHttpError(403, '{"error":{"message":"forbidden"}}', 'The endpoint').code, 'auth');
+  assert.equal((await fetch(`${origin}/api/ai`, POST)).status, 403);
+});
+
+test('the deadline is idle-only: a slow but continuous stream runs past it', async (t) => {
+  let closeUpstream;
+  const { request } = await start(t, { timeoutMs: 20_000, idleTimeoutMs: 120, fetchImpl: async () => new Response(new ReadableStream({
+    start(controller) {
+      const encoder = new TextEncoder();
+      let sent = 0;
+      // Six chunks, each well inside the idle window but past it in total.
+      const timer = setInterval(() => {
+        controller.enqueue(encoder.encode(`data: chunk${sent}\n\n`));
+        if (++sent === 6) { clearInterval(timer); closeUpstream = () => controller.close(); closeUpstream(); }
+      }, 40);
+    },
+  }), { headers: { 'content-type': 'text/event-stream' } }) });
+  const response = await request(TARGET, POST);
+  assert.equal(response.status, 200);
+  const body = await response.text();
+  assert.equal(body, [0, 1, 2, 3, 4, 5].map((i) => `data: chunk${i}\n\n`).join(''), 'nothing was cut mid-stream');
+  assert.equal(typeof closeUpstream, 'function');
+});
+
+test('silence past the idle deadline still ends a stream that already started', async (t) => {
+  const { request } = await start(t, { timeoutMs: 20_000, idleTimeoutMs: 80, fetchImpl: async (url, { signal }) => new Response(new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('data: first\n\n'));
+      signal.addEventListener('abort', () => controller.error(new Error('idle')), { once: true });
+    },
+  }), { headers: { 'content-type': 'text/event-stream' } }) });
+  const response = await request(TARGET, POST);
+  assert.equal(response.status, 200, 'headers were already sent, so the failure shows as a broken stream');
+  await assert.rejects(() => response.text());
 });
 
 test('streams chunks before upstream completion and aborts upstream when the browser disconnects', async (t) => {

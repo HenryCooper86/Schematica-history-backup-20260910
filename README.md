@@ -179,6 +179,10 @@ occupancy and findings. Changing profiles preserves saved wires and marks
 unavailable endpoints; new connections cannot use them. Undo restores the
 previous profile. Check also reports incompatible or unverified camera paths,
 CSI overuse, board input-voltage mismatches and software target/runtime issues.
+Camera-path findings need at least one catalogue part: a board and camera that
+are both outside it raise no RDK finding. Input-voltage checks read the rail of
+any supply that only outputs power (battery, jack, solar, vehicle battery); a
+regulator's rail may describe its input, so its output is never inferred.
 
 The rover and stereo perception starters connect GS130W to both X5 CSI ports.
 Their `hobot_sensor`, `hobot_dnn`, `hobot_codec` and `hobot_render` blocks target

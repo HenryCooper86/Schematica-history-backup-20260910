@@ -5,7 +5,7 @@ import { PARTS, DISPOSITIONS, PORT_ALIASES } from './palette.js';
 import { newDoc, NODE_STATUSES, NODE_FLAGS, SCHEMA_VERSION } from './state.js';
 import { nodeSize } from './geometry.js';
 import { normalizePart, partOf } from './custom.js';
-import { tr } from './i18n.js';
+import { tr, trd } from './i18n.js';
 
 export function serialize(doc) {
   return JSON.stringify(doc, null, 2);
@@ -15,7 +15,7 @@ export function serialize(doc) {
 // returns its schema-(n+1) shape. The runner stamps the new version, so a
 // step only rewrites the fields that changed. Tolerant field-level upgrades
 // that never bumped the version (card sizes, journey views) stay inline below.
-export const MIGRATIONS = {
+const MIGRATIONS = {
   // 1 -> 2: custom parts. Nothing in an older file changes shape; the bump
   // exists so an older build warns that the file is newer before it turns
   // custom nodes into generic boxes.
@@ -128,9 +128,14 @@ export function deserialize(text) {
     if (Array.isArray(n.flags) && flags.length !== n.flags.length) {
       warnings.push(tr('Dropped unknown flags on node "{id}".', { id: n.id }));
     }
+    if (n.label !== undefined && typeof n.label !== 'string') {
+      warnings.push(tr('Ignored invalid label on node "{id}".', { id: n.id }));
+    }
     const node = {
       id: n.id, kind, x: coord(n.x), y: coord(n.y),
-      label: str(n.label, part.name),
+      // The same default a freshly placed card gets (addNode in state.js);
+      // a custom part's name is the author's own text and is never translated.
+      label: str(n.label, def ? part.name : trd(part.defaultLabel || part.name)),
       sublabel: str(n.sublabel),
       color,
       addr: str(n.addr),
@@ -195,6 +200,10 @@ export function deserialize(text) {
     const to = w ? resolvePort(w.to, 'left') : null;
     if (!w || !validId(w.id) || seen.has(w.id) || !from || !to) {
       warnings.push(tr('Dropped a wire with a bad id or missing endpoint.'));
+      continue;
+    }
+    if (from.node === to.node) {
+      warnings.push(tr('Dropped wire "{id}": both ends are on the same node.', { id: w.id }));
       continue;
     }
     seen.add(w.id);
@@ -272,13 +281,15 @@ export function deserialize(text) {
     const view = modern
       ? { cx: coord(v.cx), cy: coord(v.cy), zoom }
       : { cx: coord((640 - v.x) / zoom), cy: coord((400 - v.y) / zoom), zoom };
+    const stops = normalizeStops(s.stops);
+    const targets = normalizeTargets(s.targets);
     doc.journey.push({
       id: s.id,
       label: str(s.label, tr('Step')),
       view,
       caption: str(s.caption),
-      ...(normalizeStops(s.stops).length ? { stops: normalizeStops(s.stops) } : {}),
-      ...(normalizeTargets(s.targets) ? { targets: normalizeTargets(s.targets) } : {}),
+      ...(stops.length ? { stops } : {}),
+      ...(targets ? { targets } : {}),
     });
   }
 

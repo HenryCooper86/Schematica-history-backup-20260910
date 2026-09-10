@@ -2,6 +2,7 @@
 import { profileFor, RDK_PRODUCTS } from './catalogue.js';
 import { cameraOccupancy } from './checks.js';
 import { checkDoc } from '../drc.js';
+import { partOf } from '../custom.js';
 import { tr, trd } from '../i18n.js';
 
 // Placeholder fill with no dictionary lookup: the untranslated path for
@@ -114,9 +115,11 @@ export function rdkGuide(doc) {
   ];
   // Include every diagram component: unknown accessories must remain visible.
   for (const n of doc.nodes) {
-    out.push(
-      `- ${m(n.label)} (${m(n.id)}): ${m(n.kind === 'rdksoftware' ? n.fields?.package || tr('package not selected') : n.sublabel || n.kind)}`,
-    );
+    // A part with no part number falls back to its palette name, not its kind id.
+    const what = n.kind === 'rdksoftware'
+      ? n.fields?.package || tr('package not selected')
+      : n.sublabel || trd(partOf(n).name);
+    out.push(`- ${m(n.label)} (${m(n.id)}): ${m(what)}`);
     if (rdkProfile(n) || n.kind === 'rdksoftware')
       for (const line of rdkFacts(n, doc)) out.push(`  - ${m(line)}`);
     if (n.notes) out.push(tr('  - Component notes / assumptions: {notes}', { notes: m(n.notes) }));

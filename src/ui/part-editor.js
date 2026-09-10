@@ -59,7 +59,9 @@ export function initPartEditor({ store, library, svg, tools }) {
       accent: def.accent || null,
       icon: def.icon ? { ...def.icon } : { text: '' },
       ports: (def.ports || []).map((p) => ({ id: p.id, name: p.name || '', side: p.side || 'left', bus: p.bus || 'gpio', required: !!p.required })),
-      fields: (def.fields || []).map((f) => ({ id: f.id, label: f.label || '', options: (f.options || []).join(', ') })),
+      // The editor has no placeholder box; the value rides along so
+      // Customize… keeps a built-in field's hint.
+      fields: (def.fields || []).map((f) => ({ id: f.id, label: f.label || '', options: (f.options || []).join(', '), placeholder: f.placeholder || '' })),
     };
     nextPort = top(d.ports, 'p');
     nextField = top(d.fields, 'f');
@@ -89,6 +91,7 @@ export function initPartEditor({ store, library, svg, tools }) {
         const out = { id: f.id, label: f.label };
         const options = optionList(f.options);
         if (options.length) out.options = options;
+        if (f.placeholder) out.placeholder = f.placeholder;
         return out;
       }),
     };

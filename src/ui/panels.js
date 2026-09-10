@@ -10,10 +10,20 @@ function makeToggle({ key, storageKey, className, buttonId, hideTitle, showTitle
 
   const hidden = () => app.classList.contains(className);
 
+  // The button's title says what a press would do, so it depends on the
+  // current state and is written here rather than replayed from the markup
+  // (the button carries data-i18n-attrs="off"); relabel() re-runs it in the
+  // new language without touching the state or storage.
+  function relabel() {
+    btn.title = hidden() ? showTitle() : hideTitle();
+    btn.setAttribute('aria-label', btn.title);
+  }
+
   function set(on) {
     app.classList.toggle(className, on);
     btn.classList.toggle('active', !on);
-    btn.title = on ? showTitle() : hideTitle();
+    btn.setAttribute('aria-pressed', String(!on));
+    relabel();
     try {
       localStorage.setItem(storageKey, on ? '1' : '0');
     } catch { /* storage may be unavailable; the choice holds for this session */ }
@@ -25,7 +35,7 @@ function makeToggle({ key, storageKey, className, buttonId, hideTitle, showTitle
   } catch { /* default to visible */ }
   set(initial);
   btn.addEventListener('click', () => set(!hidden()));
-  return { key, hidden, set, toggle: () => set(!hidden()) };
+  return { key, hidden, set, relabel, toggle: () => set(!hidden()) };
 }
 
 export function initLayoutToggles() {
@@ -42,6 +52,9 @@ export function initLayoutToggles() {
     const t = e.target;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
+    // A modal dialog owns the keyboard: B and P inside one would rearrange the
+    // chrome behind it, out of sight.
+    if (document.querySelector('dialog[open]')) return;
     const k = e.key.toLowerCase();
     if (k === palette.key) palette.toggle();
     if (k === panels.key) panels.toggle();
@@ -52,7 +65,8 @@ export function initLayoutToggles() {
     if (panels.hidden()) panels.set(false);
   }, true);
 
-  onLanguageChange(() => { palette.set(palette.hidden()); panels.set(panels.hidden()); });
+  // Only the labels change with the language; the state stays as it is.
+  onLanguageChange(() => { palette.relabel(); panels.relabel(); });
 
   return { palette, panels };
 }

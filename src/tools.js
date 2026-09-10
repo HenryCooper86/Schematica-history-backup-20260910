@@ -156,6 +156,12 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave })
     return { node: el.dataset.node, port: el.dataset.port };
   }
 
+  // A wire may only land on another node: a self-loop (both ends on the same
+  // node, even on different ports) has no meaning on a board.
+  function canLandOn(el, from) {
+    return !!el && el.dataset.node !== from.node;
+  }
+
   function setHotPort(el) {
     if (hotPort === el) return;
     hotPort?.removeAttribute('data-hot');
@@ -265,9 +271,14 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave })
       }
       const found = findItem(store.doc, id);
       if (found && found.type !== 'wire') {
-        drag = { mode: 'move', start: pt, anchor: id, ...movableSelection() };
-        store.beginDrag();
-        capturePointer(e);
+        // A shift-click that toggled off the last selected item leaves
+        // nothing to move; a drag with an empty orig map has no anchor.
+        const movable = movableSelection();
+        if (movable.orig.size) {
+          drag = { mode: 'move', start: pt, anchor: id, ...movable };
+          store.beginDrag();
+          capturePointer(e);
+        }
       }
       return;
     }
@@ -289,8 +300,7 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave })
     if (drag.mode === 'wire' || drag.mode === 'rewire') {
       ui.wireDraft.cursor = pt;
       const el = portUnder(e);
-      const from = ui.wireDraft.from;
-      setHotPort(el && !(el.dataset.node === from.node && el.dataset.port === from.port) ? el : null);
+      setHotPort(canLandOn(el, ui.wireDraft.from) ? el : null);
       requestRender('overlay');
       return;
     }
@@ -345,7 +355,7 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave })
       setHotPort(null);
       svg.classList.remove('drafting');
       d.el.classList.remove('rewiring');
-      if (el && !(el.dataset.node === d.fixed.node && el.dataset.port === d.fixed.port)) {
+      if (canLandOn(el, d.fixed)) {
         finishRewire(d.id, d.end, portRef(el), e);
       }
       requestRender('overlay');
@@ -357,8 +367,7 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave })
       ui.wireDraft = null;
       setHotPort(null);
       svg.classList.remove('drafting');
-      if (el && draft
-        && !(el.dataset.node === draft.from.node && el.dataset.port === draft.from.port)) {
+      if (draft && canLandOn(el, draft.from)) {
         finishWire(draft.from, portRef(el), e);
       }
       drag = null;
@@ -436,7 +445,14 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave })
     if (document.querySelector('dialog[open]')) return;
     if (ui.locked) return;
     if (isEditingText(e)) return;
+    // Mid-gesture only Escape (abandon) is meaningful: undo, delete, duplicate
+    // or a tool switch would corrupt history or pull the draft from under a
+    // pointermove that is still in flight.
+    if (drag && e.key !== 'Escape') return;
     if (e.key === ' ') {
+      // Space is the pan modifier only when focus sits on the canvas or the
+      // page itself; a focused button must still activate on Space.
+      if (e.target !== svg && e.target !== document.body) return;
       spaceDown = true;
       svg.classList.add('panning');
       e.preventDefault();
@@ -512,15 +528,16 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave })
   }
 
   function finishWire(from, to, e) {
+    if (from.node === to.node) return; // no self-loops
     const busFrom = portBus(from);
     const busTo = portBus(to);
     if (!busFrom || !busTo) return;
-    if (busFrom && busFrom === busTo) {
+    if (busFrom === busTo) {
       const id = addWire(store, busFrom, from, to);
       store.setSelection([id]);
       return;
     }
-    const suggested = [...new Set([busFrom, busTo].filter(Boolean))];
+    const suggested = [...new Set([busFrom, busTo])];
     openBusPopover(e.clientX, e.clientY, suggested, (bus) => {
       const id = addWire(store, bus, from, to);
       store.setSelection([id]);
@@ -534,6 +551,7 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave })
     const wire = findItem(store.doc, id)?.item;
     if (!wire) return;
     const other = end === 'to' ? wire.from : wire.to;
+    if (other.node === ref.node) return; // no self-loops
     const busOther = portBus(other);
     const busNew = portBus(ref);
     if (!busNew) return;
@@ -618,7 +636,9 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave })
     const fields = { ...(item.fields || {}) };
     if (value.trim()) fields[field.slice(7)] = value.trim();
     else delete fields[field.slice(7)];
-    return { fields };
+    // An empty map is dropped on load, so keep the in-memory doc identical to
+    // its serialized form: no key rather than {}.
+    return { fields: Object.keys(fields).length ? fields : undefined };
   }
 
   function commitInlineEditor() {
@@ -641,5 +661,5 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave })
   });
   editor.addEventListener('blur', commitInlineEditor);
 
-  return { view, ui, setTool, getTool: () => tool, zoomBy, zoomReset, zoomFit, toWorld };
+  return { view, ui, setTool, zoomBy, zoomReset, zoomFit, toWorld };
 }

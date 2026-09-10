@@ -16,6 +16,7 @@ export function initLegend() {
   document.getElementById('btn-legend').addEventListener('click', (e) => {
     legend.hidden = !legend.hidden;
     e.currentTarget.classList.toggle('active', !legend.hidden);
+    e.currentTarget.setAttribute('aria-pressed', String(!legend.hidden));
   });
   onLanguageChange(renderLegend);
 }

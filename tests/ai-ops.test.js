@@ -211,6 +211,59 @@ test('connect with explicit ports: same bus works, different buses need a named 
   assert.match(res.errors[0].message, /both ports or neither/);
 });
 
+test('explicit ports obey the point-to-point rule that pickPort enforces', () => {
+  const doc = newDoc('T');
+  doc.nodes.push(node('m', 'mcu'), node('g1', 'gps'), node('g2', 'gps'));
+  let res = applyEdits(doc, [{ op: 'connect', from: { node: 'm', port: 'uart' }, to: { node: 'g1', port: 'uart' } }]);
+  assert.equal(res.ok, true, JSON.stringify(res));
+  res = applyEdits(doc, [{ op: 'connect', from: { node: 'm', port: 'uart' }, to: { node: 'g2', port: 'uart' } }]);
+  assert.equal(res.ok, false, 'the mcu uart port already carries a wire');
+  assert.match(res.errors[0].message, /port uart on m is already in use; uart is point-to-point/);
+  assert.equal(doc.wires.length, 1);
+  // A shared bus takes as many wires as the model asks for, named or picked.
+  const shared = newDoc('T');
+  shared.nodes.push(node('m', 'mcu'), node('t1', 'temp'), node('t2', 'temp'));
+  res = applyEdits(shared, [
+    { op: 'connect', from: { node: 'm', port: 'i2c' }, to: { node: 't1', port: 'i2c' } },
+    { op: 'connect', from: { node: 'm', port: 'i2c' }, to: { node: 't2', port: 'i2c' } },
+  ]);
+  assert.equal(res.ok, true, JSON.stringify(res));
+  assert.equal(shared.wires.length, 2);
+});
+
+test('connect refuses a wire that already joins the same endpoints', () => {
+  const doc = newDoc('T');
+  doc.nodes.push(node('m', 'mcu'), node('t', 'temp'));
+  doc.wires.push(wire('w1', 'i2c', { node: 'm', port: 'i2c' }, { node: 't', port: 'i2c' }));
+  let res = applyEdits(doc, [{ op: 'connect', from: { node: 'm' }, to: { node: 't' }, bus: 'i2c' }]);
+  assert.equal(res.ok, false);
+  assert.match(res.errors[0].message, /wire w1 already connects m\.i2c to t\.i2c; use update_wire/);
+  res = applyEdits(doc, [{ op: 'connect', from: { node: 't', port: 'i2c' }, to: { node: 'm', port: 'i2c' }, bus: 'i2c' }]);
+  assert.equal(res.ok, false, 'the same pair the other way round is the same wire');
+  assert.equal(doc.wires.length, 1);
+  // A second wire between the same nodes on a different port pair is fine.
+  res = applyEdits(doc, [{ op: 'connect', from: { node: 'm', port: 'vcc' }, to: { node: 't', port: 'vcc' } }]);
+  assert.equal(res.ok, true, JSON.stringify(res));
+  assert.equal(doc.wires.length, 2);
+});
+
+test('update_wire warns about a bus neither port carries, as connect does', () => {
+  const doc = newDoc('T');
+  doc.nodes.push(node('m', 'mcu'), node('t', 'temp'));
+  doc.wires.push(wire('w1', 'i2c', { node: 'm', port: 'i2c' }, { node: 't', port: 'i2c' }));
+  let res = applyEdits(doc, [{ op: 'update_wire', id: 'w1', bus: 'spi' }]);
+  assert.equal(res.ok, true, JSON.stringify(res));
+  assert.equal(doc.wires[0].bus, 'spi');
+  assert.match(res.warnings[0], /wire spi joins a i2c port to a i2c port/);
+  // A bus one end carries, and an untyped bus over ports that agree, are silent.
+  const quiet = newDoc('T');
+  quiet.nodes.push(node('m', 'mcu'), node('t', 'temp'));
+  quiet.wires.push(wire('w1', 'i2c', { node: 'm', port: 'spi' }, { node: 't', port: 'i2c' }), wire('w2', 'i2c', { node: 'm', port: 'i2c' }, { node: 't', port: 'i2c' }));
+  res = applyEdits(quiet, [{ op: 'update_wire', id: 'w1', bus: 'spi' }, { op: 'update_wire', id: 'w2', bus: 'link' }]);
+  assert.equal(res.ok, true, JSON.stringify(res));
+  assert.deepEqual(res.warnings, []);
+});
+
 test('untyped buses connect anything through a side port', () => {
   const doc = newDoc('T');
   doc.nodes.push(node('a', 'threatactor'), node('c', 'camera'));

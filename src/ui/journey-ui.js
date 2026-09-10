@@ -2,7 +2,7 @@
 import { addStep, updateStep, removeStep, moveStep, tweenView, selectedTargets, resolveStep, addStops, nextStoryPosition, resolveStoryStop, storyRelationshipText, readStoryMoment } from '../journey.js';
 import { encodeShare } from '../share.js';
 import { createPlayback } from '../playback.js';
-import { onPress, escAttr } from './press.js';
+import { onPress, escAttr, keepFocus } from './press.js';
 import { panelHeader, bindCollapsible } from './collapsible.js';
 import { tr, onLanguageChange } from '../i18n.js';
 
@@ -83,6 +83,9 @@ export function initJourney({ svg, store, tools, render, recorder, propsPanel })
     if (journeyPanel.hidden) return;
     const ae = document.activeElement;
     if (journeyPanel.contains(ae) && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')) return;
+    // The rebuild below replaces every node in the panel, which drops keyboard
+    // focus; put it back on the same control afterwards.
+    const refocus = keepFocus(journeyPanel);
     const steps = store.doc.journey || [];
     let html = panelHeader(tr('Journey'), 'journey');
     steps.forEach((s, i) => {
@@ -98,9 +101,9 @@ export function initJourney({ svg, store, tools, render, recorder, propsPanel })
         + `<button data-jact="set" title="${escAttr(tr('Update this step to the current view'))}">${escAttr(tr('Set'))}</button>`
         + `<button data-jact="link"${selectedTargets(store.doc, store.selection) ? '' : ' disabled'}>${escAttr(tr('Link selection'))}</button>`
         + (s.targets ? `<button data-jact="unlink">${escAttr((s.stops?.length ? tr('Use stops for overview') : tr('Camera only')))}</button>` : '')
-        + '<button data-jact="up">&uarr;</button>'
-        + '<button data-jact="down">&darr;</button>'
-        + '<button data-jact="del">&times;</button>'
+        + `<button data-jact="up" aria-label="${escAttr(tr('Move step up'))}">&uarr;</button>`
+        + `<button data-jact="down" aria-label="${escAttr(tr('Move step down'))}">&darr;</button>`
+        + `<button data-jact="del" aria-label="${escAttr(tr('Delete step'))}">&times;</button>`
         + '</div></div>';
     });
     html += '<div class="journey-actions">'
@@ -152,11 +155,13 @@ export function initJourney({ svg, store, tools, render, recorder, propsPanel })
         if (act === 'del') removeStep(store, id);
       });
     });
+    refocus();
   }
 
   document.getElementById('btn-journey').addEventListener('click', (e) => {
     journeyPanel.hidden = !journeyPanel.hidden;
     e.currentTarget.classList.toggle('active', !journeyPanel.hidden);
+    e.currentTarget.setAttribute('aria-pressed', String(!journeyPanel.hidden));
     renderJourney();
     propsPanel.render();
   });

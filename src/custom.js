@@ -51,6 +51,10 @@ export function portsWithOffsets(ports) {
   });
 }
 
+// An icon is one of { kind }, { text }, { path }. Anything else that was
+// written on purpose (a string, a number, an array, an empty object) is
+// reported, so a hand-edited file learns why its icon did not show; only an
+// absent icon falls back silently.
 function normalizeIcon(raw, name, warnings) {
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
     if (typeof raw.kind === 'string' && Object.hasOwn(PARTS, raw.kind)) return { kind: raw.kind };
@@ -58,8 +62,8 @@ function normalizeIcon(raw, name, warnings) {
     if (text && text.length <= LIMITS.text) return { text };
     const path = str(raw.path);
     if (path && path.length <= LIMITS.path && /^[Mm]/.test(path) && PATH_RE.test(path)) return { path };
-    warnings.push(tr('Icon on "{name}" was not usable; using initials.', { name }));
   }
+  if (raw != null) warnings.push(tr('Icon on "{name}" was not usable; using initials.', { name }));
   return { text: initials(name) };
 }
 
@@ -380,7 +384,8 @@ export function draftProblems(raw) {
 // so an RDK profile's ports come through. Renames later ports with duplicate
 // names on the same side by appending " 2", " 3", etc., keeping ids unchanged.
 export function definitionFrom(part) {
-  const supply = (p) => (p.bus === 'power' || p.bus === 'gnd') && (p.id === 'vcc' || p.id === 'gnd' || p.id.startsWith('vin'));
+  // The same pins the checks require on a built-in (drc.js rule 2).
+  const supply = (p) => (p.bus === 'power' || p.bus === 'gnd') && (p.id === 'vcc' || p.id === 'gnd');
   const filtered = part.ports.filter((p) => !p.unsupported);
 
   // Track name counts by side to rename duplicates

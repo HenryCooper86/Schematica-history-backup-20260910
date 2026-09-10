@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { toAnthropicRequest, createAnthropicAccumulator, anthropicProvider } from '../src/ai/providers/anthropic.js';
-import { ProviderError, MAX_TOOL_INPUT } from '../src/ai/providers/errors.js';
+import { ProviderError, MAX_TOOL_INPUT, MAX_STREAM_TEXT } from '../src/ai/providers/errors.js';
 
 const TOOLS = [
   { name: 'get_board', description: 'd', input_schema: { type: 'object', properties: {}, additionalProperties: false }, strict: true },
@@ -124,11 +124,38 @@ test('a refusal carries its stop details out of the accumulator', () => {
   assert.equal(plain.result().stopDetails, null);
 });
 
-test('a tool input past 256 KB fails the reply instead of being parsed', () => {
+test('a tool input past 256 KB fails the reply from push, so accumulation stops there', () => {
   const acc = createAnthropicAccumulator(() => {});
   acc.push({ event: 'content_block_start', data: { index: 0, content_block: { type: 'tool_use', id: 'c', name: 'apply_edits', input: {} } } });
-  acc.push({ event: 'content_block_delta', data: { index: 0, delta: { type: 'input_json_delta', partial_json: '{"ops":[' + '1,'.repeat(MAX_TOOL_INPUT / 2) } } });
-  assert.throws(() => acc.result(), (e) => e instanceof ProviderError && e.code === 'request' && /256 KB/.test(e.message));
+  const isCap = (e) => e instanceof ProviderError && e.code === 'request' && /256 KB/.test(e.message);
+  assert.throws(() => acc.push({ event: 'content_block_delta', data: { index: 0, delta: { type: 'input_json_delta', partial_json: '{"ops":[' + '1,'.repeat(MAX_TOOL_INPUT / 2) } } }), isCap);
+  assert.throws(() => acc.result(), isCap);
+});
+
+test('text and thinking are capped too, and the cap throws out of push', () => {
+  const isCap = (e) => e instanceof ProviderError && e.code === 'request' && /2 MB/.test(e.message);
+  const big = 'x'.repeat(MAX_STREAM_TEXT + 1);
+  const text = createAnthropicAccumulator(() => {});
+  text.push({ event: 'content_block_start', data: { index: 0, content_block: { type: 'text', text: '' } } });
+  assert.throws(() => text.push({ event: 'content_block_delta', data: { index: 0, delta: { type: 'text_delta', text: big } } }), isCap);
+  const thinking = createAnthropicAccumulator(() => {});
+  thinking.push({ event: 'content_block_start', data: { index: 0, content_block: { type: 'thinking', thinking: '' } } });
+  assert.throws(() => thinking.push({ event: 'content_block_delta', data: { index: 0, delta: { type: 'thinking_delta', thinking: big } } }), isCap);
+  assert.throws(() => thinking.result(), isCap);
+});
+
+test('a tool call whose JSON never parses is surfaced with input null and an inputError', () => {
+  const acc = createAnthropicAccumulator(() => {});
+  acc.push({ event: 'content_block_start', data: { index: 0, content_block: { type: 'tool_use', id: 'c1', name: 'apply_edits', input: {} } } });
+  acc.push({ event: 'content_block_delta', data: { index: 0, delta: { type: 'input_json_delta', partial_json: '{"ops":[},' } } });
+  acc.push({ event: 'content_block_stop', data: { index: 0 } });
+  acc.push({ event: 'message_delta', data: { delta: { stop_reason: 'tool_use' }, usage: { output_tokens: 4 } } });
+  const r = acc.result();
+  assert.equal(r.toolCalls.length, 1);
+  assert.equal(r.toolCalls[0].input, null);
+  assert.ok(r.toolCalls[0].inputError, 'the parser message is carried for the model');
+  assert.equal(r.stop, 'tool_use');
+  assert.deepEqual(r.raw[0].input, {}, 'the replayed block keeps an object, as the API requires');
 });
 
 function sse(events) {
@@ -179,6 +206,35 @@ test('http errors become ProviderErrors with a code, and 429 retries once', asyn
   assert.ok(Date.now() - t0 < 2000, 'retry-after: 0 means an immediate retry');
   const down = anthropicProvider({ baseUrl: 'https://x', apiKey: 'sk', model: 'm', effort: 'low', fetchImpl: async () => { throw new TypeError('Failed to fetch'); } });
   await assert.rejects(() => down.chat({ system: SYSTEM, messages: [], tools: [] }), (err) => err.code === 'network');
+});
+
+test('a stream that breaks mid-reply is a ProviderError, not a bare TypeError', async () => {
+  const body = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('event: message_start\ndata: {"message":{"usage":{}}}\n\n'));
+      controller.error(new TypeError('network error'));
+    },
+  });
+  const p = anthropicProvider({ baseUrl: 'https://example.test', apiKey: 'sk', model: 'm', effort: 'low', fetchImpl: async () => new Response(body, { status: 200, headers: { 'content-type': 'text/event-stream' } }) });
+  await assert.rejects(
+    () => p.chat({ system: SYSTEM, messages: [], tools: [] }),
+    (e) => e instanceof ProviderError && e.code === 'network' && /Anthropic/.test(e.message),
+  );
+});
+
+test('a cap reached mid-stream stops the reader instead of reading to the end', async () => {
+  let pulls = 0;
+  const chunk = `event: content_block_delta\ndata: ${JSON.stringify({ index: 0, delta: { type: 'text_delta', text: 'y'.repeat(MAX_STREAM_TEXT + 1) } })}\n\n`;
+  let cancelled = false;
+  const body = new ReadableStream({
+    start(controller) { controller.enqueue(new TextEncoder().encode(`event: content_block_start\ndata: ${JSON.stringify({ index: 0, content_block: { type: 'text', text: '' } })}\n\n`)); },
+    pull(controller) { pulls += 1; controller.enqueue(new TextEncoder().encode(chunk)); },
+    cancel() { cancelled = true; },
+  });
+  const p = anthropicProvider({ baseUrl: 'https://example.test', apiKey: 'sk', model: 'm', effort: 'low', fetchImpl: async () => new Response(body, { status: 200, headers: { 'content-type': 'text/event-stream' } }) });
+  await assert.rejects(() => p.chat({ system: SYSTEM, messages: [], tools: [] }), (e) => e instanceof ProviderError && /2 MB/.test(e.message));
+  assert.ok(cancelled, 'the reader was cancelled at the cap');
+  assert.ok(pulls <= 2, `the stream was not drained (${pulls} pulls)`);
 });
 
 test('Stop during rate-limit backoff does not send another request', async () => {

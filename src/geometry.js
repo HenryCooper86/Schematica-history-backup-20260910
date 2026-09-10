@@ -11,8 +11,8 @@ export function snap(v, grid = 8) {
 // A card is 104x74 at minimum and grows with its label and with up to three
 // mono meta lines (part number, address, rail), 12.5px per line. Nothing is
 // stored: the size always follows the content.
-export const NODE_W = 104;
-export const NODE_H = 74;
+const NODE_W = 104;
+const NODE_H = 74;
 const NODE_MAX_W = 240;
 const META_LINE_H = 12.5;
 
@@ -314,7 +314,7 @@ export function wrapText(text, maxChars = 22) {
 
 // ---- Swimlanes ----
 export const LANE_TITLE_H = 26;
-export const LANE_SNAP = 18;
+const LANE_SNAP = 18;
 
 // Inside a swimlane, pull a point's cross-axis coordinate onto the nearest
 // lane centerline when it is within LANE_SNAP px. Returns {x, y} (possibly

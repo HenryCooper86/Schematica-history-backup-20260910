@@ -4,9 +4,13 @@ import { esc } from './render.js';
 import { nodeRect } from './geometry.js';
 import { resolveStep, resolveStoryStop, storyRelationshipText, nextStoryPosition, readStoryMoment } from './journey.js';
 import { createPlayback } from './playback.js';
-import { connectionFocus } from './explore.js';
+import { connectionFocus, nodeHaystack } from './explore.js';
 import { BUSES, BUS_ORDER } from './buses.js';
 import { tr, trd, getLang } from './i18n.js';
+
+// BCP 47 tags for the html lang attribute, as i18n.js writes on the app's own
+// document; the export has no document to copy it from.
+const HTML_LANG = { en: 'en', zh: 'zh-CN' };
 
 // This function is embedded verbatim. It must depend only on its argument and
 // browser APIs, so the downloaded file works offline without modules or assets.
@@ -115,7 +119,9 @@ function offlineViewer(data, focusGraph, makePlayback, nextPosition, readMoment)
   }
   function advance(delta) {
     const ci = data.steps.findIndex(s => s.id === chapters.value);
-    if (ci < 0) { if (!data.steps.length) return false; chapters.value = data.steps[0].id; stopIndex = -1; chapter(); return true; }
+    // With no chapter chosen, only a step forward starts the story; stepping
+    // back from nowhere stays nowhere.
+    if (ci < 0) { if (!data.steps.length || delta < 0) return false; chapters.value = data.steps[0].id; stopIndex = -1; chapter(); return true; }
     const pos = nextPosition(data.steps, ci, stopIndex, delta);
     if (!pos) return false;
     chapters.value = data.steps[pos.chapter].id; stopIndex = pos.stop; chapter(); return true;
@@ -215,12 +221,12 @@ export function buildHTML(doc, options = {}) {
   const light = (options.theme || getTheme()) === 'light';
   const data = { doc, bounds: exportBounds(doc), labels: { results: tr('Choose a matching part'), play: tr('Play'), pause: tr('Pause'), offlineLink: tr('For an offline file, send the HTML file together with this moment fragment.'), linkHelp: tr('Copy this link to open this chapter and stop.') },
     nodes: doc.nodes.map(n => ({ id: n.id, label: [n.label, n.sublabel].filter(Boolean).join(' — '), rect: nodeRect(n),
-      search: [n.label, n.sublabel, n.addr, n.rail, n.notes, ...Object.values(n.fields || {})].filter(Boolean).join(' ').toLowerCase() })),
+      search: nodeHaystack(n) })),
     steps: (doc.journey || []).map(s => { const r = resolveStep(doc, s); return { ...s, view: r.view, ids: [...r.ids], stops: (s.stops || []).map((stop,i) => {
       const result = resolveStoryStop(doc,s,i), node = doc.nodes.find(n => n.id === stop.node);
       return {...stop, label: node?.label || tr('Missing part'), view: result.view, ids: [...result.ids], relationship: storyRelationshipText(doc,s,i), caption: (node ? '' : tr('Missing part') + ': ' + stop.node + '. ') + (stop.caption || s.caption || '')};
     }) }; }) };
-  return `<!doctype html><html lang="${getLang()}"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  return `<!doctype html><html lang="${HTML_LANG[getLang()] || getLang()}"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(doc.title)}</title><style>
 *{box-sizing:border-box}body{margin:0;background:${light ? '#f8fafc' : '#0a0e17'};color:${light ? '#1e293b' : '#e6ebf4'};font:14px system-ui}header{padding:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:${light ? '#e8eef6' : '#131a2b'}}h1{font-size:16px;margin:0 12px 0 0}label{font-size:12px;display:flex;gap:5px;align-items:center}input,select,button{font:inherit;max-width:240px;background:${light ? '#fff' : '#0d1220'};color:inherit;border:1px solid ${light ? '#b5c1d2' : '#2c3a5c'};border-radius:6px;padding:6px}button{cursor:pointer}:focus-visible{outline:2px solid #38bdf8}main{height:calc(100dvh - 150px);min-height:280px}svg{width:100%;height:100%;touch-action:none;user-select:none}.muted{opacity:.2}.wire.focused:not(.invalid) .vis{stroke:#38bdf8;stroke-width:3}.node.focused .card{stroke:#38bdf8;stroke-width:2}.node{cursor:pointer}#caption{padding:12px;white-space:pre-wrap;max-height:120px;overflow:auto}
 body{height:100dvh;display:flex;flex-direction:column}main{flex:1;min-height:180px;height:auto}#story-controls{padding:8px 12px;flex-shrink:0}#chapter-rail,#stop-rail{display:flex;gap:6px;overflow:auto;margin:4px 0}#chapter-rail button,#stop-rail button{flex-shrink:0}button[aria-current="true"],.current .card{outline-color:#38bdf8}button[aria-current="true"]{border-color:#38bdf8}button:disabled{opacity:.4;cursor:default}.current .card{stroke-width:3}#caption{padding:4px 0;max-height:80px}#relationship{white-space:pre-wrap;font-size:12px;max-height:60px;overflow:auto}#player{display:flex;align-items:center;gap:6px;flex-wrap:wrap}#progress{font-size:12px}body.presenting header label:not(.story-control),body.presenting #results,body.presenting #fit,body.presenting #reset,body.presenting #download{display:none}dialog{max-width:90vw;background:inherit;color:inherit;border:1px solid #64748b;border-radius:10px}#moment-link{width:70vw;max-width:800px}dialog::backdrop{background:#0008}@media print{header,#story-controls{display:none}main{height:95vh}.muted{opacity:1}.focused .card,.current .card{stroke-width:1}}
