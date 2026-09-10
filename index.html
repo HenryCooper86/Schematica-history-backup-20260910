@@ -48,6 +48,7 @@
           <svg viewBox="0 0 18 18" aria-hidden="true"><path d="M3 6V3h3 M12 3h3v3 M15 12v3h-3 M6 15H3v-3"/><rect x="6.5" y="6.5" width="5" height="5" rx="1"/></svg>
         </button>
         <button id="btn-fullscreen" title="Toggle fullscreen">&#x26F6;</button>
+        <button id="btn-shortcuts" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts (?)" aria-haspopup="dialog">?</button>
       </div>
       <div class="group">
         <button id="btn-grid" class="active" aria-pressed="true" title="Grid dots">
@@ -129,7 +130,8 @@
         <kbd>V</kbd> <span>select</span> &middot; <kbd>C</kbd> <span>wire</span> &middot; <kbd>Z</kbd> <span>zone</span> &middot; <kbd>L</kbd> <span>lane</span>
         &middot; <kbd>N</kbd> <span>note</span> &middot; <kbd>H</kbd> <span>pan</span> &middot; <kbd>F</kbd> <span>fit</span> &middot; <kbd>B</kbd> <span>palette</span> &middot; <kbd>P</kbd> <span>panels</span> &middot; <kbd>A</kbd> <span>assistant</span>
         &middot; <span>drag ports to link</span> &middot; <span>double-click rename</span>
-        &middot; <kbd>Del</kbd> <span>delete</span> &middot; <kbd>Space</kbd><span>+drag pan</span>
+        &middot; <kbd>K</kbd> <span>lock</span> &middot; <kbd>Del</kbd> <span>delete</span> &middot; <kbd>Space</kbd><span>+drag pan</span>
+        &middot; <kbd>?</kbd> <span>all shortcuts</span>
       </div>
       <dialog id="story-link-dialog"><p>Story moment link</p><input id="story-link-value" readonly aria-label="Story moment link"><p>Copy this link to open this chapter and stop.</p><button id="story-link-close">Close</button></dialog>
       <div id="present-overlay" hidden>
@@ -285,6 +287,16 @@
         <button id="bom-csv">Download CSV</button>
         <button id="bom-md">Copy Markdown</button>
         <button id="bom-close">Close</button>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="shortcuts-dialog">
+    <div class="rec-card shortcuts-card">
+      <h3>Keyboard shortcuts</h3>
+      <p>Shortcuts act on the canvas; none of them fire while you are typing in a field.</p>
+      <div id="shortcuts-list"></div>
+      <div class="rec-buttons">
+        <button id="shortcuts-close">Close</button>
       </div>
     </div>
   </dialog>

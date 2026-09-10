@@ -1,5 +1,8 @@
 // The floating properties panel for the current selection.
-import { updateItem, findItem, deleteItems, NODE_STATUSES, NODE_FLAGS } from '../state.js';
+import {
+  updateItem, findItem, deleteItems, setLock, nextLockState, isLocked, lockedKeptMessage,
+  NODE_STATUSES, NODE_FLAGS,
+} from '../state.js';
 import { BUSES, BUS_ORDER } from '../buses.js';
 import { presetsFor, presetPatch } from '../presets.js';
 import { DISPOSITIONS } from '../palette.js';
@@ -38,6 +41,16 @@ export function propField(label, inner) {
   const tagged = id ? inner.replace(/^(<(?:input|textarea|select)\b)/, `$1 id="${id}"`) : inner;
   if (tagged === inner) return `<label>${escAttr(label)}</label>${inner}`;
   return `<label for="${id}">${escAttr(label)}</label>${tagged}`;
+}
+
+// The Lock row: one chip that reads as its own state, since a locked item
+// keeps every other control in the panel usable. Nodes, zones, and notes have
+// it; wires are never locked.
+export function lockField(item) {
+  const on = isLocked(item);
+  return `<label>${escAttr(tr('Lock'))}</label><div class="chips">`
+    + `<button class="chip${on ? ' active' : ''}" data-lock="1" aria-pressed="${on}">`
+    + `${escAttr(on ? tr('Locked') : tr('Unlocked'))}</button></div>`;
 }
 
 // Zone and swimlane color rows use the same swatch picker as net_draw
@@ -106,6 +119,7 @@ function nodeFields(item, doc) {
   if (part.custom) html += `<button id="props-edit-part" class="secondary">${escAttr(tr('Edit part…'))}</button>`;
   else if (!part.shape) html += `<button id="props-customize" class="secondary">${escAttr(tr('Customize…'))}</button>`;
   html += rdkDetails(item, doc);
+  html += lockField(item);
   html += `<button id="props-delete-one" class="danger">${escAttr(tr('Delete node'))}</button>`;
   return html;
 }
@@ -145,8 +159,14 @@ function swimlaneFields(item) {
   )).join('')}`;
   html += `<button id="lane-add" class="lane-add">${escAttr(tr('+ Add lane'))}</button>`;
   html += colorSwatchRow(item.color);
+  html += lockField(item);
   html += `<button id="props-delete-swimlane" class="danger">${escAttr(tr('Delete swimlane (keeps contents)'))}</button>`;
   return html;
+}
+
+function reportDelete({ kept }) {
+  const msg = lockedKeptMessage(kept);
+  if (msg) toast(msg);
 }
 
 export function createPropsPanel({ store, editor }) {
@@ -208,6 +228,10 @@ export function createPropsPanel({ store, editor }) {
         : [...(cur?.flags || []), f];
       updateItem(store, item.id, { flags });
     });
+    toggleIn('[data-lock]', () => {
+      const cur = findItem(store.doc, item.id)?.item;
+      if (cur) setLock(store, [item.id], !isLocked(cur));
+    });
     toggleIn('[data-swatch]', (btn) => updateItem(store, item.id, { color: btn.dataset.swatch || null }));
     toggleIn('[data-warrow]', (btn) => updateItem(store, item.id, { arrow: btn.dataset.warrow || null }));
     toggleIn('[data-wstyle]', (btn) => updateItem(store, item.id, { style: btn.dataset.wstyle || null }));
@@ -239,7 +263,7 @@ export function createPropsPanel({ store, editor }) {
     const del = document.getElementById('props-delete-swimlane')
       || document.getElementById('props-delete-one')
       || document.getElementById('props-delete-wire');
-    if (del) onPress(del, () => deleteItems(store, [item.id]));
+    if (del) onPress(del, () => reportDelete(deleteItems(store, [item.id])));
   }
 
   // What the panel currently shows, as the selection it was rendered for.
@@ -270,10 +294,21 @@ export function createPropsPanel({ store, editor }) {
     props.hidden = false;
     rendered = signature;
     if (ids.length > 1) {
+      // One button for the whole selection: it locks while anything in it is
+      // still unlocked, and unlocks once everything is.
+      const next = nextLockState(store.doc, ids);
       props.innerHTML = panelHeader(tr('{n} items selected', { n: ids.length }), 'props')
+        + (next === null ? '' : `<button id="props-lock" class="secondary">${escAttr(next ? tr('Lock all') : tr('Unlock all'))}</button>`)
         + `<button id="props-delete" class="danger">${escAttr(tr('Delete selection'))}</button>`;
+      const lockAll = document.getElementById('props-lock');
+      // Read the selection again on the press: the label is from render time.
+      if (lockAll) onPress(lockAll, () => {
+        const cur = [...store.selection];
+        const state = nextLockState(store.doc, cur);
+        if (state !== null) setLock(store, cur, state);
+      });
       onPress(document.getElementById('props-delete'), () => {
-        deleteItems(store, [...store.selection]);
+        reportDelete(deleteItems(store, [...store.selection]));
       });
       bindCollapsible(props, 'props');
       refocus();
@@ -295,9 +330,10 @@ export function createPropsPanel({ store, editor }) {
     else if (type === 'zone' && item.kind === 'swimlane') html = panelHeader(tr('Swimlane'), 'props') + swimlaneFields(item);
     else if (type === 'zone') {
       html = panelHeader(tr('Zone'), 'props') + propField(tr('Label'), `<input type="text" data-prop="label" value="${escAttr(item.label)}">`)
-        + colorSwatchRow(item.color);
+        + colorSwatchRow(item.color) + lockField(item);
     } else {
-      html = panelHeader(tr('Note'), 'props') + propField(tr('Text'), `<textarea data-prop="text">${escAttr(item.text)}</textarea>`);
+      html = panelHeader(tr('Note'), 'props')
+        + propField(tr('Text'), `<textarea data-prop="text">${escAttr(item.text)}</textarea>`) + lockField(item);
     }
     props.innerHTML = html;
     bind(item);

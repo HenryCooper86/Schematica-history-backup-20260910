@@ -19,6 +19,7 @@ import { initJourney } from './ui/journey-ui.js';
 import { initExamplesMenu } from './ui/examples-menu.js';
 import { initRecording } from './ui/recording-ui.js';
 import { initLayoutToggles } from './ui/panels.js';
+import { initShortcuts } from './ui/shortcuts-ui.js';
 import { initAssistant } from './ui/assistant-ui.js';
 import { initI18n, onLanguageChange, tr } from './i18n.js';
 import { translateStatic, initLanguageSwitch } from './ui/i18n-dom.js';
@@ -223,6 +224,7 @@ const recorder = initRecording({ svg, store });
 const journeyUI = initJourney({ svg, store, tools, render, recorder, propsPanel });
 initExamplesMenu({ store });
 initLayoutToggles();
+initShortcuts();
 initAssistant({ store, tools, render, svg, library });
 
 initLanguageSwitch(document.getElementById('btn-lang'));

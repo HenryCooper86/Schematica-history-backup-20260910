@@ -263,9 +263,61 @@ export function updateItem(store, id, props) {
   });
 }
 
+// ---- Locking ----
+// A node, zone, or note may carry `locked: true`. A locked item stays
+// selectable and editable; what the lock protects is its position and its
+// existence. Wires need no lock: they follow the ports they are drawn to.
+
+export function isLocked(item) {
+  return !!item?.locked;
+}
+
+// What a Lock toggle over `ids` should do: lock them when any lockable item
+// is still unlocked, unlock when they all are locked, and nothing at all when
+// the selection holds no lockable item (wires only, or nothing).
+export function nextLockState(doc, ids) {
+  let any = false;
+  for (const id of ids) {
+    const found = findItem(doc, id);
+    if (!found || found.type === 'wire') continue;
+    if (!isLocked(found.item)) return true;
+    any = true;
+  }
+  return any ? false : null;
+}
+
+// `false` removes the key rather than storing it, so a board that has never
+// been locked serializes exactly as it did before this field existed.
+export function setLock(store, ids, locked) {
+  store.apply((doc) => {
+    for (const id of ids) {
+      const found = findItem(doc, id);
+      if (!found || found.type === 'wire') continue;
+      if (locked) found.item.locked = true;
+      else delete found.item.locked;
+    }
+  });
+}
+
+// What a Delete says when the selection held locked items, or null when it
+// held none. It lives here so the canvas and the panel word it the same way.
+export function lockedKeptMessage(kept) {
+  if (!kept) return null;
+  if (kept === 1) return tr('1 locked item was kept. Unlock it with K to delete it.');
+  return tr('{n} locked items were kept. Unlock them with K to delete them.', { n: kept });
+}
+
+// Locked items are kept back; the caller reports the count. A wire attached
+// to a kept node survives with it, since only deleted nodes cascade.
 export function deleteItems(store, ids) {
-  if (!ids.length) return;
-  const dead = new Set(ids);
+  const dead = new Set();
+  let kept = 0;
+  for (const id of ids) {
+    const found = findItem(store.doc, id);
+    if (found && isLocked(found.item)) kept += 1;
+    else dead.add(id);
+  }
+  if (!dead.size) return { removed: 0, kept };
   store.apply((doc) => {
     doc.nodes = doc.nodes.filter((n) => !dead.has(n.id));
     doc.zones = doc.zones.filter((z) => !dead.has(z.id));
@@ -275,6 +327,7 @@ export function deleteItems(store, ids) {
     );
     store._pruneSelection();
   });
+  return { removed: dead.size, kept };
 }
 
 export function duplicateItems(store, ids) {

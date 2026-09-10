@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   uid, newDoc, Store, addNode, addWire, addZone, addSwimlane, addNote,
   findItem, updateItem, deleteItems, duplicateItems, SCHEMA_VERSION,
+  isLocked, nextLockState, setLock, lockedKeptMessage,
 } from '../src/state.js';
 import { initI18n, setLang } from '../src/i18n.js';
 
@@ -163,6 +164,98 @@ test('deleteItems with empty list is a no-op (no undo entry)', () => {
   const depth = store.undoStack.length;
   deleteItems(store, []);
   assert.equal(store.undoStack.length, depth);
+});
+
+test('deleteItems keeps locked items and reports how many', () => {
+  const store = new Store();
+  const a = addNode(store, 'mcu', 0, 0);
+  const b = addNode(store, 'temp', 300, 0);
+  const w = addWire(store, 'i2c', { node: a, port: 'i2c' }, { node: b, port: 'i2c' });
+  setLock(store, [a], true);
+  const res = deleteItems(store, [a, b]);
+  assert.deepEqual(res, { removed: 1, kept: 1 });
+  assert.deepEqual(store.doc.nodes.map((n) => n.id), [a]);
+  // The wire went with the node that was deleted, not with the one kept.
+  assert.equal(findItem(store.doc, w), null);
+});
+
+test('deleting only locked items changes nothing and costs no undo step', () => {
+  const store = new Store();
+  const a = addNode(store, 'mcu', 0, 0);
+  setLock(store, [a], true);
+  const depth = store.undoStack.length;
+  assert.deepEqual(deleteItems(store, [a]), { removed: 0, kept: 1 });
+  assert.equal(store.doc.nodes.length, 1);
+  assert.equal(store.undoStack.length, depth);
+});
+
+test('a locked node keeps the wires drawn to it when its neighbour goes', () => {
+  const store = new Store();
+  const a = addNode(store, 'mcu', 0, 0);
+  const b = addNode(store, 'temp', 300, 0);
+  addWire(store, 'i2c', { node: a, port: 'i2c' }, { node: b, port: 'i2c' });
+  setLock(store, [a], true);
+  deleteItems(store, [a]);
+  assert.equal(store.doc.wires.length, 1, 'the wire has both endpoints still');
+});
+
+test('setLock stores true and removes the key again, in one undo step', () => {
+  const store = new Store();
+  const a = addNode(store, 'mcu', 0, 0);
+  const z = addZone(store, { x: 0, y: 0, w: 100, h: 100 });
+  const depth = store.undoStack.length;
+  setLock(store, [a, z], true);
+  assert.equal(store.undoStack.length, depth + 1, 'a multi-item lock is one step');
+  assert.equal(findItem(store.doc, a).item.locked, true);
+  assert.equal(findItem(store.doc, z).item.locked, true);
+  setLock(store, [a, z], false);
+  assert.equal(JSON.stringify(store.doc).includes('locked'), false, 'false is an absent key');
+  store.undo();
+  assert.equal(isLocked(findItem(store.doc, a).item), true, 'undo brings the lock back');
+});
+
+test('setLock ignores wires, which have no lock', () => {
+  const store = new Store();
+  const a = addNode(store, 'mcu', 0, 0);
+  const b = addNode(store, 'temp', 300, 0);
+  const w = addWire(store, 'i2c', { node: a, port: 'i2c' }, { node: b, port: 'i2c' });
+  setLock(store, [w], true);
+  assert.equal(findItem(store.doc, w).item.locked, undefined);
+});
+
+test('nextLockState locks while anything is open and unlocks once all are locked', () => {
+  const store = new Store();
+  const a = addNode(store, 'mcu', 0, 0);
+  const t = addNote(store, 10, 10, 'hi');
+  assert.equal(nextLockState(store.doc, [a, t]), true);
+  setLock(store, [a], true);
+  assert.equal(nextLockState(store.doc, [a, t]), true, 'a mixed selection still locks');
+  setLock(store, [t], true);
+  assert.equal(nextLockState(store.doc, [a, t]), false);
+});
+
+test('nextLockState is null when nothing in the selection can be locked', () => {
+  const store = new Store();
+  const a = addNode(store, 'mcu', 0, 0);
+  const b = addNode(store, 'temp', 300, 0);
+  const w = addWire(store, 'i2c', { node: a, port: 'i2c' }, { node: b, port: 'i2c' });
+  assert.equal(nextLockState(store.doc, [w]), null);
+  assert.equal(nextLockState(store.doc, []), null);
+  assert.equal(nextLockState(store.doc, ['gone']), null);
+});
+
+test('lockedKeptMessage counts, and says nothing when nothing was kept', () => {
+  assert.equal(lockedKeptMessage(0), null);
+  assert.match(lockedKeptMessage(1), /^1 locked item was kept/);
+  assert.match(lockedKeptMessage(3), /^3 locked items were kept/);
+});
+
+test('duplicateItems carries the lock onto the copy', () => {
+  const store = new Store();
+  const a = addNode(store, 'mcu', 0, 0);
+  setLock(store, [a], true);
+  const [copy] = duplicateItems(store, [a]);
+  assert.equal(findItem(store.doc, copy).item.locked, true);
 });
 
 test('duplicateItems clones nodes, remaps internal wires, offsets copies', () => {

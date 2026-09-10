@@ -52,7 +52,9 @@ then Settings → Pages → deploy from branch `main`, root folder.
 | Pan / zoom | Space-drag or middle-drag; scroll wheel |
 | Undo / redo | `Ctrl/Cmd-Z`, `Ctrl/Cmd-Shift-Z` |
 | Duplicate | `Ctrl/Cmd-D` |
-| Delete | `Delete` / `Backspace` |
+| Lock | `K`, or the Lock toggle in the properties panel (Lock all / Unlock all for a multi-selection) — a locked node, zone, or note cannot be dragged, nudged, resized, or deleted, and wears a small padlock |
+| Delete | `Delete` / `Backspace` — a mixed selection loses its unlocked items and a notice says how many locked ones were kept |
+| Keyboard shortcuts | `?` or the **?** button in the zoom group — every shortcut, grouped, with ⌘ or Ctrl to match the platform |
 | Save / open | Toolbar — downloads/reads `*.schematica.json` |
 | Export | Export button — PNG at any pixel size, SVG, single-page PDF, or a seamless loop GIF, cropped to content |
 | Record | Rec button — WebM/MP4 video (optional mic or music audio) or animated GIF |
@@ -73,6 +75,20 @@ then Settings → Pages → deploy from branch `main`, root folder.
 | Custom parts | **+ New** under My parts in the palette defines a part: name, category, accent, an icon (a built-in one, initials, or an SVG path), typed ports on any side, and extra fields. It is saved to My parts (this browser) and placed on the board. **Customize…** on any built-in card starts from its definition, so an MCU with a second CAN port keeps its wires. **Edit part…** on a custom card changes it and, when it came from a template, offers to update its siblings. Export and Import move My parts between machines as a JSON file. Custom parts in a board file travel with it; an older build of the app opens them as custom boxes |
 
 Work is autosaved to the browser's localStorage and restored on reload.
+
+A lock protects an item's position and its existence, nothing else. A locked
+part keeps every field in the properties panel editable, keeps its ports open
+so wires can still be drawn to it, and keeps its wires routing as before;
+selecting it works as usual, but it grows no drag or resize handles. Dragging a
+zone carries its unlocked cards and passes over the locked ones. The lock is
+saved in the file, in share links, and on a duplicate. Asking the assistant to
+rearrange the board leaves locked cards, zones, and notes where they are and
+lays the rest out clear of them; the assistant refuses to remove a locked item
+and says so, and it can set or clear a lock when you ask it to.
+
+The `?` overlay lists every shortcut the app has, grouped as Tools, Selection,
+View, Panels, and Editing. It reads from one table in the source, so it cannot
+drift from what the keyboard actually does.
 
 Exploration is temporary view state: search, filters, and reading detail do not
 change the board, create undo steps, or enter saved files and share links.
@@ -224,7 +240,8 @@ npm run e2e   # headless Chrome smoke test over the DevTools Protocol (set CHROM
 Both run in GitHub Actions on every push and pull request (`.github/workflows/ci.yml`).
 
 Layout: `src/state.js` owns the document model + undo; `src/render.js` draws
-it into layered SVG; `src/tools.js` is the pointer/keyboard state machine;
+it into layered SVG; `src/tools.js` is the pointer/keyboard state machine and
+`src/shortcuts.js` the table its overlay reads;
 `src/serialize.js` validates files; `src/export.js` builds standalone
 SVG/PNG. `src/custom.js` validates custom part definitions and resolves a
 custom node to a catalogue-shaped part; `src/library.js` keeps the templates;

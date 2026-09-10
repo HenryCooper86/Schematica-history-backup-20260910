@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { serialize, deserialize, migrateRaw, MAX_TEXT, MAX_COORD } from '../src/serialize.js';
 import { SCHEMA_VERSION } from '../src/state.js';
 import { PORT_ALIASES } from '../src/palette.js';
-import { Store, addNode, addWire, addZone, addNote } from '../src/state.js';
+import { Store, addNode, addWire, addZone, addNote, setLock } from '../src/state.js';
 import { LIMITS } from '../src/custom.js';
 import { initI18n, setLang } from '../src/i18n.js';
 
@@ -376,6 +376,36 @@ test('wires to a node with a missing kind survive on generic side ports too', ()
   assert.equal(doc.wires.length, 1);
   assert.deepEqual(doc.wires[0].to, { node: 'n2', port: 'left' });
   assert.ok(warnings.some((w) => w.includes('generic ports')));
+});
+
+test('locked round-trips on nodes, zones, and notes', () => {
+  const store = new Store();
+  const a = addNode(store, 'mcu', 100, 100);
+  const z = addZone(store, { x: 0, y: 0, w: 400, h: 300 }, 'Board');
+  const t = addNote(store, 500, 0, 'pinned');
+  setLock(store, [a, z, t], true);
+  const { doc, warnings } = deserialize(serialize(store.doc));
+  assert.deepEqual(warnings, []);
+  assert.deepEqual(doc, store.doc);
+  assert.equal(doc.nodes[0].locked, true);
+  assert.equal(doc.zones[0].locked, true);
+  assert.equal(doc.notes[0].locked, true);
+});
+
+test('a non-boolean lock is dropped with a warning; false leaves no key', () => {
+  const { doc, warnings } = deserialize(JSON.stringify({
+    nodes: [{ id: 'n1', kind: 'mcu', x: 0, y: 0, locked: 'yes' }, { id: 'n2', kind: 'mcu', x: 0, y: 0, locked: false }],
+    zones: [{ id: 'z1', x: 0, y: 0, w: 10, h: 10, locked: 1 }],
+    notes: [{ id: 't1', x: 0, y: 0, text: 'n', locked: null }],
+  }));
+  for (const item of [doc.nodes[0], doc.nodes[1], doc.zones[0], doc.notes[0]]) {
+    assert.equal('locked' in item, false);
+  }
+  assert.deepEqual(warnings.sort(), [
+    'Ignored a non-boolean lock on "n1".',
+    'Ignored a non-boolean lock on "t1".',
+    'Ignored a non-boolean lock on "z1".',
+  ]);
 });
 
 test('threat fields and disposition round-trip; unknown fields, blanks, and bad dispositions are cleaned', () => {

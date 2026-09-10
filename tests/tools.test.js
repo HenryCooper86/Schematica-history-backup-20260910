@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Store, addNode, addWire, updateItem } from '../src/state.js';
+import { Store, addNode, addWire, addZone, addNote, updateItem, setLock } from '../src/state.js';
 
 // tools.js wires itself to the DOM at creation time, so a minimal fake of the
 // pieces it touches (elements with closest/dataset/classList, document,
@@ -60,9 +60,12 @@ async function setup() {
   const body = makeEl({ tag: 'BODY' });
   const popover = makeEl({ tag: 'DIV' });
   const editor = makeEl({ tag: 'INPUT' });
+  // press.js's toast() writes into this one and arms a dismissal timer.
+  const toastEl = makeEl({ tag: 'DIV' });
+  toastEl.append = () => {};
   const doc = {
     body,
-    getElementById: (id) => ({ 'bus-popover': popover, 'inline-editor': editor }[id]),
+    getElementById: (id) => ({ 'bus-popover': popover, 'inline-editor': editor, toast: toastEl }[id]),
     querySelector: () => null,
     elementFromPoint: () => null,
   };
@@ -89,7 +92,7 @@ async function setup() {
     preventDefault() { this.prevented = true; }, ...extra,
   });
   const key = (k, extra = {}) => ev(body, { key: k, ...extra });
-  return { svg, body, doc, win, store, tools, editor, toolChanges, ev, key };
+  return { svg, body, doc, win, store, tools, editor, toastEl, toolChanges, ev, key };
 }
 
 function nodeEl(id, parent = null) {
@@ -121,6 +124,105 @@ test('keys other than Escape are ignored while a move drag is in flight', async 
   win.dispatch('keydown', key('Escape'));
   assert.equal(store.isDragging(), false);
   assert.equal(store.doc.nodes[0].x, 0, 'Escape puts the card back');
+});
+
+test('a locked card is still selectable but never moves with a drag', async () => {
+  const { svg, store, ev } = await setup();
+  const a = addNode(store, 'mcu', 0, 0);
+  setLock(store, [a], true);
+  const el = nodeEl(a);
+  svg.dispatch('pointerdown', ev(el, { clientX: 10, clientY: 10 }));
+  assert.deepEqual([...store.selection], [a], 'the lock does not block selection');
+  assert.equal(store.isDragging(), false, 'and no drag starts');
+  svg.dispatch('pointermove', ev(el, { clientX: 90, clientY: 90 }));
+  svg.dispatch('pointerup', ev(el, { clientX: 90, clientY: 90 }));
+  assert.deepEqual([store.doc.nodes[0].x, store.doc.nodes[0].y], [0, 0]);
+});
+
+test('arrow keys nudge the unlocked half of a selection and leave the rest', async () => {
+  const { store, win, key } = await setup();
+  const a = addNode(store, 'mcu', 0, 0);
+  const b = addNode(store, 'temp', 300, 0);
+  setLock(store, [a], true);
+  store.setSelection([a, b]);
+  win.dispatch('keydown', key('ArrowRight', { shiftKey: true }));
+  assert.equal(store.doc.nodes[0].x, 0, 'the locked card stays');
+  assert.equal(store.doc.nodes[1].x, 308);
+});
+
+test('a dragged zone carries its unlocked cards and travels over the locked ones', async () => {
+  const { svg, store, ev } = await setup();
+  addNode(store, 'mcu', 100, 100);
+  const pinned = addNode(store, 'temp', 200, 100);
+  const z = addZone(store, { x: 40, y: 40, w: 400, h: 300 });
+  setLock(store, [pinned], true);
+  store.setSelection([z]);
+  svg.dispatch('pointerdown', ev(makeEl({ dataset: { type: 'zone', id: z } }), { clientX: 0, clientY: 0 }));
+  svg.dispatch('pointermove', ev(svg, { clientX: 40, clientY: 0 }));
+  svg.dispatch('pointerup', ev(svg, { clientX: 40, clientY: 0 }));
+  assert.equal(store.doc.zones[0].x, 80, 'the zone moves');
+  assert.equal(store.doc.nodes[0].x, 140, 'its unlocked passenger comes along');
+  assert.equal(store.doc.nodes[1].x, 200, 'the locked one stays behind');
+});
+
+test('a locked zone refuses a corner-handle resize', async () => {
+  const { svg, store, ev } = await setup();
+  const z = addZone(store, { x: 0, y: 0, w: 400, h: 300 });
+  setLock(store, [z], true);
+  store.setSelection([z]);
+  const zoneEl = makeEl({ dataset: { type: 'zone', id: z } });
+  const handle = makeEl({ dataset: { zhandle: 'se' }, parent: zoneEl });
+  svg.dispatch('pointerdown', ev(handle, { clientX: 400, clientY: 300 }));
+  svg.dispatch('pointermove', ev(svg, { clientX: 600, clientY: 500 }));
+  svg.dispatch('pointerup', ev(svg, { clientX: 600, clientY: 500 }));
+  assert.deepEqual([store.doc.zones[0].w, store.doc.zones[0].h], [400, 300]);
+});
+
+test('Delete removes the unlocked items and the toast counts what it kept', async () => {
+  const { store, win, key, toastEl } = await setup();
+  const a = addNode(store, 'mcu', 0, 0);
+  const b = addNode(store, 'temp', 300, 0);
+  const t = addNote(store, 0, 400, 'pinned');
+  setLock(store, [a, t], true);
+  store.setSelection([a, b, t]);
+  win.dispatch('keydown', key('Delete'));
+  assert.deepEqual(store.doc.nodes.map((n) => n.id), [a]);
+  assert.equal(store.doc.notes.length, 1);
+  assert.match(toastEl.textContent, /^2 locked items were kept/);
+});
+
+test('K locks a mixed selection, then unlocks it once everything is locked', async () => {
+  const { store, win, key } = await setup();
+  const a = addNode(store, 'mcu', 0, 0);
+  const b = addNode(store, 'temp', 300, 0);
+  setLock(store, [a], true);
+  store.setSelection([a, b]);
+  win.dispatch('keydown', key('k'));
+  assert.deepEqual(store.doc.nodes.map((n) => !!n.locked), [true, true]);
+  win.dispatch('keydown', key('k'));
+  assert.deepEqual(store.doc.nodes.map((n) => !!n.locked), [false, false]);
+});
+
+test('K with nothing selected costs no undo step', async () => {
+  const { store, win, key } = await setup();
+  addNode(store, 'mcu', 0, 0);
+  const depth = store.undoStack.length;
+  win.dispatch('keydown', key('k'));
+  assert.equal(store.undoStack.length, depth);
+});
+
+test('a wire can still be drawn to a locked node\'s port', async () => {
+  const { svg, store, doc, ev } = await setup();
+  const a = addNode(store, 'mcu', 0, 0);
+  const b = addNode(store, 'temp', 300, 0);
+  setLock(store, [b], true);
+  const target = portEl(b, 'i2c');
+  doc.elementFromPoint = () => target;
+  svg.dispatch('pointerdown', ev(portEl(a, 'i2c')));
+  svg.dispatch('pointermove', ev(svg));
+  assert.equal(target.hasAttribute('data-hot'), true, 'a lock protects position, not connectivity');
+  svg.dispatch('pointerup', ev(svg));
+  assert.equal(store.doc.wires.length, 1);
 });
 
 test('a tool key mid-wire keeps the draft, so pointermove has a cursor to update', async () => {

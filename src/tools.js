@@ -4,11 +4,12 @@ import {
 } from './geometry.js';
 import {
   addWire, addZone, addSwimlane, addNote, updateItem, deleteItems, duplicateItems, findItem,
-  rewireEnd, resolveBus,
+  rewireEnd, resolveBus, isLocked, nextLockState, setLock, lockedKeptMessage,
 } from './state.js';
 import { BUSES, BUS_ORDER } from './buses.js';
 import { nodePart } from './rdk/profiles.js';
 import { esc } from './render.js';
+import { toast } from './ui/press.js';
 import { trd } from './i18n.js';
 
 // requestRender(kind): 'all' (default) rebuilds the diagram, 'view' only moves
@@ -99,13 +100,15 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave })
   // Everything the selection drags: its own nodes, zones, and notes, plus the
   // cards and notes inside any selected zone (net_draw moves a zone with its
   // contents). `carried` marks those passengers so lane snapping leaves them
-  // to follow the zone rather than jitter onto lane centerlines.
+  // to follow the zone rather than jitter onto lane centerlines. Locked items
+  // are left out at both levels: a locked card inside a moving zone stays
+  // where it is while the zone travels over it.
   function movableSelection() {
     const orig = new Map();
     const carried = new Set();
     for (const id of store.selection) {
       const found = findItem(store.doc, id);
-      if (found && found.type !== 'wire') {
+      if (found && found.type !== 'wire' && !isLocked(found.item)) {
         orig.set(id, { x: found.item.x, y: found.item.y });
       }
     }
@@ -115,12 +118,20 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave })
       for (const mid of zoneMembers(store.doc, found.item)) {
         if (orig.has(mid)) continue;
         const m = findItem(store.doc, mid);
-        if (!m) continue;
+        if (!m || isLocked(m.item)) continue;
         orig.set(mid, { x: m.item.x, y: m.item.y });
         carried.add(mid);
       }
     }
     return { orig, carried };
+  }
+
+  // Lock the selection, or unlock it once every lockable item is locked.
+  function toggleLock() {
+    const ids = [...store.selection];
+    const next = nextLockState(store.doc, ids);
+    if (next === null) return;
+    setLock(store, ids, next);
   }
 
   // Arrow keys move the selection by a pixel, or a grid step with Shift.
@@ -248,7 +259,8 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave })
     if (handleEl) {
       const zoneEl = handleEl.closest('[data-type="zone"]');
       const found = zoneEl && findItem(store.doc, zoneEl.dataset.id);
-      if (found) {
+      // A locked zone draws no handles, so this only guards a stale one.
+      if (found && !isLocked(found.item)) {
         drag = { mode: 'zresize', id: found.item.id, corner: handleEl.dataset.zhandle, from: { ...found.item } };
         store.beginDrag();
         capturePointer(e);
@@ -483,7 +495,10 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave })
     }
     if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
-      deleteItems(store, [...store.selection]);
+      // A mixed selection loses its unlocked half; say what stayed behind so
+      // the missing deletion does not read as a dropped keypress.
+      const msg = lockedKeptMessage(deleteItems(store, [...store.selection]).kept);
+      if (msg) toast(msg);
       return;
     }
     if (e.key.startsWith('Arrow') && !mod) {
@@ -512,6 +527,7 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave })
     if (k === 'n') setTool('note');
     if (k === 'h') setTool('pan');
     if (k === 'f') zoomFit();
+    if (k === 'k') toggleLock();
   });
 
   window.addEventListener('keyup', (e) => {

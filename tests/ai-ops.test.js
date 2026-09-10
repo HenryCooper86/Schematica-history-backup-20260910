@@ -384,6 +384,54 @@ test('remove takes any ids, drops the wires of removed nodes, and forgets layout
   assert.match(res.errors[0].message, /needs ids/);
 });
 
+test('remove refuses a locked item and applies nothing else in the batch', () => {
+  const doc = newDoc('T');
+  doc.nodes.push(node('m', 'mcu'), node('p', 'imu', 0, 0, { locked: true }));
+  doc.zones.push({ id: 'z1', x: 0, y: 0, w: 100, h: 100, label: 'Z', color: '#4a90d9', locked: true });
+  doc.notes.push({ id: 't1', x: 0, y: 0, text: 'n', locked: true });
+  for (const id of ['p', 'z1', 't1']) {
+    const res = applyEdits(doc, [{ op: 'remove', ids: ['m', id] }]);
+    assert.equal(res.ok, false);
+    assert.match(res.errors[0].message, new RegExp(`"${id}" is locked`));
+    assert.match(res.errors[0].message, /update_part\/update_zone\/update_note/, 'the message says how to proceed');
+    assert.equal(doc.nodes.length, 2, 'the batch is atomic: nothing was removed');
+  }
+});
+
+test('update_part, update_zone, and update_note set and clear the lock', () => {
+  const doc = newDoc('T');
+  doc.nodes.push(node('m', 'mcu'));
+  doc.zones.push({ id: 'z1', x: 0, y: 0, w: 100, h: 100, label: 'Z', color: '#4a90d9' });
+  doc.notes.push({ id: 't1', x: 0, y: 0, text: 'n' });
+  let res = applyEdits(doc, [
+    { op: 'update_part', id: 'm', locked: true },
+    { op: 'update_zone', id: 'z1', locked: true },
+    { op: 'update_note', id: 't1', locked: true },
+  ]);
+  assert.equal(res.ok, true, JSON.stringify(res));
+  assert.deepEqual([doc.nodes[0].locked, doc.zones[0].locked, doc.notes[0].locked], [true, true, true]);
+  // Unlocking, then removing, is the route the refusal message points at.
+  res = applyEdits(doc, [
+    { op: 'update_part', id: 'm', locked: false },
+    { op: 'update_zone', id: 'z1', locked: false },
+    { op: 'update_note', id: 't1', locked: false },
+    { op: 'remove', ids: ['m', 'z1', 't1'] },
+  ]);
+  assert.equal(res.ok, true, JSON.stringify(res));
+  assert.deepEqual([doc.nodes, doc.zones, doc.notes], [[], [], []]);
+});
+
+test('a non-boolean lock fails the op, and update_note still needs a change', () => {
+  const doc = newDoc('T');
+  doc.nodes.push(node('m', 'mcu'));
+  doc.notes.push({ id: 't1', x: 0, y: 0, text: 'n' });
+  let res = applyEdits(doc, [{ op: 'update_part', id: 'm', locked: 'yes' }]);
+  assert.match(res.errors[0].message, /locked must be true or false/);
+  res = applyEdits(doc, [{ op: 'update_note', id: 't1' }]);
+  assert.match(res.errors[0].message, /update_note changes nothing/);
+  assert.equal('locked' in doc.nodes[0], false, 'a failed batch leaves no trace');
+});
+
 test('add_zone needs members, validates colour, and marks new members for placement inside it', () => {
   const doc = newDoc('T');
   doc.nodes.push(node('m', 'mcu', 100, 100));

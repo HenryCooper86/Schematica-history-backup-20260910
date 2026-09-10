@@ -78,6 +78,14 @@ export function deserialize(text) {
     return v;
   };
 
+  // `locked` is stored only when true, so a board nobody has locked reads
+  // back byte for byte as it did before the field existed.
+  const lock = (v, id) => {
+    if (v === undefined || typeof v === 'boolean') return v === true;
+    warnings.push(tr('Ignored a non-boolean lock on "{id}".', { id }));
+    return false;
+  };
+
   const doc = newDoc(typeof raw.title === 'string' && raw.title.trim() ? str(raw.title) : tr('Untitled Board'));
   const seen = new Set();
   const validId = (v) => typeof v === 'string' && v.length > 0;
@@ -145,6 +153,7 @@ export function deserialize(text) {
       flags,
     };
     if (def) node.part = def;
+    if (lock(n.locked, n.id)) node.locked = true;
     // Schema fields (threat parts) travel as a string map; only ids the part
     // knows survive, blanks are dropped, and the key is absent when empty.
     if (n.fields && typeof n.fields === 'object' && !Array.isArray(n.fields)) {
@@ -253,6 +262,7 @@ export function deserialize(text) {
       }
       zone.lanes = lanes.length ? lanes : [tr('Lane {n}', { n: 1 })];
     }
+    if (lock(z.locked, z.id)) zone.locked = true;
     doc.zones.push(zone);
   }
 
@@ -262,7 +272,9 @@ export function deserialize(text) {
       continue;
     }
     seen.add(t.id);
-    doc.notes.push({ id: t.id, x: coord(t.x), y: coord(t.y), text: str(t.text) });
+    const note = { id: t.id, x: coord(t.x), y: coord(t.y), text: str(t.text) };
+    if (lock(t.locked, t.id)) note.locked = true;
+    doc.notes.push(note);
   }
 
   for (const s of raw.journey ?? []) {

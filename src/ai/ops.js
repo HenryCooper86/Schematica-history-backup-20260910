@@ -55,6 +55,7 @@ export const EDIT_SCHEMA = {
           },
           template: { type: 'string', description: 'add_part with kind custom: a library template id from search_parts, instead of custom' },
           disposition: { type: ['string', 'null'], enum: [...Object.keys(DISPOSITIONS), null] },
+          locked: { type: 'boolean', description: 'update_part/update_zone/update_note: pin the item where it is (true) or release it (false). A locked item cannot be removed or moved by arrange.' },
           near: { type: 'string', description: 'Layout anchor: an existing node id or a ref' },
           in: { type: 'string', description: 'Zone id or ref to place the part in' },
           from: { type: 'object', properties: { node: { type: 'string' }, port: { type: 'string' } }, required: ['node'] },
@@ -89,9 +90,13 @@ function makeCtx(doc, library) {
   };
 }
 
+function lookup(work, id) {
+  return work.nodes.find((n) => n.id === id) || work.wires.find((w) => w.id === id)
+    || work.zones.find((z) => z.id === id) || work.notes.find((t) => t.id === id) || null;
+}
+
 function findAny(work, id) {
-  return work.nodes.some((n) => n.id === id) || work.wires.some((w) => w.id === id)
-    || work.zones.some((z) => z.id === id) || work.notes.some((t) => t.id === id);
+  return lookup(work, id) !== null;
 }
 
 // A key is a ref defined earlier in the batch or an existing id.
@@ -139,6 +144,18 @@ export function text(ctx, value, what) {
   return value.slice(0, MAX_TEXT);
 }
 
+// The lock is stored only when set, as in a saved file, so `false` clears the
+// key rather than writing it.
+function lockFlag(v) {
+  if (typeof v !== 'boolean') fail('locked must be true or false');
+  return v;
+}
+
+function setLocked(item, v) {
+  if (lockFlag(v)) item.locked = true;
+  else delete item.locked;
+}
+
 // The node fields an op may set, validated the way deserialize validates a
 // file. Returns a patch; `node` is the current node for merging fields.
 function nodePatch(ctx, part, op, node) {
@@ -164,6 +181,7 @@ function nodePatch(ctx, part, op, node) {
     }
     patch.disposition = op.disposition;
   }
+  if (op.locked !== undefined) patch.locked = lockFlag(op.locked);
   if (op.fields !== undefined) {
     if (!op.fields || typeof op.fields !== 'object' || Array.isArray(op.fields)) fail('fields must be an object of strings');
     if (!part.fields) fail(`${part.name} has no schema fields`);
@@ -191,6 +209,7 @@ function assignPatch(node, patch) {
   for (const [k, v] of Object.entries(patch)) {
     if (k === 'disposition' && v === null) delete node.disposition;
     else if (k === 'fields' && !Object.keys(v).length) delete node.fields;
+    else if (k === 'locked') setLocked(node, v);
     else node[k] = v;
   }
 }
@@ -334,9 +353,12 @@ HANDLERS.add_note = (ctx, op) => {
 
 HANDLERS.update_note = (ctx, op) => {
   const note = findNote(ctx, op.id);
-  note.text = text(ctx, op.text, 'text');
+  const changed = [];
+  if (op.text !== undefined) { note.text = text(ctx, op.text, 'text'); changed.push('text'); }
+  if (op.locked !== undefined) { setLocked(note, op.locked); changed.push('locked'); }
+  if (!changed.length) fail('update_note changes nothing');
   ctx.touched.add(note.id);
-  ctx.changes.push(`updated note ${note.id}`);
+  ctx.changes.push(`updated note ${note.id} (${changed.join(', ')})`);
 };
 
 HANDLERS.update_part = (ctx, op) => {
@@ -495,7 +517,11 @@ HANDLERS.remove = (ctx, op) => {
   const dead = new Set();
   for (const key of op.ids) {
     const id = resolve(ctx, key);
-    if (!findAny(ctx.work, id)) fail(`no item "${key}"`);
+    const item = lookup(ctx.work, id);
+    if (!item) fail(`no item "${key}"`);
+    // The user pinned this one. Say so rather than dropping it silently: the
+    // model can unlock it first, or tell the user why it left it alone.
+    if (item.locked) fail(`"${key}" is locked; set locked false with update_part/update_zone/update_note first, or leave it in place`);
     dead.add(id);
   }
   const w = ctx.work;
@@ -550,6 +576,7 @@ HANDLERS.update_zone = (ctx, op) => {
   const changed = [];
   if (op.label !== undefined) { zone.label = text(ctx, op.label, 'label'); changed.push('label'); }
   if (op.color !== undefined) { zone.color = zoneColor(op.color); changed.push('color'); }
+  if (op.locked !== undefined) { setLocked(zone, op.locked); changed.push('locked'); }
   if (op.members !== undefined) {
     if (zone.kind === 'swimlane') fail(`zone "${op.id}" is a swimlane; the assistant edits plain zones only`);
     ctx.layout.refit.push({ id: zone.id, members: zoneMemberIds(ctx, op.members) });

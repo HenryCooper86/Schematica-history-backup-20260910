@@ -21,6 +21,8 @@ const CHIP_BG = '#0d1526';
 const CARD_LINE = 'rgba(148,163,184,0.2)';
 const MONO = 'ui-monospace, Consolas, monospace';
 
+const LOCK = '#7d8fae';
+
 const WIRE = '#526180';
 const WIRE_SEL = '#7dd3fc';
 const WIRE_SNEAK = '#6b6242';
@@ -275,6 +277,19 @@ function flagBadgesMarkup(flags, W) {
   return s;
 }
 
+// A locked item wears a small padlock, drawn in the same 24-unit icon style
+// as the flag badges but muted and unringed: it reports a state rather than
+// warning about one. Its 12x12 box goes where no badge ever lands — the
+// card's bottom-right corner, the top-right corner of a zone or a note — so
+// tags, flags, and the zone's title pill keep their places.
+function lockMarkup(x, y) {
+  return `<g class="lockmark" transform="translate(${x} ${y}) scale(0.5)">`
+    + `<title>${esc(tr('Locked'))}</title>`
+    + `<g fill="none" stroke="${LOCK}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"`
+    + ' stroke-opacity="0.85"><rect x="3.5" y="10.5" width="17" height="11" rx="2.6"/>'
+    + '<path d="M7.2 10.5V7a4.8 4.8 0 0 1 9.6 0v3.5"/></g></g>';
+}
+
 // Disposition glow, like net_draw's effect halos: adversaries and suspicious
 // objects pulse all the time, whatever the Animate toggle says (the user's
 // call: the blink is the point of the glow), a victim wears a steady amber
@@ -337,6 +352,7 @@ function nodeMarkup(node, selected, ui, animating, now, wires) {
   }
   s += tagsMarkup(node, animating, now);
   s += flagBadgesMarkup(flags, W);
+  if (node.locked) s += lockMarkup(W - 16, H - 16);
   if (ui.ports !== false) s += portsMarkup(node, part, acc, W, H);
   s += '</g>';
   return s;
@@ -475,7 +491,8 @@ function swimlaneMarkup(zone, selected) {
     + ' fill="none" stroke="transparent" stroke-width="12" pointer-events="stroke"/>';
   s += `<rect x="${zone.x}" y="${zone.y}" width="${zone.w}" height="${LANE_TITLE_H}"`
     + ' fill="transparent" stroke="none"/>';
-  if (selected) s += zoneHandlesMarkup(zone);
+  if (zone.locked) s += lockMarkup(zone.x + zone.w - 18, zone.y + LANE_TITLE_H / 2 - 6);
+  if (selected && !zone.locked) s += zoneHandlesMarkup(zone);
   s += '</g>';
   return s;
 }
@@ -497,7 +514,8 @@ function zoneMarkup(zone, selected) {
     + ` fill="${CHIP_BG}" stroke="${esc(color)}" stroke-opacity="0.8"/>`;
   s += `<text x="${zone.x + 12 + w / 2}" y="${zone.y}" text-anchor="middle" dominant-baseline="central"`
     + ` font-size="10" font-weight="700" fill="${esc(color)}" data-edit="label">${esc(label)}</text>`;
-  if (selected) s += zoneHandlesMarkup(zone);
+  if (zone.locked) s += lockMarkup(zone.x + zone.w - 18, zone.y - 6);
+  if (selected && !zone.locked) s += zoneHandlesMarkup(zone);
   s += '</g>';
   return s;
 }
@@ -512,6 +530,7 @@ function noteMarkup(note, selected) {
     s += `<text x="${note.x + 10}" y="${note.y + 20 + i * 16}" font-size="11.5" fill="#e8c884"`
       + `${i === 0 ? ' data-edit="text"' : ''}>${esc(line)}</text>`;
   });
+  if (note.locked) s += lockMarkup(note.x + NOTE_W - 16, note.y + 4);
   s += '</g>';
   return s;
 }

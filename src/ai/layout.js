@@ -43,9 +43,14 @@ export function pickHub(doc, ids, adj) {
   return best(compute.length ? compute : ids);
 }
 
+// A locked card is an anchor, not a participant: it keeps its coordinates and
+// the laid-out block is placed clear of it, to the right of everything locked.
+// The graph still counts locked cards, so columns and rows come out the same
+// shape they would have without the locks.
 export function layoutAll(doc, zoneOf = new Map()) {
   const ids = doc.nodes.map((n) => n.id);
   if (!ids.length) return;
+  const pinned = new Map(doc.nodes.filter((n) => n.locked).map((n) => [n.id, { x: n.x, y: n.y }]));
   const byId = new Map(doc.nodes.map((n) => [n.id, n]));
   const adj = adjacency(doc, ids);
   const hub = pickHub(doc, ids, adj);
@@ -129,11 +134,20 @@ export function layoutAll(doc, zoneOf = new Map()) {
       y += s.h + ROW_GAP;
     }
   }
-  const minX = Math.min(...doc.nodes.map((n) => n.x));
-  const minY = Math.min(...doc.nodes.map((n) => n.y));
-  for (const n of doc.nodes) {
-    n.x = snap(n.x - minX + ORIGIN);
-    n.y = snap(n.y - minY + ORIGIN);
+  // Every locked card goes back to the coordinates it came in with; the block
+  // of the rest then starts at the origin, or in the first free column to the
+  // right of the locked cards, so nothing is laid out on top of one.
+  for (const n of doc.nodes) if (pinned.has(n.id)) Object.assign(n, pinned.get(n.id));
+  const moved = doc.nodes.filter((n) => !pinned.has(n.id));
+  if (!moved.length) return;
+  const anchors = doc.nodes.filter((n) => pinned.has(n.id)).map(nodeRect);
+  const originX = anchors.length ? up(Math.max(...anchors.map((r) => r.x + r.w)) + COL_GAP) : ORIGIN;
+  const originY = anchors.length ? up(Math.min(...anchors.map((r) => r.y))) : ORIGIN;
+  const minX = Math.min(...moved.map((n) => n.x));
+  const minY = Math.min(...moved.map((n) => n.y));
+  for (const n of moved) {
+    n.x = snap(n.x - minX + originX);
+    n.y = snap(n.y - minY + originY);
   }
 }
 
@@ -145,6 +159,7 @@ const zoneRect = (z) => ({ x: z.x, y: z.y, w: z.w, h: z.h });
 // The zone rectangle around its members: padding all round plus room for
 // the title pill on the top edge.
 export function fitZone(doc, zone, memberIds) {
+  if (zone.locked) return false; // resizing a zone is a move of its edges
   const rects = memberIds.map((id) => doc.nodes.find((n) => n.id === id)).filter(Boolean).map(nodeRect);
   if (!rects.length) return false;
   const x1 = down(Math.min(...rects.map((r) => r.x)) - ZONE_PAD);
@@ -170,6 +185,8 @@ export function pushApart(doc, zones) {
       if (!zi || !zj || !rectsIntersect(zi, zj)) continue;
       const dy = up(zi.y + zi.h + NOTE_GAP - zj.y);
       const moved = ordered[j].members.map((id) => nodeById.get(id)).filter(Boolean);
+      // A locked zone, or one holding a locked card, is not pushed anywhere.
+      if (zj.locked || moved.some((n) => n.locked)) continue;
       const movedIds = new Set(moved.map((n) => n.id));
       const before = { x: zj.x, y: zj.y, w: zj.w, h: zj.h };
       for (const n of moved) n.y += dy;
@@ -188,7 +205,7 @@ export function pushApart(doc, zones) {
 // either way it steps past anything it would cover.
 export function placeNote(doc, noteId, hint = {}, skip = new Set()) {
   const note = doc.notes.find((t) => t.id === noteId);
-  if (!note) return;
+  if (!note || note.locked) return;
   const h = noteHeight(note.text);
   const anchor = hint.near ? doc.nodes.find((n) => n.id === hint.near) : null;
   const others = doc.notes.filter((t) => t.id !== noteId && !skip.has(t.id));
@@ -216,10 +233,11 @@ export function placeNote(doc, noteId, hint = {}, skip = new Set()) {
   note.y = y;
 }
 
-// "Tidy up": every card is laid out again, zones are refitted around the
-// members they had, and notes are stacked above the board. Refuses (and
+// "Tidy up": every unlocked card is laid out again, zones are refitted around
+// the members they had, and notes are stacked above the board. Refuses (and
 // changes nothing) when the board has a swimlane, since relaying members
-// would strand them outside their lane.
+// would strand them outside their lane. Locked cards, zones, and notes keep
+// the positions their owner pinned them to.
 export function arrangeAll(doc) {
   if (doc.zones.some((z) => z.kind === 'swimlane')) return false;
   const zones = doc.zones
@@ -247,7 +265,7 @@ export function arrangeAll(doc) {
 // search stays inside that zone and the zone grows when it is full.
 function placeOne(doc, nodeId, hint = {}, skip = new Set(), newZoneIds = new Set()) {
   const node = doc.nodes.find((n) => n.id === nodeId);
-  if (!node) return;
+  if (!node || node.locked) return;
   const size = nodeSize(node);
   const byId = new Map(doc.nodes.map((n) => [n.id, n]));
   const placed = doc.nodes.filter((n) => n.id !== nodeId && !skip.has(n.id));
@@ -298,7 +316,7 @@ function placeOne(doc, nodeId, hint = {}, skip = new Set(), newZoneIds = new Set
   for (let k = 0; k <= 60; k++) candidates.push(startY + k * step);
   if (!zone) for (let k = 1; k <= 60; k++) candidates.push(startY - k * step);
   let y = candidates.find(free);
-  if (y === undefined && zone) {
+  if (y === undefined && zone && !zone.locked) {
     zone.h += step;
     y = candidates.find(free);
   }

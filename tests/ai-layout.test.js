@@ -145,6 +145,54 @@ test('arrangeAll relays every card, refits zones around their members, and repla
   for (const t of doc.notes) assert.equal(t.x % 8, 0);
 });
 
+test('arrangeAll leaves locked cards, zones, and notes exactly where they were', () => {
+  const doc = structuredClone(EXAMPLES.find((e) => e.id === 'weather-station').doc);
+  const pinnedNode = doc.nodes[1];
+  const pinnedZone = doc.zones[0];
+  pinnedNode.locked = true;
+  pinnedZone.locked = true;
+  doc.notes.push({ id: 'tlock', x: 900, y: 900, text: 'pinned', locked: true });
+  const before = { node: { ...pinnedNode }, zone: { ...pinnedZone } };
+  assert.equal(arrangeAll(doc), true);
+  assert.deepEqual([pinnedNode.x, pinnedNode.y], [before.node.x, before.node.y]);
+  assert.deepEqual(
+    [pinnedZone.x, pinnedZone.y, pinnedZone.w, pinnedZone.h],
+    [before.zone.x, before.zone.y, before.zone.w, before.zone.h],
+    'a locked zone is not refitted either',
+  );
+  assert.deepEqual([doc.notes.at(-1).x, doc.notes.at(-1).y], [900, 900]);
+  noOverlaps(doc);
+});
+
+test('a board where every card is locked comes out of arrangeAll untouched', () => {
+  const doc = newDoc('L');
+  doc.nodes.push(node('a', 'mcu', { x: 300, y: 40, locked: true }), node('b', 'temp', { x: 80, y: 500, locked: true }));
+  doc.wires.push(wire('w1', 'i2c', 'a', 'i2c', 'b', 'i2c'));
+  arrangeAll(doc);
+  assert.deepEqual(doc.nodes.map((n) => [n.x, n.y]), [[300, 40], [80, 500]]);
+});
+
+test('layoutAll starts the block clear of the locked cards instead of at the origin', () => {
+  const doc = newDoc('A');
+  doc.nodes.push(node('pin', 'mcu', { x: 40, y: 40, locked: true }), node('a', 'temp'), node('b', 'led'));
+  layoutAll(doc);
+  const pin = nodeRect(doc.nodes[0]);
+  for (const n of doc.nodes.slice(1)) {
+    assert.ok(n.x >= pin.x + pin.w, `${n.id} is placed to the right of the locked card`);
+  }
+  noOverlaps(doc);
+});
+
+test('placeNew never moves a locked card and never grows a locked zone', () => {
+  const doc = newDoc('N');
+  const zone = { id: 'z1', x: 0, y: 0, w: 200, h: 160, label: 'Z', color: '#4a90d9', locked: true };
+  doc.zones.push(zone);
+  doc.nodes.push(node('pin', 'mcu', { x: 500, y: 500, locked: true }), node('new', 'temp'));
+  placeNew(doc, { nodes: ['new'], refit: [{ id: 'z1', members: ['pin', 'new'] }] });
+  assert.deepEqual([doc.nodes[0].x, doc.nodes[0].y], [500, 500]);
+  assert.deepEqual([zone.x, zone.y, zone.w, zone.h], [0, 0, 200, 160], 'the locked zone is not refitted');
+});
+
 test('pushApart leaves zones overlapping rather than landing a card on another', () => {
   const doc = newDoc('P2');
   doc.nodes.push(node('a', 'mcu', { x: 100, y: 100 }), node('b', 'temp', { x: 150, y: 190 }), node('c', 'led', { x: 150, y: 300 }));

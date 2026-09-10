@@ -331,6 +331,45 @@ test('a selected zone grows four corner resize handles; an unselected one has no
   assert.equal((diagramMarkup(doc, { selection: new Set(['z1']) }).match(/data-zhandle=/g) || []).length, 4, 'swimlanes too');
 });
 
+test('a locked card, zone, and note each wear one padlock, clear of the other badges', () => {
+  const doc = sampleDoc();
+  doc.nodes[0].locked = true;
+  doc.nodes[0].status = 'prototype'; // top-left tag and top-right flag badge
+  doc.zones.push({ id: 'z1', x: 0, y: 200, w: 300, h: 200, label: 'Z', color: '#4a90d9', locked: true });
+  doc.notes.push({ id: 't1', x: 600, y: 0, text: 'pinned', locked: true });
+  const m = diagramMarkup(doc);
+  assert.equal((m.match(/class="lockmark"/g) || []).length, 3);
+  assert.ok(m.includes('<title>Locked</title>'));
+  // The card's mark sits at its bottom-right; the tag row runs along y=-8 and
+  // the flag badge along y=0, so nothing overlaps.
+  const card = nodeGroup(m, 'a');
+  assert.match(card, /class="lockmark" transform="translate\(88 58\) scale\(0.5\)"/);
+  assert.ok(m.includes('class="lockmark" transform="translate(282 194)'), 'zone: top-right corner');
+  assert.ok(m.includes('class="lockmark" transform="translate(744 4)'), 'note: top-right corner');
+});
+
+test('an unlocked board draws no padlock at all', () => {
+  const doc = sampleDoc();
+  doc.zones.push({ id: 'z1', x: 0, y: 200, w: 300, h: 200, label: 'Z', color: '#4a90d9' });
+  doc.notes.push({ id: 't1', x: 600, y: 0, text: 'free' });
+  assert.equal(diagramMarkup(doc).includes('lockmark'), false);
+});
+
+test('a locked zone shows no resize handles even when it is selected', () => {
+  const doc = sampleDoc();
+  doc.zones.push({ id: 'z1', x: 0, y: 200, w: 300, h: 200, label: 'Z', color: '#4a90d9', locked: true });
+  const sel = diagramMarkup(doc, { selection: new Set(['z1']) });
+  assert.equal((sel.match(/data-zhandle=/g) || []).length, 0);
+  assert.ok(sel.includes('class="lockmark"'));
+  doc.zones[0] = {
+    id: 'z1', x: 0, y: 200, w: 400, h: 300, label: 'P', color: '#a78bfa',
+    kind: 'swimlane', orient: 'h', lanes: ['A'], locked: true,
+  };
+  const lane = diagramMarkup(doc, { selection: new Set(['z1']) });
+  assert.equal((lane.match(/data-zhandle=/g) || []).length, 0, 'swimlanes too');
+  assert.ok(lane.includes('class="lockmark"'));
+});
+
 test('a selected wire shows an endpoint handle at each end and carries its endpoints as data', () => {
   const doc = sampleDoc();
   doc.wires.pop();
