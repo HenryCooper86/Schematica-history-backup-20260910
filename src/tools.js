@@ -27,7 +27,10 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave, l
   const ui = {
     marquee: null, wireDraft: null, grid: true, snapOn: true, animate: false,
     highlight: new Set(), // ids the assistant just touched; cleared by the next press
-    locked: false, // the assistant is mid-request: the canvas ignores presses and keys
+    // The assistant is mid-request: the canvas ignores presses and keys. Named
+    // for the app being busy, not for item.locked, which is the user pinning
+    // one item and has nothing to do with it.
+    busy: false,
   };
   let tool = 'select';
   let spaceDown = false;
@@ -131,6 +134,18 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave, l
     return { orig, carried };
   }
 
+  // Everything a marquee dragged across the whole board would pick up: cards,
+  // zones, and notes. Wires are left out for the same reason hitMarquee leaves
+  // them out — a wire has no position of its own, so nothing a multi-selection
+  // offers (align, distribute, tidy, nudge, lock) can act on one, and it would
+  // only inflate the count the panel shows. A copy still takes every wire whose
+  // two ends are selected, and deleting the cards takes their wires with them,
+  // so nothing is lost by not naming them here.
+  function selectAll() {
+    const doc = store.doc;
+    store.setSelection([...doc.nodes, ...doc.zones, ...doc.notes].map((i) => i.id));
+  }
+
   // Lock the selection, or unlock it once every lockable item is locked.
   function toggleLock() {
     const ids = [...store.selection];
@@ -177,13 +192,16 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave, l
   // passenger that is itself in the selection keeps its own aligned position
   // instead of the ride. Memberships are read before anything moves, so two
   // zones travelling at once cannot steal each other's cards.
+  // `own` is every item the alignment considered, not merely the ones it moved:
+  // an item already on the target edge emits no move, and it is precisely the
+  // one the user must find still on that edge afterwards — riding a zone would
+  // carry the one item that was already right off the line.
   // Results are never snapped to the grid: snapping each item on its own would
   // undo the alignment it was just given (a centered card's left edge is its
   // center minus half its own width, which is rarely a grid multiple), and an
   // even gap is not generally a whole number of grid steps.
-  function applyMoves(moves) {
+  function applyMoves(moves, own) {
     if (!moves.length) return;
-    const own = new Set(moves.map((m) => m.id));
     store.apply((doc) => {
       const rides = new Map();
       for (const m of moves) {
@@ -206,16 +224,23 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave, l
     });
   }
 
+  // One measurement feeds both the arithmetic and the set of items that hold
+  // their own position, so the two can never disagree about who took part.
+  function layoutSelection(compute) {
+    const rects = selectionRects();
+    applyMoves(compute(rects), new Set(rects.map((r) => r.id)));
+  }
+
   function alignSelection(mode) {
-    applyMoves(alignMoves(selectionRects(), mode));
+    layoutSelection((rects) => alignMoves(rects, mode));
   }
 
   function distributeSelection(axis) {
-    applyMoves(distributeMoves(selectionRects(), axis));
+    layoutSelection((rects) => distributeMoves(rects, axis));
   }
 
   function tidySelection(gap) {
-    applyMoves(tidyMoves(selectionRects(), { gap }));
+    layoutSelection((rects) => tidyMoves(rects, { gap }));
   }
 
   function alignState() {
@@ -269,7 +294,7 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave, l
   const EDIT_FIELDS = { node: 'label', wire: 'label', zone: 'label', note: 'text' };
 
   svg.addEventListener('pointerdown', (e) => {
-    if (ui.locked) return;
+    if (ui.busy) return;
     if (ui.highlight.size) {
       ui.highlight.clear();
       requestRender('overlay');
@@ -526,6 +551,15 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave, l
     return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
   }
 
+  // Whether the user has words highlighted anywhere in the page. Most of the
+  // app's text lives outside form controls — the assistant transcript is a
+  // plain <aside>, the check findings and the BOM are plain lists — so
+  // isEditingText() alone does not see a selection there.
+  function hasTextSelection() {
+    const sel = globalThis.getSelection?.();
+    return !!sel && !sel.isCollapsed && !!String(sel).trim();
+  }
+
   // ---- Copy, cut, paste ----
   // The payload itself is built and validated in src/clipboard.js; this layer
   // is only the clipboard API, the toasts, and the guards.
@@ -544,7 +578,7 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave, l
   // clipboard read is in flight; a paste that landed after that would edit a
   // board the user is no longer driving.
   function canEditNow() {
-    return !ui.locked && !document.querySelector('dialog[open]');
+    return !ui.busy && !document.querySelector('dialog[open]');
   }
 
   async function copySelection({ cut = false } = {}) {
@@ -610,7 +644,7 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave, l
   window.addEventListener('keydown', (e) => {
     // A modal dialog owns the keyboard: Escape closes it, nothing reaches the canvas.
     if (document.querySelector('dialog[open]')) return;
-    if (ui.locked) return;
+    if (ui.busy) return;
     if (isEditingText(e)) return;
     // Mid-gesture only Escape (abandon) is meaningful: undo, delete, duplicate
     // or a tool switch would corrupt history or pull the draft from under a
@@ -648,9 +682,20 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave, l
       if (ids.length) store.setSelection(ids);
       return;
     }
+    if (mod && e.key.toLowerCase() === 'a') {
+      // Without this the key falls through to the browser and selects the
+      // page's own text, which is never what it means over a board.
+      e.preventDefault();
+      selectAll();
+      return;
+    }
     // Copy, cut, and paste reach here only when no text field, dialog, or
     // assistant request owns the keyboard, so the browser's own clipboard
     // inside a text field keeps working untouched.
+    // Highlighted text wins too, wherever it is: a user who selected a passage
+    // of the assistant's reply and pressed Ctrl-C wants that passage, and the
+    // board's own copy would both swallow the keypress and overwrite it.
+    if (mod && 'cxv'.includes(e.key.toLowerCase()) && hasTextSelection()) return;
     if (mod && e.key.toLowerCase() === 'c') {
       e.preventDefault();
       copySelection();

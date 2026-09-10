@@ -136,29 +136,33 @@ export function partCurrents(node) {
   };
 }
 
-// The current a part draws for the budget: what it declares, or - for a
-// regulator, which draws on one rail to feed another - the load of the rail it
-// feeds, carried across unchanged. Carrying it across ignores the conversion
-// ratio and the efficiency, so it is a rough figure: about right for a linear
-// regulator, high for a step-down converter, low for a step-up one. A declared
-// figure always wins over the carried one.
+// The current a part draws for the budget. A plain consumer draws what it
+// declares. A part that also feeds a rail is a regulator, and it draws two
+// things at once on its input: its own quiescent current, if it stated one,
+// plus the whole load of the rail it feeds - a regulator does not stop
+// delivering current because it also declared what it burns idling. Carrying
+// the load across ignores the conversion ratio and the efficiency, so it is a
+// rough figure: about right for a linear regulator, high for a step-down
+// converter, low for a step-up one. Where the rail it feeds cannot be summed,
+// its own declared figure is all there is to report.
 function drawOf(entry, rails, load, guard) {
   const { node, currents } = entry;
-  if (currents.typicalMa != null || currents.peakMa != null) {
-    return {
-      typicalMa: currents.typicalMa ?? currents.peakMa,
-      peakMa: currents.peakMa ?? currents.typicalMa,
-      known: true,
-      carried: false,
-    };
-  }
+  const declared = currents.typicalMa != null || currents.peakMa != null;
+  const ownTypical = currents.typicalMa ?? currents.peakMa ?? 0;
+  const ownPeak = currents.peakMa ?? currents.typicalMa ?? 0;
   const fed = rails.findIndex((r) => r.sources.some((s) => s.node.id === node.id));
   if (fed >= 0 && !guard.has(fed)) {
     const downstream = load(fed, guard);
     if (downstream.known) {
-      return { typicalMa: downstream.typicalMa, peakMa: downstream.peakMa, known: true, carried: true };
+      return {
+        typicalMa: ownTypical + downstream.typicalMa,
+        peakMa: ownPeak + downstream.peakMa,
+        known: true,
+        carried: true,
+      };
     }
   }
+  if (declared) return { typicalMa: ownTypical, peakMa: ownPeak, known: true, carried: false };
   return { typicalMa: 0, peakMa: 0, known: false, carried: false };
 }
 
@@ -176,16 +180,20 @@ export function powerRails(doc) {
   const rails = busComponents(doc, 'power', vertexOf).map((vertices) => {
     const sources = new Map();
     const draws = new Map();
+    // A pass-through part is neither end of the rail, but it is in series with
+    // all of it: a fuse's rating is a limit on the whole rail's current, so it
+    // is kept rather than dropped.
+    const passes = new Map();
     for (const v of vertices) {
       const cut = v.indexOf(SEP);
       const id = v.slice(0, cut);
       const kind = v.slice(cut + 1);
       const node = byId.get(id);
-      if (!node || kind === 'pass') continue;
-      const bucket = kind === 'feed' ? sources : draws;
+      if (!node) continue;
+      const bucket = kind === 'pass' ? passes : (kind === 'feed' ? sources : draws);
       if (!bucket.has(id)) bucket.set(id, { node, currents: partCurrents(node) });
     }
-    return { sources: [...sources.values()], draws: [...draws.values()] };
+    return { sources: [...sources.values()], draws: [...draws.values()], passes: [...passes.values()] };
   }).filter((r) => r.sources.length || r.draws.length);
 
   // Rails resolve in whatever order they are asked for; `guard` holds the
@@ -198,17 +206,19 @@ export function powerRails(doc) {
     const next = new Set(guard).add(index);
     let typicalMa = 0;
     let peakMa = 0;
-    let unknown = 0;
+    // The parts that contribute nothing, by id rather than only by count, so a
+    // reader can be shown which datasheets are still missing.
+    const unknownIds = [];
     let declared = false;
     for (const entry of rail.draws) {
       if (entry.currents.typicalMa != null || entry.currents.peakMa != null) declared = true;
       const d = drawOf(entry, rails, load, next);
-      if (!d.known) { unknown += 1; continue; }
+      if (!d.known) { unknownIds.push(entry.node.id); continue; }
       typicalMa += d.typicalMa;
       peakMa += d.peakMa;
     }
-    const known = rail.draws.length > unknown;
-    const result = { typicalMa, peakMa, unknown, known, declaredDraw: declared };
+    const known = rail.draws.length > unknownIds.length;
+    const result = { typicalMa, peakMa, unknown: unknownIds.length, unknownIds, known, declaredDraw: declared };
     // Only a complete answer is worth keeping: a partial one computed inside a
     // guard could differ from the same rail asked for on its own.
     if (!guard.size) cache.set(index, result);
@@ -219,17 +229,27 @@ export function powerRails(doc) {
     const summed = load(i, new Set());
     const declaredLimit = rail.sources.some((s) => s.currents.limitMa != null);
     const declaredCell = rail.sources.some((s) => s.currents.capacityMah != null);
+    // What the rail could deliver: the limits its supplies declare, added up.
+    // Adding them is an upper bound and nothing more - two regulators wired in
+    // parallel do not share a load evenly unless they were built to, and none
+    // of that is modelled here - so the sum is only worth comparing against
+    // when every supply on the rail stated one, which `limitComplete` says.
+    const limits = rail.sources.map((s) => s.currents.limitMa).filter((v) => v != null && v > 0);
     return {
       sources: rail.sources,
       draws: rail.draws,
+      passes: rail.passes,
       typicalMa: summed.typicalMa,
       peakMa: summed.peakMa,
       unknown: summed.unknown,
+      unknownIds: summed.unknownIds,
       // Whether anything on this rail opted into the budget at all. A board
       // that declares no currents gets no findings and no numbers.
       declared: summed.declaredDraw || declaredLimit || declaredCell,
       declaredDraw: summed.declaredDraw,
       declaredLimit,
+      limitMa: limits.length ? limits.reduce((a, b) => a + b, 0) : null,
+      limitComplete: limits.length > 0 && limits.length === rail.sources.length,
     };
   });
 }
@@ -239,6 +259,38 @@ export function powerRails(doc) {
 export function runtimeHours(capacityMah, ma) {
   if (capacityMah == null || ma == null || !(ma > 0)) return null;
   return capacityMah / ma;
+}
+
+// The power tree as something to read rather than something to judge: one row
+// per rail with its supplies, its rating, its two sums, the parts that said
+// nothing, and any runtime. Every rail is listed, including the ones no rule
+// would report, because the point of the list is to see the tree at all.
+// Labels are the user's own text; formatting and translation belong to the
+// caller. `ids` is the whole rail, so a row can select itself on the board.
+export function powerSummary(doc) {
+  return powerRails(doc).map((rail) => {
+    const byId = new Map(rail.draws.map((e) => [e.node.id, e]));
+    return {
+      sources: rail.sources.map((s) => s.node.label),
+      passes: rail.passes.map((p) => ({ label: p.node.label, limitMa: p.currents.limitMa })),
+      limitMa: rail.limitMa,
+      limitComplete: rail.limitComplete,
+      typicalMa: rail.typicalMa,
+      peakMa: rail.peakMa,
+      declared: rail.declared,
+      // Whether the two sums mean anything: at least one part on the rail
+      // contributed a figure, its own or one carried up from below. A rail
+      // where nobody said anything has no total, which is not the same as a
+      // total of zero, and a reader must never be shown the second for the
+      // first.
+      summed: rail.draws.length > rail.unknown,
+      undeclared: rail.unknownIds.map((id) => byId.get(id).node.label),
+      runtimes: rail.sources
+        .map((s) => ({ label: s.node.label, capacityMah: s.currents.capacityMah, hours: runtimeHours(s.currents.capacityMah, rail.typicalMa) }))
+        .filter((r) => r.hours != null),
+      ids: [...rail.sources, ...rail.passes, ...rail.draws].map((e) => e.node.id),
+    };
+  });
 }
 
 // The typical current one part declares, summed for the whole board. Used by

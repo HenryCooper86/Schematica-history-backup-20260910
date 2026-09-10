@@ -152,6 +152,23 @@ function normalizeFields(raw, name, warnings) {
   return fields;
 }
 
+// The power-tree markers (see power.js): `feeds` names the pins current leaves
+// the part by, `passes` the pins that carry one rail straight through. Only an
+// id this same definition declares as a port survives, so a hand-written or
+// hostile file can never name a pin that does not exist, let alone smuggle a
+// value of another shape through into the rail walk.
+function normalizePins(raw, ports, name, key, warnings) {
+  if (raw === undefined) return undefined;
+  if (!Array.isArray(raw)) { warnings.push(tr('"{key}" on "{name}" must be a list of port ids; ignored.', { key, name })); return undefined; }
+  const ids = new Set(ports.map((p) => p.id));
+  // A pin named twice is a duplicate, not a foreign port: compare against the
+  // deduplicated list so an honest file does not get a warning about smuggling.
+  const uniq = [...new Set(raw)];
+  const kept = uniq.filter((v) => typeof v === 'string' && ids.has(v));
+  if (kept.length !== uniq.length) warnings.push(tr('"{key}" on "{name}" may only name its own ports; the rest were dropped.', { key, name }));
+  return kept.length ? kept : undefined;
+}
+
 // The one validator. Returns a fresh, clean definition plus warnings for
 // everything it changed or dropped, or `part: null` when there is nothing
 // usable (no name). Unknown keys are ignored.
@@ -169,14 +186,22 @@ export function normalizePart(raw) {
   if (typeof raw.accent === 'string' && HEX_COLOR.test(raw.accent)) accent = raw.accent;
   else if (raw.accent != null) warnings.push(tr('Ignored invalid accent on "{name}".', { name }));
   const lib = str(raw.lib);
+  const ports = normalizePorts(raw.ports, name, warnings);
+  const feeds = normalizePins(raw.feeds, ports, name, 'feeds', warnings);
+  const passes = normalizePins(raw.passes, ports, name, 'passes', warnings);
   const part = {
     ...(lib && lib.length <= LIMITS.lib && ID_RE.test(lib) ? { lib } : {}),
     name,
     category,
     accent,
     icon: normalizeIcon(raw.icon, name, warnings),
-    ports: normalizePorts(raw.ports, name, warnings),
+    ports,
     fields: normalizeFields(raw.fields, name, warnings),
+    // Absent markers stay absent rather than becoming empty lists, so a
+    // definition that says nothing about power round-trips unchanged.
+    ...(feeds ? { feeds } : {}),
+    ...(passes ? { passes } : {}),
+    ...(raw.trio === true ? { trio: true } : {}),
   };
   return { part, warnings };
 }
@@ -199,6 +224,14 @@ export function partOf(node) {
       ports: portsWithOffsets(def.ports || []),
       fields: def.fields?.length ? def.fields : undefined,
       lib: def.lib,
+      // The power tree reads feeds/passes off the resolved part, so a
+      // customized regulator keeps heading its own rail instead of turning
+      // into a consumer sitting on its own output. `trio` rides along for the
+      // round trip only: a custom part already shows both the address/rail
+      // pair and its schema fields, which is what the flag asks for.
+      ...(def.feeds?.length ? { feeds: def.feeds } : {}),
+      ...(def.passes?.length ? { passes: def.passes } : {}),
+      ...(def.trio ? { trio: true } : {}),
     };
     const icon = def.icon || {};
     if (icon.kind && Object.hasOwn(PARTS, icon.kind)) {
@@ -409,6 +442,12 @@ export function definitionFrom(part) {
     };
   });
 
+  // Ports that were filtered out above must not survive in a marker list.
+  const kept = new Set(ports.map((p) => p.id));
+  const pins = (list) => (list || []).filter((id) => kept.has(id));
+  const feeds = pins(part.feeds);
+  const passes = pins(part.passes);
+
   return {
     name: part.name,
     category: part.category,
@@ -421,6 +460,12 @@ export function definitionFrom(part) {
       ...(f.options ? { options: [...f.options] } : {}),
       ...(f.placeholder ? { placeholder: f.placeholder } : {}),
     })),
+    // Customizing a regulator, a supply or a fuse must not quietly take it out
+    // of the power budget: the markers that put it in the rail walk travel
+    // with its ports and fields.
+    ...(feeds.length ? { feeds } : {}),
+    ...(passes.length ? { passes } : {}),
+    ...(part.trio ? { trio: true } : {}),
   };
 }
 

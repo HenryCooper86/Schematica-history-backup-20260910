@@ -313,6 +313,48 @@ test('definitionFrom a built-in part keeps port ids, marks supply pins required,
   assert.equal(part.ports.length, d.ports.length);
 });
 
+test('definitionFrom carries the power-tree markers, so Customize… cannot switch the budget off', () => {
+  const reg = definitionFrom(nodePart({ kind: 'regulator' }));
+  assert.deepEqual(reg.feeds, ['out']);
+  assert.equal(reg.trio, true);
+  assert.equal(reg.passes, undefined, 'a regulator carries no rail straight through');
+  assert.deepEqual(definitionFrom(nodePart({ kind: 'fuse' })).passes, ['in', 'out']);
+  assert.deepEqual(definitionFrom(nodePart({ kind: 'usbport' })).feeds, ['vbus']);
+  assert.equal(definitionFrom(nodePart({ kind: 'mcu' })).feeds, undefined, 'a consumer heads no rail');
+  // The whole round trip: validated, resolved, and still a supply.
+  const { part, warnings } = normalizePart(reg);
+  assert.deepEqual(warnings, []);
+  assert.deepEqual(part.feeds, ['out']);
+  assert.deepEqual(partOf({ kind: 'custom', part }).feeds, ['out']);
+  assert.equal(partOf({ kind: 'custom', part }).trio, true);
+});
+
+test('normalizePart accepts power markers only where they name the definition\'s own ports', () => {
+  const base = { name: 'Buck', category: 'power', ports: [{ id: 'out', name: 'OUT', side: 'right', bus: 'power' }] };
+  assert.deepEqual(normalizePart({ ...base, feeds: ['out'] }).part.feeds, ['out']);
+  // A hand-edited or hostile file cannot smuggle anything else through into
+  // the rail walk: unknown ids, non-strings and duplicates all go.
+  const hostile = normalizePart({ ...base, feeds: ['out', 'out', 'nope', { toString: () => 'out' }, 42, null] });
+  assert.deepEqual(hostile.part.feeds, ['out']);
+  assert.equal(hostile.warnings.length, 1);
+  assert.match(hostile.warnings[0], /may only name its own ports/);
+  const wrongShape = normalizePart({ ...base, passes: 'out' });
+  assert.equal(wrongShape.part.passes, undefined);
+  assert.match(wrongShape.warnings[0], /must be a list of port ids/);
+  assert.equal(normalizePart({ ...base, feeds: ['nope'] }).part.feeds, undefined, 'nothing left means no marker at all');
+  assert.equal(normalizePart({ ...base, trio: 'yes' }).part.trio, undefined, 'only a literal true turns the trio on');
+  assert.equal(normalizePart(base).part.feeds, undefined, 'a definition that says nothing about power keeps saying nothing');
+});
+
+test('definitionFrom drops a marker whose port did not survive the copy', () => {
+  const synth = {
+    kind: 'regulator', name: 'X', category: 'power',
+    ports: [{ id: 'in', name: 'IN', side: 'left', bus: 'power' }, { id: 'out', name: 'OUT', side: 'right', bus: 'power', unsupported: true }],
+    feeds: ['out'], trio: true, fields: [],
+  };
+  assert.equal(definitionFrom(synth).feeds, undefined, 'the pin it named is not in the definition');
+});
+
 test('definitionFrom renames duplicate ports at the name character limit without losing the digit', () => {
   const maxName = 'A'.repeat(LIMITS.portName); // 12 chars
   const synth = {

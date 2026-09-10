@@ -80,6 +80,9 @@ const STORES = { trio: true, fields: [f('capacity', 'Capacity', { placeholder: '
 // its output. Its input draw is the one place a declared figure matters more
 // than a derived one, so it can state that too.
 const REGULATES = { trio: true, fields: [...DRAW_FIELDS, LIMIT_FIELD], feeds: ['out'] };
+// A part in series with a whole rail: it heads no rail of its own, but the one
+// number it exists for is a limit on everything flowing through it.
+const PROTECTS = (pins) => ({ trio: true, fields: [f('imax', 'Current rating', { placeholder: 'e.g. 2A' })], passes: pins });
 
 const p = (id, name, side, offset, bus) => ({ id, name, side, offset, bus });
 const pwr = (side = 'left') => [p('vcc', 'VCC', side, 0.3, 'power'), p('gnd', 'GND', side, 0.7, 'gnd')];
@@ -168,8 +171,13 @@ export const PARTS = {
     [...pwr(), p('uart', 'UART', 'right', 0.5, 'uart'), p('ant', 'ANT', 'top', 0.5, 'rf')], DRAWS),
   ethphy: part('ethphy', 'connectivity', 'Ethernet PHY', 'M3 3h10v7H3z M5 10v3 M11 10v3 M5.5 5.5v2 M8 5.5v2 M10.5 5.5v2',
     [...pwr(), p('eth', 'ETH', 'right', 0.5, 'eth'), p('mii', 'MII', 'bottom', 0.5, 'gpio')], DRAWS),
+  // VBUS is a supply pin, not a consumption one: a USB socket is the commonest
+  // 5V source on a hobby board, so it heads a rail like any other supply. It
+  // is deliberately not named "vcc" - the checks require a vcc pin to be
+  // wired, and a board that only uses the data pins is not wrong.
   usbport: part('usbport', 'connectivity', 'USB port', 'M8 2v12 M8 11 4.5 9V6.5 M8 9l3.5-2V4.5 M8 2 6.5 4h3z',
-    [p('usb', 'USB', 'right', 0.5, 'usb')]),
+    [p('vbus', 'VBUS', 'right', 0.2, 'power'), p('usb', 'USB', 'right', 0.6, 'usb')],
+    { trio: true, fields: [LIMIT_FIELD], feeds: ['vbus'] }),
   cantrx: part('cantrx', 'connectivity', 'CAN transceiver', 'M1 8h14 M4 8V5h3v3 M9 8v3h3V8',
     [...pwr('top'), p('mcu', 'TX/RX', 'left', 0.5, 'can'), p('bus', 'BUS', 'right', 0.5, 'can')], DRAWS),
   antenna: part('antenna', 'connectivity', 'RF antenna', 'M8 15V6 M3 2a7 7 0 0 1 10 0 M5.3 4.2a4 4 0 0 1 5.4 0 M8 6m-1 0a1 1 0 1 0 2 0a1 1 0 1 0-2 0',
@@ -213,7 +221,7 @@ export const PARTS = {
     [p('out', 'OUT', 'right', 0.35, 'power'), p('gnd', 'GND', 'right', 0.7, 'gnd')], STORES),
   fusebox: part('fusebox', 'automotive', 'Fuse box', 'M2 3h12v10H2z M5.5 3v10 M9 3v10 M3.2 5.5h1 M6.7 5.5h1 M10.2 5.5h1 M3.2 8.5h1 M6.7 8.5h1 M10.2 8.5h1',
     [p('in', 'IN', 'left', 0.5, 'power'),
-      p('out1', 'OUT1', 'right', 0.25, 'power'), p('out2', 'OUT2', 'right', 0.5, 'power'), p('out3', 'OUT3', 'right', 0.75, 'power')], { passes: ['in', 'out1', 'out2', 'out3'] }),
+      p('out1', 'OUT1', 'right', 0.25, 'power'), p('out2', 'OUT2', 'right', 0.5, 'power'), p('out3', 'OUT3', 'right', 0.75, 'power')], PROTECTS(['in', 'out1', 'out2', 'out3'])),
   obd: part('obd', 'automotive', 'OBD-II port', 'M2.5 5h11l-1.5 6h-8z M5 7h.01 M7 7h.01 M9 7h.01 M11 7h.01 M6 9h.01 M8 9h.01 M10 9h.01',
     [p('can', 'CAN', 'right', 0.5, 'can')]),
   lin: part('lin', 'automotive', 'LIN transceiver', 'M1 8h5 M10 8h5 M6 5h4v6H6z',
@@ -369,7 +377,7 @@ export const PARTS = {
   testpoint: part('testpoint', 'misc', 'Test point', 'M8 8m-1 0a1 1 0 1 0 2 0a1 1 0 1 0-2 0 M8 8m-4.5 0a4.5 4.5 0 1 0 9 0a4.5 4.5 0 1 0-9 0 M8 1v2.5 M8 12.5V15',
     [p('tp', 'TP', 'right', 0.5, 'gpio')]),
   fuse: part('fuse', 'misc', 'Fuse', 'M1 8h3 M12 8h3 M4 5.5h8v5H4z M5 8h6',
-    [p('in', 'IN', 'left', 0.5, 'power'), p('out', 'OUT', 'right', 0.5, 'power')], { passes: ['in', 'out'] }),
+    [p('in', 'IN', 'left', 0.5, 'power'), p('out', 'OUT', 'right', 0.5, 'power')], PROTECTS(['in', 'out'])),
   generic: part('generic', 'misc', 'Custom box', 'M2 5V2h3 M11 2h3v3 M14 11v3h-3 M5 14H2v-3', [
     p('top', 'P1', 'top', 0.5, 'gpio'), p('right', 'P2', 'right', 0.5, 'gpio'),
     p('bottom', 'P3', 'bottom', 0.5, 'gpio'), p('left', 'P4', 'left', 0.5, 'gpio'),

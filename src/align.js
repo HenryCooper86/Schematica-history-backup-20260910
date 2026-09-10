@@ -109,14 +109,33 @@ export function distributeMoves(items, axis) {
   // span the user set up is preserved. Widening the run to force a positive
   // gap would move the two items they expect to stay put.
   const gap = (end - start - filled) / (sorted.length - 1);
-  const moves = [];
-  let cursor = start;
-  for (const item of sorted) {
-    const next = { id: item.id, x: item.x, y: item.y };
-    next[pos] = r2(cursor);
-    if (moved(item, next)) moves.push(next);
-    cursor += item[size] + gap;
+  // Each item steps its own size plus the gap. Where one item is wide enough to
+  // span the whole run, that step can fall to zero or below and two items land
+  // on the same point — one of them hidden behind the other from a single
+  // button press. No even gap fits in that run, so even gaps are dropped for
+  // evenly spaced leading edges: the outermost two still hold still, the span
+  // is still the one the user set up, and wherever the leading edges differ at
+  // all, every item keeps a place of its own.
+  const steps = sorted.slice(0, -1).map((i) => i[size] + gap);
+  const places = [];
+  if (Math.min(...steps) > 0) {
+    let cursor = start;
+    for (const item of sorted) {
+      places.push(cursor);
+      cursor += item[size] + gap;
+    }
+  } else {
+    // `start` is the first item's own leading edge, so the two ends of the run
+    // are exactly where they were and only the items between them move.
+    const lead = (sorted[sorted.length - 1][pos] - start) / (sorted.length - 1);
+    for (let n = 0; n < sorted.length; n += 1) places.push(start + lead * n);
   }
+  const moves = [];
+  sorted.forEach((item, n) => {
+    const next = { id: item.id, x: item.x, y: item.y };
+    next[pos] = r2(places[n]);
+    if (moved(item, next)) moves.push(next);
+  });
   return moves;
 }
 
@@ -136,10 +155,10 @@ export function dominantAxis(items) {
 // it: a run has to grow from one end, and growing from the end it starts at is
 // the only choice that does not move a card the user is looking at first.
 // The cross-axis coordinate is left alone — tidying spacing is not aligning.
-export function tidyMoves(items, { gap = 24, axis = null } = {}) {
+export function tidyMoves(items, { gap = 24 } = {}) {
   const movable = movableOf(items);
   if (movable.length < 2) return [];
-  const { pos, size } = AXES[axis || dominantAxis(movable)];
+  const { pos, size } = AXES[dominantAxis(movable)];
   const sorted = inOrder(movable, pos, size);
   const moves = [];
   let cursor = sorted[0][pos];
@@ -152,16 +171,18 @@ export function tidyMoves(items, { gap = 24, axis = null } = {}) {
   return moves;
 }
 
-// What the buttons may offer for this selection. `anchored` is true when a
-// single locked item is deciding the edge, so the panel can say so.
+// What the buttons may offer for this selection. `applies` says whether the
+// selection holds anything these buttons act on at all — a selection of only
+// wires does not, and a panel of permanently dead buttons is worse than no
+// panel. `anchored` is true when a single locked item is deciding the edge, so
+// the panel can say so.
 export function alignAbility(items) {
   const movable = movableOf(items).length;
   return {
-    movable,
+    applies: items.length > 0,
     canAlign: movable >= 2,
     canDistribute: movable >= 3,
     canTidy: movable >= 2,
     anchored: movable >= 2 && !!anchorOf(items),
-    axis: dominantAxis(movableOf(items)),
   };
 }

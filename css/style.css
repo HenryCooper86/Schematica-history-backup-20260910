@@ -62,9 +62,10 @@ html, body {
   color: var(--text);
   border-radius: 8px;
   padding: 6px 10px;
-  /* Grows with the window so the toolbar stays on one row from 1390 px up
-     (the rest of the toolbar needs about 1280 px, the ? button included). */
-  width: clamp(110px, calc(100vw - 1292px), 170px);
+  /* Grows with the window so the toolbar stays on one row from 1390 px up.
+     The ? button costs 22px, so the widest the field may grow came down by
+     the same amount; measured at 1500px, where the row has 11px to spare. */
+  width: clamp(110px, calc(100vw - 1292px), 148px);
   font-size: 13px;
 }
 #title:focus { outline: none; border-color: var(--accent); }
@@ -1498,6 +1499,9 @@ html {
 .check-tabs button:hover { color: var(--text); border-color: var(--line2); }
 .check-tabs button[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); }
 .drc-row .msg small { display: block; color: var(--muted); margin-top: 5px; }
+/* The Power tab lists facts per rail rather than one sentence per finding. */
+.power-fact { display: flex; gap: 8px; line-height: 1.6; }
+.power-fact b { color: var(--muted); font-weight: 500; min-width: 108px; flex: none; }
 
 html[data-theme="dark"] { color-scheme: dark; }
 html[data-theme="light"] {

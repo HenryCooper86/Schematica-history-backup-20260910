@@ -22,7 +22,7 @@ export const MAX_CLIP_CHARS = 4_000_000;
 
 // How far a paste steps clear of what it lands on, and how many times it will
 // step before it gives up and overlaps.
-export const PASTE_STEP = 16;
+const PASTE_STEP = 16;
 const MAX_CASCADE = 40;
 
 const KINDS = ['nodes', 'wires', 'zones', 'notes'];

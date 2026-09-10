@@ -83,6 +83,39 @@ test('updateItem and findItem', () => {
   assert.equal(findItem(store.doc, 'missing'), null);
 });
 
+test('updateItem removes a key set to undefined and keeps one set to null', () => {
+  const store = new Store();
+  const id = addNode(store, 'mcu', 0, 0);
+  updateItem(store, id, { fields: { type: 'insider' }, status: 'todo' });
+  const node = () => findItem(store.doc, id).item;
+  assert.deepEqual(node().fields, { type: 'insider' });
+
+  // What the properties panel and the inline editor mean by "no key rather
+  // than {}": the doc must match what a save and reload would produce.
+  updateItem(store, id, { fields: undefined });
+  assert.ok(!Object.prototype.hasOwnProperty.call(node(), 'fields'));
+  assert.deepEqual(Object.keys(JSON.parse(JSON.stringify(node()))), Object.keys(node()));
+
+  // null is a value the panel stores to mean "turned off", so it stays.
+  updateItem(store, id, { status: null });
+  assert.ok(Object.prototype.hasOwnProperty.call(node(), 'status'));
+  assert.equal(node().status, null);
+
+  // Clearing a key the item never had is not an error and adds nothing.
+  updateItem(store, id, { notes: undefined });
+  assert.ok(!Object.prototype.hasOwnProperty.call(node(), 'notes'));
+});
+
+test('updateItem clearing a key is undoable', () => {
+  const store = new Store();
+  const id = addNode(store, 'mcu', 0, 0);
+  updateItem(store, id, { fields: { type: 'insider' } });
+  updateItem(store, id, { fields: undefined });
+  assert.equal(findItem(store.doc, id).item.fields, undefined);
+  store.undo();
+  assert.deepEqual(findItem(store.doc, id).item.fields, { type: 'insider' });
+});
+
 test('undo/redo roundtrip', () => {
   const store = new Store();
   addNode(store, 'mcu', 0, 0);

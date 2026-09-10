@@ -383,9 +383,15 @@ try {
     await send('Page.navigate', { url: 'about:blank' });
     await sleep(200);
     await send('Page.navigate', { url: `${origin}/#${await encodeShare(doc)}` });
+    // An empty board draws no cards, so the node count alone is satisfied
+    // before the modules have even booted, and the palette click that usually
+    // follows lands on nothing. Waiting for a palette tile proves the app is up.
     for (let i = 0; i < 40; i++) {
-      const n = await js(`document.querySelectorAll('#canvas g.node').length`).catch(() => 0);
-      if (n === doc.nodes.length) break;
+      const ready = await js(`(() => ({
+        n: document.querySelectorAll('#canvas g.node').length,
+        palette: document.querySelectorAll('#palette .palette-item').length,
+      }))()`).catch(() => ({ n: -1, palette: 0 }));
+      if (ready.n === doc.nodes.length && ready.palette > 0) break;
       await sleep(150);
     }
     await sleep(300);

@@ -592,7 +592,7 @@ export function initAssistant({ store, tools, render, svg, library = null }) {
     stopBtn.hidden = !on;
     input.disabled = on;
     actions.querySelectorAll('button').forEach((b) => { b.disabled = on; });
-    tools.ui.locked = on;
+    tools.ui.busy = on;
     // `inert` takes the chrome out of the tab order as well as the pointer,
     // which pointer-events alone does not; the assistant's own button stays.
     for (const id of ['palette', 'props', 'journey-panel']) document.getElementById(id).inert = on;

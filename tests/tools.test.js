@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Store, addNode, addWire, addZone, addNote, updateItem, setLock } from '../src/state.js';
 import { nodeRect, noteHeight } from '../src/geometry.js';
+import { alignGroup } from '../src/ui/props.js';
 
 // tools.js wires itself to the DOM at creation time, so a minimal fake of the
 // pieces it touches (elements with closest/dataset/classList, document,
@@ -372,6 +373,48 @@ test('a card that is selected as well as inside a selected zone takes its own ta
   assert.equal(store.doc.nodes[0].x, 40, 'aligned on its own, not carried by the zone');
 });
 
+test('a card already on the target edge stays there when its zone moves too', async () => {
+  const { store, tools } = await setup();
+  // The card is the leftmost thing in the selection, so Align left has no move
+  // to emit for it — and its centre falls inside the zone, so the zone would
+  // otherwise carry the one card the user aligned straight off the edge.
+  const a = addNode(store, 'mcu', 20, 120);
+  const z = addZone(store, { x: 60, y: 100, w: 600, h: 300 });
+  store.setSelection([a, z]);
+  tools.alignSelection('left');
+  assert.equal(store.doc.zones[0].x, 20, 'the zone comes to the card');
+  assert.equal(store.doc.nodes[0].x, 20, 'and the card holds the edge it was aligned to');
+});
+
+test('tidy spacing leaves a card that is already in place, zone or no zone', async () => {
+  const { store, tools } = await setup();
+  const a = addNode(store, 'mcu', 0, 120);
+  const w = nodeRect(store.doc.nodes[0]).w;
+  // `b` is already exactly one gap behind `a`, so the packed run has no move
+  // for it, and its centre sits inside the zone that does move.
+  const b = addNode(store, 'mcu', w + 20, 120);
+  const z = addZone(store, { x: w + 36, y: 100, w: 600, h: 300 });
+  store.setSelection([a, b, z]);
+  tools.tidySelection(20);
+  assert.deepEqual(store.doc.nodes.map((n) => n.x), [0, w + 20], 'the run is already packed');
+  assert.equal(store.doc.zones[0].x, (w + 20) * 2, 'only the zone moved');
+});
+
+test('distribute leaves the outer card behind when a zone in the run travels', async () => {
+  const { store, tools } = await setup();
+  // The last item of a run never moves, so `b` emits no move; the zone it sits
+  // inside does, and used to take `b` with it.
+  const a = addNode(store, 'mcu', 0, 120);
+  const b = addNode(store, 'mcu', 1000, 120);
+  const z = addZone(store, { x: 500, y: 100, w: 600, h: 300 });
+  store.setSelection([a, b, z]);
+  tools.distributeSelection('x');
+  const w = nodeRect(store.doc.nodes[0]).w;
+  const gap = (1000 + w - (w * 2 + 600)) / 2;
+  assert.deepEqual(store.doc.nodes.map((n) => n.x), [0, 1000], 'the two outermost cards hold still');
+  assert.equal(store.doc.zones[0].x, w + gap);
+});
+
 test('one align is one undo step, and undo puts everything back', async () => {
   const { store, tools } = await setup();
   const a = addNode(store, 'mcu', 0, 0);
@@ -423,11 +466,24 @@ test('the align state follows the selection and names the locked anchor', async 
   assert.equal(tools.alignState().canDistribute, true);
   setLock(store, [c], true);
   const state = tools.alignState();
-  assert.deepEqual([state.movable, state.anchored, state.canDistribute], [2, true, false]);
+  assert.deepEqual([state.anchored, state.canAlign, state.canDistribute], [true, true, false]);
   // A selected wire is not an item to align.
   const w = addWire(store, 'i2c', { node: a, port: 'i2c' }, { node: b, port: 'i2c' });
   store.setSelection([a, w]);
-  assert.equal(tools.alignState().canAlign, false);
+  assert.deepEqual([tools.alignState().applies, tools.alignState().canAlign], [true, false]);
+});
+
+test('a selection of nothing but wires gets no align group at all', async () => {
+  const { store, tools } = await setup();
+  const a = addNode(store, 'mcu', 0, 0);
+  const b = addNode(store, 'temp', 300, 0);
+  const w1 = addWire(store, 'i2c', { node: a, port: 'i2c' }, { node: b, port: 'i2c' });
+  const w2 = addWire(store, 'power', { node: a, port: 'vcc' }, { node: b, port: 'vcc' });
+  store.setSelection([w1, w2]);
+  assert.equal(tools.alignState().applies, false, 'wires follow their ports; nothing here to line up');
+  assert.equal(alignGroup(tools.alignState(), 24), '');
+  store.setSelection([a, w1]);
+  assert.ok(alignGroup(tools.alignState(), 24).includes('data-align="left"'), 'one card is still what the group is about');
 });
 
 test('notes are measured by their wrapped height, not treated as points', async () => {
@@ -587,10 +643,95 @@ test('copy, cut, and paste stay out while the assistant holds the canvas', async
     wiredPair(store);
     win.dispatch('keydown', key('c', { ctrlKey: true }));
     await settle();
-    tools.ui.locked = true;
+    tools.ui.busy = true;
     win.dispatch('keydown', key('v', { ctrlKey: true }));
     win.dispatch('keydown', key('x', { ctrlKey: true }));
     await settle();
     assert.equal(store.doc.nodes.length, 2, 'nothing pasted and nothing cut');
   } finally { clip.restore(); }
+});
+
+// A stand-in for window.getSelection(): whether the page has words highlighted.
+// Most of the app's text is outside form controls, so this is the only thing
+// that tells an ordinary text selection from none.
+function fakeTextSelection(text) {
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'getSelection');
+  Object.defineProperty(globalThis, 'getSelection', {
+    value: () => ({ isCollapsed: !text, toString: () => text }),
+    configurable: true,
+  });
+  return () => {
+    if (original) Object.defineProperty(globalThis, 'getSelection', original);
+    else delete globalThis.getSelection;
+  };
+}
+
+test('highlighted text anywhere on the page keeps Ctrl-C, X, and V to itself', async () => {
+  const { win, store, key } = await setup();
+  const clip = fakeClipboard();
+  // The assistant transcript is a plain <aside>, so a reply the user selected
+  // is not in any text field — only the document selection knows about it.
+  const restore = fakeTextSelection('a paragraph of the reply');
+  try {
+    wiredPair(store);
+    for (const k of ['c', 'x', 'v']) {
+      const press = key(k, { ctrlKey: true });
+      win.dispatch('keydown', press);
+      await settle();
+      assert.equal(press.prevented, false, `Ctrl-${k} is left to the browser`);
+    }
+    assert.equal(clip.state.text, '', 'the highlighted text was not overwritten');
+    assert.equal(store.doc.nodes.length, 2, 'and the cut removed nothing');
+  } finally { restore(); clip.restore(); }
+});
+
+test('a collapsed selection is no selection, so the board keeps the clipboard keys', async () => {
+  const { win, store, key } = await setup();
+  const clip = fakeClipboard();
+  const restore = fakeTextSelection('');
+  try {
+    wiredPair(store);
+    const press = key('c', { ctrlKey: true });
+    win.dispatch('keydown', press);
+    await settle();
+    assert.equal(press.prevented, true);
+    assert.match(clip.state.text, /"schematica":"clip"/);
+  } finally { restore(); clip.restore(); }
+});
+
+test('Ctrl-A selects every card, zone, and note and leaves the wires to their ports', async () => {
+  const { win, store, key } = await setup();
+  const a = addNode(store, 'mcu', 0, 0);
+  const b = addNode(store, 'temp', 300, 0);
+  const w = addWire(store, 'i2c', { node: a, port: 'i2c' }, { node: b, port: 'i2c' });
+  const z = addZone(store, { x: 0, y: 0, w: 400, h: 300 });
+  const t = addNote(store, 0, 400, 'a note');
+  const press = key('a', { ctrlKey: true });
+  win.dispatch('keydown', press);
+  assert.equal(press.prevented, true, 'the browser does not select the page text instead');
+  assert.deepEqual([...store.selection].sort(), [a, b, z, t].sort());
+  assert.equal(store.selection.has(w), false, 'a wire has no position of its own to act on');
+});
+
+test('Ctrl-A is guarded like the other editing shortcuts', async () => {
+  const { win, store, tools, ev, key } = await setup();
+  addNode(store, 'mcu', 0, 0);
+  const inField = ev(makeEl({ tag: 'INPUT' }), { key: 'a', ctrlKey: true });
+  win.dispatch('keydown', inField);
+  assert.equal(inField.prevented, false, 'select-all inside a field stays the browser\'s');
+  assert.equal(store.selection.size, 0);
+  tools.ui.busy = true;
+  win.dispatch('keydown', key('a', { ctrlKey: true }));
+  assert.equal(store.selection.size, 0, 'and the canvas is inert mid-request');
+});
+
+test('Ctrl-A feeds the multi-selection actions it exists for', async () => {
+  const { win, store, tools, key } = await setup();
+  addNode(store, 'mcu', 0, 0);
+  addNode(store, 'temp', 40, 200);
+  addNode(store, 'mcu', 90, 400);
+  win.dispatch('keydown', key('a', { ctrlKey: true }));
+  assert.equal(tools.alignState().canDistribute, true);
+  tools.alignSelection('left');
+  assert.deepEqual(store.doc.nodes.map((n) => n.x), [0, 0, 0]);
 });

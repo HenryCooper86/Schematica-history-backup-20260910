@@ -39,6 +39,7 @@ then Settings → Pages → deploy from branch `main`, root folder.
 | Pick the bus type | Automatic when both ports agree; popover otherwise |
 | Re-attach a wire | Select it, then drag either end handle onto another port (the bus follows the new ports, or asks) |
 | Select / move | `V`, click or drag; marquee on empty canvas; shift-click adds |
+| Select all | `Ctrl/Cmd-A` — every card, zone, and note, exactly what a marquee across the whole board picks up |
 | Zone | `Z`, drag a rectangle (select it by its border or title); drag a corner handle to resize; dragging a zone carries the cards inside it |
 | Find a part | Type in the palette search — names, categories, buses, or vendors (RDK, Journey) |
 | Explore the board | **Explore** or `/` searches placed parts by name, part number, address, fields, or supported bus. Enter focuses the first result; Arrow Down moves to results. Filter drawn connections by bus, then select a part to highlight immediate neighbors or its connected network. Unrelated items are dimmed and remain editable. |
@@ -70,9 +71,9 @@ then Settings → Pages → deploy from branch `main`, root folder.
 | Fullscreen | ⛶ button in the zoom group |
 | Export dialog | Pixel dimensions with aspect lock and a transparent-background option that PNG and SVG both honor |
 | BOM | BOM button — bill of materials grouped by part number (qty, refs, addresses, rails, typical current, status, flags), with a board total; CSV download or Markdown copy |
-| Power budget | Give consumers a Typical and Peak current, supplies and regulators an Output current limit, and batteries a Capacity. Check adds them up per power rail; the BOM totals them. Written as `250mA`, `0.25 A`, `3.6uA`, `2 Ah`, or a bare number meaning milliamps |
+| Power budget | Give consumers a Typical and Peak current, supplies and regulators an Output current limit, fuses a Current rating, and batteries a Capacity. Check adds them up per power rail and lists every rail under its Power tab; the BOM totals them. Written as `250mA`, `0.25 A`, `3.6uA`, `2 Ah`, or a bare number meaning milliamps |
 | Share | Share button — the whole board compressed into a copyable URL; opening the link loads it, no backend. Opened over a board you were working on, the link loads at once, keeps your board as a backup, and the notice offers to restore it |
-| Check | Check button — design rule checks: I2C address conflicts, unconnected power pins, floating parts, bus mismatches, lifecycle risks, power budgets (the Sensor Node example passes them all) |
+| Check | Check button — design rule checks: I2C address conflicts, unconnected power pins, floating parts, bus mismatches, lifecycle risks, power budgets (the Sensor Node example passes them all), plus Layout quality and a read-only Power tab listing every rail |
 | Assistant | `A` or the sparkle button — describe a board and it builds it, ask for a change and it edits the board, press Fix on a check finding or "Fix checks" and it resolves them, "Fill in details" fills part numbers from presets. Add files, a folder, or drop individual files to use local documents as sources; review, select, preview, or remove them before Send. Bring your own key: Claude by default, plus OpenRouter, Z.AI GLM, Moonshot Kimi, and any OpenAI-compatible endpoint. With `npm start`, your own backend calls the official provider URLs and streams replies, including Ollama Cloud via `https://ollama.com/v1`. The static edition still supports the optional worker in `relay/`. Each reply is one undo step and what it touched glows until your next click. The key is forwarded to your configured provider, saved in this browser only if you tick remember, and never included in the board, autosave, or share links |
 | Wire options | Select a wire — bus, label, arrowheads (→ or ↔), line style (solid, dashed, dotted, air gap), traffic flow, delete |
 | Custom parts | **+ New** under My parts in the palette defines a part: name, category, accent, an icon (a built-in one, initials, or an SVG path), typed ports on any side, and extra fields. It is saved to My parts (this browser) and placed on the board. **Customize…** on any built-in card starts from its definition, so an MCU with a second CAN port keeps its wires. **Edit part…** on a custom card changes it and, when it came from a template, offers to update its siblings. Export and Import move My parts between machines as a JSON file. Custom parts in a board file travel with it; an older build of the app opens them as custom boxes |
@@ -91,7 +92,9 @@ and says so, and it can set or clear a lock when you ask it to.
 
 The Align group appears once two or more items are selected; it works on cards,
 notes, and zones, and a selected wire is ignored, since a wire follows the ports
-it is drawn to. Every button reads each item's drawn size, so cards of different
+it is drawn to. A selection of nothing but wires gets no group at all, rather
+than a grid of buttons that could never come alive.
+Every button reads each item's drawn size, so cards of different
 widths finish with their real edges on one line. The line itself is the extreme
 of the selection — the leftmost left edge for Align left, the midpoint of the
 selection's bounds for the two centre buttons — except when exactly one item in
@@ -106,7 +109,13 @@ Distribute leaves an equal gap between facing edges rather than equal spacing
 between centres: on cards of one size the two agree, but on cards of different
 widths only the first reads as evenly spaced. The outermost two items hold
 still and the rest move between them. Where the cards already overlap, they end
-up overlapping by one even amount instead of an assortment. Distribute and Tidy
+up overlapping by one even amount instead of an assortment. Where one card is
+wide enough to span the whole run, no even gap fits it at all — the arithmetic
+would put two cards on the same point, one of them invisible behind the other —
+so Distribute spaces the left (or top) edges evenly instead. The outermost two
+still hold still, the run still keeps the span the user set up, and wherever
+the cards started at different edges, each keeps a place of its own. Distribute
+and Tidy
 spacing pass over locked items entirely: even spacing is a property of the whole
 run, and it can only come out even if every participant is free to move.
 
@@ -138,13 +147,19 @@ was copied but stops claiming to be a stamp of a template it never came from,
 and nothing about a paste ever writes to My parts. The clipboard is untrusted
 input: a payload is validated exactly as a saved file is, one paste is capped
 at 500 items, and anything malformed produces a notice and leaves the board
-untouched. Copy and paste inside a text field remain the browser's own, and
-where a browser denies clipboard access the copy still crosses boards within
-the tab.
+untouched. Copy and paste inside a text field remain the browser's own, and so
+do they whenever text is highlighted anywhere on the page — a passage of the
+assistant's reply, a check finding, a line of the BOM: the highlighted text is
+what those keys are for at that moment, and the board leaves them alone. Where a
+browser denies clipboard access the copy still crosses boards within the tab.
 
 The `?` overlay lists every shortcut the app has, grouped as Tools, Selection,
-View, Panels, and Editing. It reads from one table in the source, so it cannot
-drift from what the keyboard actually does.
+View, Panels, and Editing. It reads from one table in the source, and the hint
+strip along the bottom of the canvas is built from the rows of that table
+marked short enough to show there. A test reads the table against the key
+comparisons in every keydown handler, in both directions, so a key the overlay
+advertises but nothing handles, or one a handler takes but the overlay never
+mentions, fails the build.
 
 Exploration is temporary view state: search, filters, and reading detail do not
 change the board, create undo steps, or enter saved files and share links.
@@ -172,19 +187,37 @@ regulator output, and everything wired to it, is one rail; the currents its
 parts declare are added up and compared with what the supply says it can give.
 Over the limit is an error, over four fifths of it a warning, and a rail whose
 parts state what they draw while no supply states a limit is reported as one
-the budget cannot check. A regulator sits on two rails: it draws on its input
-and feeds its output, and where it states no input current of its own, its
-output rail's total is carried across unchanged — which ignores the conversion
-ratio and the efficiency, so it is about right for a linear regulator, high for
-a step-down converter and low for a step-up one. Peaks are summed and named but
-never judged, because whether two of them land in the same instant, and whether
-the bulk capacitance rides them out, is not something a sum of datasheet figures
-can say. A battery that states a capacity gets a runtime: capacity divided by
-the rail's typical current, with no duty cycle, no converter losses, no ageing
-and no cut-off voltage. Parts that state nothing are counted and named, never
-assumed to draw zero, and a board that fills none of the fields in raises no
-power findings at all. This is arithmetic on what the board says about itself;
-it does not simulate the supply, prove thermal headroom, or size a regulator.
+the budget cannot check. Where several supplies feed one rail they are judged
+together, against the sum of the limits they declare — an upper bound, since
+how the load actually divides between them is not modelled — and if only some
+of them state a limit, the rail is not judged at all. A fuse or a fuse box
+carries its rail straight through, so its rating is checked against everything
+flowing through it; only the typical sum, because a fuse has a time-current
+curve and is meant to carry a brief overload. A regulator sits on two rails: it
+draws on its input and feeds its output, and its input draw is its own declared
+current — its quiescent draw — plus the whole load of the rail it feeds.
+Carrying that load across ignores the conversion ratio and the efficiency, so
+it is about right for a linear regulator, high for a step-down converter and low
+for a step-up one. Peaks are summed and named beside the rail's budget line. Where the
+typical sum fits but the peaks do not, that is a warning that says so in the
+open: it treats every peak as landing in the same instant, which is the
+conservative reading, and whether the bulk capacitance rides them out is not
+something a sum of datasheet figures can settle. A battery that states a
+capacity gets a runtime: capacity divided by the rail's typical current, held
+continuously, with no duty cycle, no converter losses, no ageing and no cut-off
+voltage — so a board that sleeps between readings runs far longer than the
+division says. Parts that state nothing are counted, never assumed to draw
+zero, and reported on their own line whose **Select** picks out exactly those
+parts. Consumers wired together with no supply drawn between them — the MCU's
+3V3 pin feeding the sensors — are totalled and told that nothing on the rail is
+drawn as a supply. A board that fills none of the fields in raises no power
+findings at all. This is arithmetic on what the board says about itself; it does
+not simulate the supply, prove thermal headroom, or size a regulator.
+
+**Check → Power** is the same arithmetic with nothing judged: one row per rail
+listing its supplies, the limit they declare, the typical and peak sums, any
+fuse in series, the parts that declared nothing, and any battery runtime.
+It is read-only; **Select** highlights the rail on the board.
 
 **Explore → Appearance** selects a dark, light, or system theme, remembered on
 this device. **Export theme** can override it for downloads; Automatic (SVG)

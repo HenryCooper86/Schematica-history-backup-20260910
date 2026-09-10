@@ -531,6 +531,34 @@ test('a custom node round-trips with its definition, fields, and wires', () => {
   assert.deepEqual(back, doc);
 });
 
+test('a customized supply keeps its power markers through a file, and a hostile file cannot invent them', () => {
+  const REG = {
+    name: 'Buck', category: 'power', accent: null, icon: { kind: 'regulator' },
+    ports: [
+      { id: 'in', name: 'IN', side: 'left', bus: 'power', required: false },
+      { id: 'out', name: 'OUT', side: 'right', bus: 'power', required: false },
+      { id: 'gnd', name: 'GND', side: 'right', bus: 'gnd', required: true },
+    ],
+    fields: [{ id: 'imax', label: 'Output current limit', placeholder: 'e.g. 600mA' }],
+    feeds: ['out'], trio: true,
+  };
+  const doc = {
+    schema: 2, title: 'C', zones: [], notes: [], journey: [], wires: [],
+    nodes: [{ id: 'c', kind: 'custom', x: 0, y: 0, label: 'Buck', sublabel: '', color: null, addr: '', rail: '3V3', notes: '', status: null, flags: [], part: REG, fields: { imax: '600mA' } }],
+  };
+  const { doc: back, warnings } = deserialize(serialize(doc));
+  assert.deepEqual(warnings, []);
+  assert.deepEqual(back, doc, 'the markers survive the file unchanged');
+  // A pin that is not one of this definition's ports never reaches the rail walk.
+  const evil = deserialize(JSON.stringify({
+    schema: 2,
+    nodes: [{ id: 'c', kind: 'custom', x: 0, y: 0, part: { ...REG, feeds: ['out', '__proto__', 'vcc'], passes: [{}] } }],
+  }));
+  assert.deepEqual(evil.doc.nodes[0].part.feeds, ['out']);
+  assert.equal(evil.doc.nodes[0].part.passes, undefined);
+  assert.ok(evil.warnings.some((w) => /may only name its own ports/.test(w)), evil.warnings.join(' | '));
+});
+
 test('a custom node with an unusable definition becomes a custom box and keeps its wires on the side ports', () => {
   const { doc, warnings } = deserialize(JSON.stringify({
     schema: 2,

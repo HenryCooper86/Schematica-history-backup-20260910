@@ -9,7 +9,7 @@ import { buildExportSVG, exportBounds, exportPNG, exportPDF, download, copyPNG }
 import { encodeGIF } from '../gif.js';
 import { LOOP_MS, esc } from '../render.js';
 import { buildBOM, bomCSV, bomMarkdown, bomHeaders, bomTotalMa, bomSummary } from '../bom.js';
-import { formatCurrent } from '../power.js';
+import { formatCurrent, formatCapacity, formatHours, powerSummary } from '../power.js';
 import { checkDoc } from '../drc.js';
 import { encodeShare } from '../share.js';
 import { toast, openModal } from './press.js';
@@ -210,7 +210,50 @@ export function initDialogs({ store }) {
   // An info finding reports a measurement, not a defect: a runtime estimate is
   // nothing for the assistant to repair. Layout findings keep their own rule.
   const fixable = (f) => (drcMode === 'design' ? f.level !== 'info' : !!f.supportedFixes?.length);
+
+  // The power tree, read-only: the rails exactly as power.js builds them, with
+  // no judgement of any kind. The Design rules tab is where a number is called
+  // wrong; this one is where a reader simply sees what the board adds up to.
+  function renderPower() {
+    const list = document.getElementById('drc-list');
+    const rails = powerSummary(store.doc);
+    if (!rails.length) {
+      list.innerHTML = `<p class="drc-clean">${esc(tr('No power wires are drawn, so there are no rails to total up.'))}</p>`;
+      return;
+    }
+    const dash = '—';
+    const rows = rails.map((r, i) => {
+      const facts = [
+        [tr('Supply'), r.sources.length ? r.sources.join(tr(' and ')) : tr('none drawn')],
+        // A rail fed by several supplies shows their limits added up, which is
+        // an upper bound and not a promise that they share the load.
+        [r.sources.length > 1 ? tr('Limits together') : tr('Limit'), r.limitMa == null ? dash
+          : formatCurrent(r.limitMa) + (r.limitComplete ? '' : ` ${tr('(partly undeclared)')}`)],
+        [tr('Typical'), r.summed ? formatCurrent(r.typicalMa) : dash],
+        [tr('Peak'), r.summed ? formatCurrent(r.peakMa) : dash],
+      ];
+      for (const p of r.passes) facts.push([tr('In series'), `${p.label}${p.limitMa == null ? '' : ` · ${formatCurrent(p.limitMa)}`}`]);
+      if (r.undeclared.length) facts.push([tr('Declares nothing'), r.undeclared.join(', ')]);
+      // The cell is named, because a rail may be fed by more than one of them.
+      for (const rt of r.runtimes) {
+        facts.push([tr('Runtime'), `${rt.label} · ${tr('{capacity} at a continuous {draw} is about {hours} h', {
+          capacity: formatCapacity(rt.capacityMah), draw: formatCurrent(r.typicalMa), hours: formatHours(rt.hours),
+        })}`]);
+      }
+      const body = facts.map(([k, v]) => `<div class="power-fact"><b>${esc(k)}</b> ${esc(v)}</div>`).join('');
+      return `<div class="drc-row"><span class="msg">${body}</span><button data-power="${i}">${esc(tr('Select'))}</button></div>`;
+    }).join('');
+    list.innerHTML = rows;
+    list.querySelectorAll('[data-power]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        store.setSelection(rails[Number(btn.dataset.power)].ids);
+        drcDialog.close();
+      });
+    });
+  }
+
   function renderDRC() {
+    if (drcMode === 'power') { renderPower(); return; }
     const findings = drcMode === 'layout' ? checkLayout(store.doc) : checkDoc(store.doc);
     const list = document.getElementById('drc-list');
     if (!findings.length) {

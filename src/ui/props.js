@@ -81,10 +81,13 @@ function alignButton(attr, value, label, enabled) {
     + `${enabled ? '' : ' disabled'}><svg viewBox="0 0 18 18" aria-hidden="true">${ALIGN_ICONS[value]}</svg></button>`;
 }
 
-// `ability` comes from src/align.js: how many items can move, and whether a
+// `ability` comes from src/align.js: what this selection can do, and whether a
 // single locked item is deciding the edge. Pure, so the disabled states and
-// the anchor hint can be tested without a DOM.
+// the anchor hint can be tested without a DOM. A selection these buttons do
+// not act on at all — two wires, say — gets no group rather than a grid that
+// can never come alive.
 export function alignGroup(ability, gap) {
+  if (!ability.applies) return '';
   const align = [
     ['left', tr('Align left')], ['hcenter', tr('Align horizontal centers')], ['right', tr('Align right')],
     ['top', tr('Align top')], ['vmiddle', tr('Align vertical middles')], ['bottom', tr('Align bottom')],

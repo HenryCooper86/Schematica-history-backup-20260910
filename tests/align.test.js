@@ -164,10 +164,10 @@ test('tidy spacing packs the run to one gap and keeps the cross axis alone', () 
   assert.deepEqual(out.map((r) => r.y), [5, 40, 80], 'tidying spacing is not aligning');
 });
 
-test('tidy spacing follows the dominant axis unless one is named', () => {
+test('tidy spacing follows the dominant axis of the run', () => {
   const column = [item('a', 5, 0, 100, 40), item('b', 40, 300, 100, 60), item('c', 90, 700, 100, 20)];
   assert.deepEqual(applied(column, tidyMoves(column, { gap: 10 })).map((r) => r.y), [0, 50, 120]);
-  assert.deepEqual(applied(column, tidyMoves(column, { axis: 'x', gap: 10 })).map((r) => r.x), [5, 115, 225]);
+  assert.deepEqual(applied(column, tidyMoves(column, { gap: 10 })).map((r) => r.x), [5, 40, 90], 'the cross axis is left alone');
 });
 
 test('tidy spacing takes two items and leaves a locked one where it is', () => {
@@ -187,13 +187,57 @@ test('positions land on two decimals so an even gap stays even', () => {
   assert.deepEqual(out.map((r) => r.x), [0, 10.33, 20.67, 31]);
 });
 
-test('alignAbility reports the counts and the anchor the panel shows', () => {
+test('alignAbility reports what the selection can do and the anchor the panel shows', () => {
   const two = alignAbility([item('a', 0, 0), item('b', 300, 0)]);
-  assert.deepEqual([two.movable, two.canAlign, two.canDistribute, two.anchored, two.axis], [2, true, false, false, 'x']);
+  assert.deepEqual([two.applies, two.canAlign, two.canDistribute, two.canTidy, two.anchored], [true, true, false, true, false]);
   const three = alignAbility([item('a', 0, 0), item('b', 0, 300), item('c', 0, 600)]);
-  assert.deepEqual([three.canDistribute, three.axis], [true, 'y']);
+  assert.equal(three.canDistribute, true);
   const anchored = alignAbility([item('a', 0, 0), item('b', 300, 0), item('p', 600, 0, 100, 60, { locked: true })]);
   assert.equal(anchored.anchored, true);
   const one = alignAbility([item('a', 0, 0), item('p', 600, 0, 100, 60, { locked: true })]);
   assert.deepEqual([one.canAlign, one.anchored], [false, false], 'one movable card has nothing to align with');
+});
+
+test('a selection holding nothing these buttons act on says so', () => {
+  // tools.js measures cards, notes, and zones and skips wires, so a selection
+  // of only wires reaches the arithmetic as an empty list.
+  const none = alignAbility([]);
+  assert.deepEqual([none.applies, none.canAlign, none.canTidy], [false, false, false]);
+  // One locked card is still something alignment is about; it just cannot act
+  // on it yet, which is what the disabled buttons say.
+  const locked = alignAbility([item('a', 0, 0, 100, 60, { locked: true })]);
+  assert.deepEqual([locked.applies, locked.canAlign], [true, false]);
+});
+
+test('distribute never lands two items on the same point', () => {
+  // `a` is wider than the whole run, so the even gap (-10) exactly cancels the
+  // 10px cards that follow it: the old arithmetic put b and c both at 190, one
+  // completely hidden behind the other. Leading edges are spaced evenly
+  // instead, which here is what the user already had.
+  const items = [item('a', 0, 0, 200, 20), item('b', 50, 0, 10, 20), item('c', 100, 0, 10, 20)];
+  const out = applied(items, distributeMoves(items, 'x'));
+  assert.deepEqual(out.map((r) => r.x), [0, 50, 100]);
+  assert.equal(new Set(out.map((r) => r.x)).size, 3);
+});
+
+test('the even-edge-gap rule still runs wherever an even gap fits', () => {
+  // Mild overlap: 100px cards in a 140px span. Every step (100 - 80) is still
+  // positive, so the fallback stays out of the way.
+  const mild = [item('a', 0, 0, 100, 20), item('b', 10, 0, 100, 20), item('c', 40, 0, 100, 20)];
+  assert.deepEqual(applied(mild, distributeMoves(mild, 'x')).map((r) => r.x), [0, 20, 40]);
+  // A wide *last* card cannot collapse the run: nothing steps by its size.
+  const wideLast = [item('a', 0, 0, 200, 20), item('b', 50, 0, 100, 20), item('c', 100, 0, 10, 20)];
+  const out = applied(wideLast, distributeMoves(wideLast, 'x'));
+  const g1 = at(out, 'b').x - (at(out, 'a').x + at(out, 'a').w);
+  const g2 = at(out, 'c').x - (at(out, 'b').x + at(out, 'b').w);
+  assert.equal(g1, g2, 'one even (negative) gap, and every card still distinct');
+  assert.equal(new Set(out.map((r) => r.x)).size, 3);
+});
+
+test('the fallback keeps the outermost two items exactly where they were', () => {
+  const items = [item('a', 0, 0, 500, 20), item('b', 30, 0, 10, 20), item('c', 60, 0, 10, 20), item('d', 300, 0, 10, 20)];
+  const out = applied(items, distributeMoves(items, 'x'));
+  assert.equal(at(out, 'a').x, 0);
+  assert.equal(at(out, 'd').x, 300);
+  assert.deepEqual(out.map((r) => r.x), [0, 100, 200, 300], 'evenly spaced leading edges');
 });

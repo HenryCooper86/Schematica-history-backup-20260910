@@ -143,7 +143,7 @@ test('the summary states the board total and the runtime of a cell that declares
   };
   assert.deepEqual(bomSummary(doc), [
     'Declared typical current: 150 mA.',
-    'Pack at 3000 mAh: about 20 h at 150 mA, ignoring duty cycle and efficiency.',
+    'Pack at 3000 mAh: about 20 h at a continuous 150 mA, ignoring duty cycle and efficiency.',
   ]);
   assert.deepEqual(bomSummary({ ...doc, nodes: [node('t', 'temp', 'Temp', 'BME280')], wires: [] }), [],
     'a board that declares nothing says nothing');

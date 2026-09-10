@@ -125,7 +125,7 @@ export function bomSummary(doc) {
     for (const source of rail.sources) {
       const hours = runtimeHours(source.currents.capacityMah, rail.typicalMa);
       if (hours == null) continue;
-      lines.push(tr('{label} at {capacity}: about {hours} h at {draw}, ignoring duty cycle and efficiency.', {
+      lines.push(tr('{label} at {capacity}: about {hours} h at a continuous {draw}, ignoring duty cycle and efficiency.', {
         label: source.node.label,
         capacity: formatCapacity(source.currents.capacityMah),
         hours: formatHours(hours),

@@ -256,10 +256,20 @@ export function findItem(doc, id) {
   return null;
 }
 
+// An `undefined` value removes the key rather than storing it: callers that
+// clear an optional field (`{ fields: undefined }` when the last field is
+// emptied) mean "no key", so the in-memory doc stays identical to what a save
+// and reload would produce instead of relying on JSON.stringify dropping it.
+// `null` is a value and is kept — the properties panel stores it to mean a
+// choice was actively turned off.
 export function updateItem(store, id, props) {
   store.apply((doc) => {
     const found = findItem(doc, id);
-    if (found) Object.assign(found.item, props);
+    if (!found) return;
+    for (const [key, value] of Object.entries(props)) {
+      if (value === undefined) delete found.item[key];
+      else found.item[key] = value;
+    }
   });
 }
 

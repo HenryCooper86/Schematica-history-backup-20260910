@@ -7,7 +7,7 @@ import { nodePart } from '../src/rdk/profiles.js';
 import { getPart } from '../src/palette.js';
 import { nodeRect } from '../src/geometry.js';
 import { checkDoc } from '../src/drc.js';
-import { parseCurrentMa, parseCapacityMah } from '../src/power.js';
+import { parseCurrentMa, parseCapacityMah, powerSummary } from '../src/power.js';
 import { presetsFor } from '../src/presets.js';
 
 test('there are at least three examples with unique ids and names', () => {
@@ -100,11 +100,43 @@ test('the boards that declare currents use field ids their part knows and figure
 test('the weather station budgets its 3.3V rail and estimates how long the cell lasts', () => {
   const b = EXAMPLES.find((e) => e.id === 'weather-station');
   const rules = checkDoc(b.doc).filter((f) => f.rule.startsWith('power-') || f.rule === 'battery-runtime');
-  assert.deepEqual(rules.map((f) => f.rule).sort(), ['battery-runtime', 'power-budget-unknown']);
-  assert.match(rules.find((f) => f.rule === 'battery-runtime').message, /2000 mAh; at 100 mA that is about 20 h/);
+  // The LDO now states a 600 mA limit, which the 100 mA rail sits well inside,
+  // so the only power line left is the measurement.
+  assert.deepEqual(rules.map((f) => f.rule), ['battery-runtime']);
   // The charger passes the cell's rail through, so the runtime is measured
-  // against what the regulator carries across, not against nothing.
-  assert.match(rules.find((f) => f.rule === 'power-budget-unknown').message, /^Regulator declares no output current limit/);
+  // against what the regulator carries across, not against nothing. The word
+  // "continuous" is what stops it contradicting the MCU's own deep-sleep note.
+  assert.match(rules[0].message, /2000 mAh; at a continuous 100 mA that is about 20 h/);
+  const rails = powerSummary(b.doc);
+  const out = rails.find((r) => r.sources.includes('Regulator'));
+  assert.equal(out.limitMa, 600);
+  assert.equal(out.peakMa, 355, 'the ESP32 peak fits inside the LDO it is given');
+});
+
+test('the drone flight controller powers the sensors it draws, so their currents reach a rail', () => {
+  const b = EXAMPLES.find((e) => e.id === 'drone-fc');
+  const rail = powerSummary(b.doc).find((r) => r.sources.includes('BEC'));
+  assert.deepEqual(rail.undeclared, [], 'every part on the BEC rail states what it draws');
+  assert.equal(rail.typicalMa, 113.8, 'flight controller, IMU and GPS together');
+  assert.equal(rail.limitMa, 3000);
+  // A 3 A BEC carrying 114 mA is genuinely fine, so nothing is reported; the
+  // Power tab is where that budget is now visible.
+  assert.deepEqual(checkDoc(b.doc).filter((f) => f.rule.startsWith('power-')), []);
+});
+
+test('the EV BMS names the parts its 5V rail cannot account for', () => {
+  const b = EXAMPLES.find((e) => e.id === 'ev-bms');
+  const rules = checkDoc(b.doc).filter((f) => f.rule.startsWith('power-'));
+  assert.deepEqual(rules.map((f) => f.rule), ['power-budget-unknown-parts'],
+    'the buck states a limit now, so what is left is the silent parts');
+  assert.equal(rules[0].level, 'info');
+  const rail = powerSummary(b.doc).find((r) => r.sources.includes('12 V to 5 V'));
+  assert.equal(rail.limitMa, 1000);
+  assert.equal(rail.undeclared.length, 4);
+  // The pyro fuse's rating is on the board, and no rule fires on it because
+  // nothing on the HV rail says what it draws.
+  const hv = powerSummary(b.doc).find((r) => r.passes.length);
+  assert.deepEqual(hv.passes, [{ label: 'Pyro fuse', limitMa: 500000 }]);
 });
 
 test('the sensor node board passes every design rule, so users can see what clean looks like', () => {

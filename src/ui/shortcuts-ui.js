@@ -1,7 +1,9 @@
 // The keyboard shortcut overlay: a modal <dialog>, so Escape, focus trapping,
 // and focus restore come from the browser. Everything it shows is read from
-// src/shortcuts.js, which is the only place a shortcut is written down.
-import { SHORTCUT_GROUPS, isMacPlatform, keyLabel } from '../shortcuts.js';
+// src/shortcuts.js, which is the only place a shortcut is written down — and
+// so is the status-bar hint strip below the canvas, which used to be markup in
+// index.html maintained by hand and had fallen behind the table.
+import { SHORTCUT_GROUPS, POINTER_HINTS, isMacPlatform, keyLabel, hintKeyLabel } from '../shortcuts.js';
 import { escAttr, openModal } from './press.js';
 import { onLanguageChange } from '../i18n.js';
 
@@ -14,13 +16,29 @@ function groupMarkup(group, mac) {
   return `<section class="sc-group"><h4>${escAttr(group.title())}</h4>${rows}</section>`;
 }
 
+// The status-bar strip: the rows marked `hint`, in table order, then the two
+// pointer hints. Built from the same table as the overlay so a shortcut can
+// no longer be added, renamed, or dropped without the strip following.
+export function hintStripMarkup(mac) {
+  const keyed = SHORTCUT_GROUPS.flatMap((g) => g.rows).filter((row) => row.hint).map((row) => (
+    `${row.keys.map((k) => `<kbd>${escAttr(hintKeyLabel(k, mac))}</kbd>`).join('')} <span>${escAttr(row.hint())}</span>`
+  ));
+  const pointer = POINTER_HINTS.map((text) => `<span>${escAttr(text())}</span>`);
+  return [...keyed, ...pointer].join(' &middot; ');
+}
+
 export function initShortcuts({ platform = typeof navigator === 'undefined' ? {} : navigator } = {}) {
   const dialog = document.getElementById('shortcuts-dialog');
   const list = document.getElementById('shortcuts-list');
+  const hintbar = document.getElementById('hintbar');
   const mac = isMacPlatform(platform);
 
   function fill() {
     list.innerHTML = SHORTCUT_GROUPS.map((g) => groupMarkup(g, mac)).join('');
+  }
+
+  function fillHints() {
+    if (hintbar) hintbar.innerHTML = hintStripMarkup(mac);
   }
 
   function open() {
@@ -45,7 +63,10 @@ export function initShortcuts({ platform = typeof navigator === 'undefined' ? {}
 
   // The dialog's own markup was in index.html at load, so the static walker
   // translated its heading; the list is built here and re-read on a switch.
-  onLanguageChange(() => { if (dialog.open) fill(); });
+  // The strip is built here too, so it opts out of the walker (data-i18n="off"
+  // in index.html) and redraws itself instead.
+  onLanguageChange(() => { if (dialog.open) fill(); fillHints(); });
 
+  fillHints();
   return { open };
 }

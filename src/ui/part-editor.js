@@ -62,6 +62,13 @@ export function initPartEditor({ store, library, svg, tools }) {
       // The editor has no placeholder box; the value rides along so
       // Customize… keeps a built-in field's hint.
       fields: (def.fields || []).map((f) => ({ id: f.id, label: f.label || '', options: (f.options || []).join(', '), placeholder: f.placeholder || '' })),
+      // The editor has no control for feeds/passes, but they must survive a
+      // round trip: customizing a regulator must not silently take it out of
+      // the power budget. normalizePart drops any that name a port the user
+      // has since deleted. `trio` rides along for the round trip only.
+      feeds: [...(def.feeds || [])],
+      passes: [...(def.passes || [])],
+      trio: def.trio === true,
     };
     nextPort = top(d.ports, 'p');
     nextField = top(d.fields, 'f');
@@ -94,6 +101,9 @@ export function initPartEditor({ store, library, svg, tools }) {
         if (f.placeholder) out.placeholder = f.placeholder;
         return out;
       }),
+      ...(draft.feeds?.length ? { feeds: [...draft.feeds] } : {}),
+      ...(draft.passes?.length ? { passes: [...draft.passes] } : {}),
+      ...(draft.trio ? { trio: true } : {}),
     };
   }
 

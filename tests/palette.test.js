@@ -23,6 +23,40 @@ test('every part is well-formed', () => {
   }
 });
 
+test('every power marker names a power pin the part actually has', () => {
+  for (const [key, part] of Object.entries(PARTS)) {
+    const ids = new Map(part.ports.map((p) => [p.id, p]));
+    for (const marker of ['feeds', 'passes']) {
+      for (const id of part[marker] || []) {
+        assert.ok(ids.has(id), `${key}.${marker} names missing port ${id}`);
+        assert.equal(ids.get(id).bus, 'power', `${key}.${marker} names ${id}, which is not on the power bus`);
+      }
+    }
+    assert.ok(!(part.feeds && part.passes), `${key} cannot both head a rail and pass one through`);
+  }
+});
+
+test('a fuse and a fuse box can state the one number they exist for', () => {
+  for (const key of ['fuse', 'fusebox']) {
+    const part = PARTS[key];
+    assert.deepEqual(part.fields.map((f) => f.id), ['imax'], key);
+    assert.equal(part.fields[0].label, 'Current rating', `${key} is rated, not limited: it is not a supply`);
+    assert.ok(part.passes.length, `${key} still carries its rail straight through`);
+    assert.equal(part.trio, true, `${key} keeps its part number, address and rail lines`);
+  }
+});
+
+test('a USB port heads a 5V rail without demanding a wire on it', () => {
+  const usb = PARTS.usbport;
+  const vbus = usb.ports.find((p) => p.id === 'vbus');
+  assert.equal(vbus.bus, 'power');
+  assert.deepEqual(usb.feeds, ['vbus']);
+  assert.deepEqual(usb.fields.map((f) => f.id), ['imax']);
+  // The unconnected-supply rule requires a pin called vcc or gnd; a socket
+  // used only for its data pins must not be reported as a fault.
+  assert.equal(usb.ports.some((p) => p.id === 'vcc' || p.id === 'gnd'), false);
+});
+
 test('every category has at least one part', () => {
   for (const c of CATEGORIES) {
     assert.ok(Object.values(PARTS).some((p) => p.category === c.id), c.id);

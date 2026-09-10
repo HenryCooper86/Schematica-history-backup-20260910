@@ -22,7 +22,7 @@ export const EXAMPLES = [
         { id: 'n1', kind: 'solar', x: 77, y: 135.8, label: 'Solar panel', sublabel: '6V 2W', color: null, addr: '', rail: '', notes: '', status: null, flags: [] },
         { id: 'n2', kind: 'charger', x: 82, y: 271.8, label: 'Charger', sublabel: 'TP4056', color: null, addr: '', rail: '', notes: '', status: null, flags: [] },
         { id: 'n3', kind: 'battery', x: 77, y: 407.8, label: 'Battery', sublabel: 'LiPo 3.7V', color: null, addr: '', rail: '', notes: '', status: null, flags: [], fields: { capacity: '2000mAh' } },
-        { id: 'n4', kind: 'regulator', x: 306, y: 271.8, label: 'Regulator', sublabel: '3.3V LDO', color: null, addr: '', rail: '', notes: '', status: null, flags: [] },
+        { id: 'n4', kind: 'regulator', x: 306, y: 271.8, label: 'Regulator', sublabel: '3.3V LDO', color: null, addr: '', rail: '', notes: '', status: null, flags: [], fields: { imax: '600mA' } },
         { id: 'n5', kind: 'mcu', x: 532, y: 256.5, label: 'MCU', sublabel: 'ESP32-S3', color: null, addr: '', rail: '3.3V', notes: 'Deep sleep between readings; wake every 10 min.', status: 'production', flags: [], fields: { ityp: '100mA', ipeak: '355mA' } },
         { id: 'n6', kind: 'temp', x: 797, y: 131.3, label: 'Temp sensor', sublabel: 'BME280', color: null, addr: '0x76', rail: '3.3V', notes: '', status: 'production', flags: [], fields: { ityp: '3.6uA', ipeak: '0.72mA' } },
         { id: 'n7', kind: 'adcin', x: 797, y: 279.8, label: 'Soil probe', sublabel: 'capacitive', color: null, addr: '', rail: '', notes: '', status: null, flags: [] },
@@ -85,6 +85,14 @@ export const EXAMPLES = [
         { id: 'w5', bus: 'uart', from: { node: 'n3', port: 'uart' }, to: { node: 'n5', port: 'uart' }, label: '', arrow: null, style: null, flow: null },
         { id: 'w6', bus: 'pwm', from: { node: 'n3', port: 'pwm' }, to: { node: 'n6', port: 'pwm' }, label: '', arrow: null, style: null, flow: null },
         { id: 'w7', bus: 'pwm', from: { node: 'n3', port: 'gpio1' }, to: { node: 'n7', port: 'pwm' }, label: '', arrow: null, style: null, flow: null },
+        // The IMU and the GPS run from the same BEC as the flight controller;
+        // both are breakout modules with their own on-board regulator, so 5 V
+        // is what they take. Drawing these makes the board's own declared
+        // currents count towards the BEC's rail instead of hanging in the air.
+        { id: 'w8', bus: 'power', from: { node: 'n2', port: 'out' }, to: { node: 'n4', port: 'vcc' }, label: '5V', arrow: null, style: null, flow: null },
+        { id: 'w9', bus: 'gnd', from: { node: 'n2', port: 'gnd' }, to: { node: 'n4', port: 'gnd' }, label: '', arrow: null, style: null, flow: null },
+        { id: 'w10', bus: 'power', from: { node: 'n2', port: 'out' }, to: { node: 'n5', port: 'vcc' }, label: '5V', arrow: null, style: null, flow: null },
+        { id: 'w11', bus: 'gnd', from: { node: 'n2', port: 'gnd' }, to: { node: 'n5', port: 'gnd' }, label: '', arrow: null, style: null, flow: null },
       ],
       zones: [
         { id: 'z1', x: 40, y: 280, w: 408, h: 120, label: 'Power', color: '#f87171' },
@@ -835,7 +843,7 @@ export const EXAMPLES = [
       title: 'EV Battery Management',
       nodes: [
         { id: 'n1', kind: 'battery', x: 60, y: 140, label: 'HV pack', sublabel: '96S 400 V', color: null, addr: '', rail: '', notes: 'Ninety-six cells in series; the contactors isolate it from the vehicle whenever the BMS opens them.', status: 'production', flags: ['safety'] },
-        { id: 'n2', kind: 'fuse', x: 320, y: 140, label: 'Pyro fuse', sublabel: '500 A', color: null, addr: '', rail: '', notes: '', status: 'production', flags: ['safety'] },
+        { id: 'n2', kind: 'fuse', x: 320, y: 140, label: 'Pyro fuse', sublabel: '500 A', color: null, addr: '', rail: '', notes: '', status: 'production', flags: ['safety'], fields: { imax: '500A' } },
         { id: 'n3', kind: 'relay', x: 580, y: 60, label: 'Main contactor', sublabel: 'EV200', color: null, addr: '', rail: '', notes: '', status: 'production', flags: [] },
         { id: 'n4', kind: 'relay', x: 580, y: 230, label: 'Precharge contactor', sublabel: 'EV200 + 50 Ω', color: null, addr: '', rail: '', notes: 'Closes first so the inverter capacitors charge through the resistor.', status: 'production', flags: [] },
         { id: 'n5', kind: 'adcin', x: 320, y: 330, label: 'Current sensor', sublabel: 'shunt 500 A', color: null, addr: '', rail: '', notes: '', status: 'production', flags: [] },
@@ -845,7 +853,7 @@ export const EXAMPLES = [
         { id: 'n9', kind: 'mcu', x: 900, y: 180, label: 'BMS MCU', sublabel: 'TC377', color: null, addr: '', rail: '5 V', notes: 'ASIL-C lockstep core; opens both contactors on any cell over 4.25 V or under 2.8 V.', status: 'production', flags: ['safety'] },
         { id: 'n10', kind: 'cantrx', x: 1160, y: 180, label: 'CAN transceiver', sublabel: 'TJA1051', color: null, addr: '', rail: '5 V', notes: '', status: 'production', flags: [], fields: { ityp: '5mA', ipeak: '50mA' } },
         { id: 'n11', kind: 'vgateway', x: 1440, y: 180, label: 'Vehicle gateway', sublabel: '', color: null, addr: '', rail: '', notes: '', status: 'production', flags: [] },
-        { id: 'n12', kind: 'regulator', x: 900, y: 420, label: '12 V to 5 V', sublabel: 'buck', color: null, addr: '', rail: '5 V', notes: '', status: 'production', flags: [] },
+        { id: 'n12', kind: 'regulator', x: 900, y: 420, label: '12 V to 5 V', sublabel: 'buck', color: null, addr: '', rail: '5 V', notes: '', status: 'production', flags: [], fields: { imax: '1A' } },
         { id: 'n13', kind: 'vbat', x: 900, y: 590, label: '12 V aux battery', sublabel: 'AGM', color: null, addr: '', rail: '', notes: '', status: 'production', flags: [] },
         { id: 'n14', kind: 'sensor', x: 1160, y: 420, label: 'Isolation monitor', sublabel: 'IMD', color: null, addr: '', rail: '5 V', notes: '', status: 'prototype', flags: ['safety'] },
       ],
