@@ -44,6 +44,7 @@ then Settings → Pages → deploy from branch `main`, root folder.
 | Explore the board | **Explore** or `/` searches placed parts by name, part number, address, fields, or supported bus. Enter focuses the first result; Arrow Down moves to results. Filter drawn connections by bus, then select a part to highlight immediate neighbors or its connected network. Unrelated items are dimmed and remain editable. |
 | Reading detail | In Explore, choose Overview, Normal, Detailed, or Automatic with zoom. Overview hides secondary card text and wire labels; Normal keeps part numbers and wire labels; Detailed shows everything. Selection and highlighted connections reveal their details at every zoom. Geometry, ports, status tags, and warning badges stay in place. Reset exploration restores the full view. |
 | Nudge | Arrow keys move the selection 1px; `Shift` + arrow moves a grid step |
+| Align / distribute | Select two or more items — the Align group in the properties panel lines up their left, horizontal-centre, right, top, vertical-middle, or bottom edges. Three or more can be spread to equal gaps across or down. Tidy spacing packs the selection to one gap you choose along the axis it already runs on |
 | Fold a panel | The ▾ in the properties or journey panel header folds it to a bar; remembered across reloads |
 | Hide the panels | `P` or the panels button hides the properties and journey panels entirely; press again (or open Journey) to bring them back; remembered across reloads |
 | Hide the palette | `B` or the palette button hides the parts palette so the canvas takes the full width; press again to bring it back; remembered across reloads |
@@ -86,6 +87,35 @@ saved in the file, in share links, and on a duplicate. Asking the assistant to
 rearrange the board leaves locked cards, zones, and notes where they are and
 lays the rest out clear of them; the assistant refuses to remove a locked item
 and says so, and it can set or clear a lock when you ask it to.
+
+The Align group appears once two or more items are selected; it works on cards,
+notes, and zones, and a selected wire is ignored, since a wire follows the ports
+it is drawn to. Every button reads each item's drawn size, so cards of different
+widths finish with their real edges on one line. The line itself is the extreme
+of the selection — the leftmost left edge for Align left, the midpoint of the
+selection's bounds for the two centre buttons — except when exactly one item in
+the selection is locked, in which case that item is the line, since it was
+pinned deliberately. Two or more locked items name no single reference, so the
+selection's extent decides again. Locked items never move; they only ever act as
+the reference. Aligning a zone carries the unlocked cards and notes inside it,
+exactly as dragging it does, unless such a card is itself in the selection, in
+which case it takes its own alignment instead.
+
+Distribute leaves an equal gap between facing edges rather than equal spacing
+between centres: on cards of one size the two agree, but on cards of different
+widths only the first reads as evenly spaced. The outermost two items hold
+still and the rest move between them. Where the cards already overlap, they end
+up overlapping by one even amount instead of an assortment. Distribute and Tidy
+spacing pass over locked items entirely: even spacing is a property of the whole
+run, and it can only come out even if every participant is free to move.
+
+Align needs two items that can move and Distribute needs three; below that the
+buttons are disabled rather than doing nothing quietly. Each action is one undo
+step. Results are never snapped to the grid, whatever the snap toggle says:
+snapping each item on its own would undo the alignment it was just given, since
+a centred card's left edge is its centre minus half its own width. Asking the
+assistant to rearrange the board afterwards lays the cards out again from
+scratch — alignment is an edit, not a constraint that persists.
 
 The `?` overlay lists every shortcut the app has, grouped as Tools, Selection,
 View, Panels, and Editing. It reads from one table in the source, so it cannot
@@ -262,6 +292,8 @@ Both run in GitHub Actions on every push and pull request (`.github/workflows/ci
 Layout: `src/state.js` owns the document model + undo; `src/render.js` draws
 it into layered SVG; `src/tools.js` is the pointer/keyboard state machine and
 `src/shortcuts.js` the table its overlay reads;
+`src/align.js` is the align/distribute/tidy arithmetic (measured rectangles in,
+new positions out, no DOM and no store);
 `src/serialize.js` validates files; `src/export.js` builds standalone
 SVG/PNG. `src/custom.js` validates custom part definitions and resolves a
 custom node to a catalogue-shaped part; `src/library.js` keeps the templates;

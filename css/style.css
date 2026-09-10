@@ -347,6 +347,52 @@ g.node:hover .ports,
   color: #7dd3fc;
 }
 
+/* ---- Align group (multi-selection) ----
+   Six across, so the align row reads as one row and the two distribute
+   buttons fall onto the next by themselves. */
+.align-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; }
+.align-grid .align-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg0);
+  border: 1px solid var(--line2);
+  color: var(--muted);
+  border-radius: 7px;
+  padding: 5px 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+.align-grid .align-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.align-grid .align-btn:hover:not(:disabled) { color: var(--text); border-color: var(--accent); }
+.align-grid .align-btn:disabled { opacity: 0.35; cursor: default; }
+.align-hint { margin: 8px 0 0; font-size: 11px; line-height: 1.45; color: var(--faint); }
+.tidy-row { display: flex; gap: 6px; }
+.tidy-row input {
+  width: 72px;
+  background: var(--bg0);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: inherit;
+}
+.tidy-row input:focus { outline: none; border-color: var(--accent); }
+.tidy-row button {
+  flex: 1;
+  background: var(--bg2);
+  border: 1px solid var(--line2);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 6px 11px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+}
+.tidy-row button:hover:not(:disabled) { border-color: var(--accent); color: #7dd3fc; }
+.tidy-row button:disabled { opacity: 0.35; cursor: default; }
+
 .swatches { display: flex; flex-wrap: wrap; gap: 7px; }
 .swatches .swatch {
   width: 26px;

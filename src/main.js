@@ -58,7 +58,8 @@ let storage = null;
 try { storage = window.localStorage; } catch { storage = null; }
 const library = createLibrary(storage);
 const editor = initPartEditor({ store, library, svg, tools });
-const propsPanel = createPropsPanel({ store, editor });
+// tools measures the selection for the panel's align controls.
+const propsPanel = createPropsPanel({ store, editor, tools });
 
 function uiState() {
   return {

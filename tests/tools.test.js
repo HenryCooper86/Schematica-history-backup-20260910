@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Store, addNode, addWire, addZone, addNote, updateItem, setLock } from '../src/state.js';
+import { nodeRect, noteHeight } from '../src/geometry.js';
 
 // tools.js wires itself to the DOM at creation time, so a minimal fake of the
 // pieces it touches (elements with closest/dataset/classList, document,
@@ -322,4 +323,150 @@ test('clearing the last schema field drops the fields key instead of leaving {}'
   const node = store.doc.nodes[0];
   assert.equal(node.fields, undefined);
   assert.equal(JSON.stringify(node).includes('fields'), false, 'serializes without the key');
+});
+
+// ---- Align, distribute, tidy ----
+// The arithmetic is covered in tests/align.test.js; what matters here is that
+// the selection is measured the way the canvas draws it, that a moved zone
+// carries its cards, and that one action is one undo step.
+
+test('aligning right lines up the real right edges of differently sized cards', async () => {
+  const { store, tools } = await setup();
+  const a = addNode(store, 'mcu', 0, 0);
+  const b = addNode(store, 'temp', 40, 200);
+  updateItem(store, b, { label: 'a considerably longer card label' });
+  const width = (id) => nodeRect(store.doc.nodes.find((n) => n.id === id)).w;
+  assert.notEqual(width(a), width(b), 'the two cards must differ for this to prove anything');
+  store.setSelection([a, b]);
+  tools.alignSelection('right');
+  const right = (id) => {
+    const n = store.doc.nodes.find((x) => x.id === id);
+    return n.x + nodeRect(n).w;
+  };
+  assert.equal(right(a), right(b));
+});
+
+test('aligning a zone carries its unlocked cards, as dragging it does', async () => {
+  const { store, tools } = await setup();
+  addNode(store, 'mcu', 120, 120);
+  const pinned = addNode(store, 'temp', 220, 120);
+  setLock(store, [pinned], true);
+  const z = addZone(store, { x: 100, y: 100, w: 400, h: 300 });
+  const far = addNode(store, 'mcu', 40, 600);
+  store.setSelection([z, far]);
+  tools.alignSelection('left');
+  assert.equal(store.doc.zones[0].x, 40, 'the zone moves to the leftmost edge');
+  assert.equal(store.doc.nodes[0].x, 60, 'its passenger keeps its place inside');
+  assert.equal(store.doc.nodes[1].x, 220, 'the locked card stays behind');
+  assert.equal(store.doc.nodes[2].x, 40, 'the card that was already leftmost is untouched');
+});
+
+test('a card that is selected as well as inside a selected zone takes its own target', async () => {
+  const { store, tools } = await setup();
+  const inside = addNode(store, 'mcu', 200, 120);
+  const z = addZone(store, { x: 100, y: 100, w: 400, h: 300 });
+  const far = addNode(store, 'mcu', 40, 600);
+  store.setSelection([z, inside, far]);
+  tools.alignSelection('left');
+  assert.equal(store.doc.zones[0].x, 40);
+  assert.equal(store.doc.nodes[0].x, 40, 'aligned on its own, not carried by the zone');
+});
+
+test('one align is one undo step, and undo puts everything back', async () => {
+  const { store, tools } = await setup();
+  const a = addNode(store, 'mcu', 0, 0);
+  const b = addNode(store, 'temp', 40, 200);
+  const c = addNode(store, 'mcu', 90, 400);
+  store.setSelection([a, b, c]);
+  const depth = store.undoStack.length;
+  tools.alignSelection('left');
+  assert.equal(store.undoStack.length, depth + 1);
+  assert.deepEqual(store.doc.nodes.map((n) => n.x), [0, 0, 0]);
+  store.undo();
+  assert.deepEqual(store.doc.nodes.map((n) => n.x), [0, 40, 90]);
+  store.redo();
+  assert.deepEqual(store.doc.nodes.map((n) => n.x), [0, 0, 0]);
+});
+
+test('an align that changes nothing costs no undo step', async () => {
+  const { store, tools } = await setup();
+  const a = addNode(store, 'mcu', 0, 0);
+  const b = addNode(store, 'mcu', 0, 200);
+  store.setSelection([a, b]);
+  const depth = store.undoStack.length;
+  tools.alignSelection('left');
+  assert.equal(store.undoStack.length, depth);
+});
+
+test('align results are not snapped to the grid, so the alignment survives', async () => {
+  const { store, tools } = await setup();
+  const a = addNode(store, 'mcu', 0, 0);
+  const b = addNode(store, 'temp', 40, 200);
+  updateItem(store, b, { label: 'a considerably longer card label' });
+  store.setSelection([a, b]);
+  assert.equal(tools.ui.snapOn, true, 'snapping is on, and align still ignores it');
+  tools.alignSelection('hcenter');
+  const center = (n) => n.x + nodeRect(n).w / 2;
+  assert.equal(center(store.doc.nodes[0]), center(store.doc.nodes[1]));
+});
+
+test('the align state follows the selection and names the locked anchor', async () => {
+  const { store, tools } = await setup();
+  const a = addNode(store, 'mcu', 0, 0);
+  const b = addNode(store, 'mcu', 300, 0);
+  const c = addNode(store, 'mcu', 600, 0);
+  store.setSelection([a]);
+  assert.equal(tools.alignState().canAlign, false);
+  store.setSelection([a, b]);
+  assert.deepEqual([tools.alignState().canAlign, tools.alignState().canDistribute], [true, false]);
+  store.setSelection([a, b, c]);
+  assert.equal(tools.alignState().canDistribute, true);
+  setLock(store, [c], true);
+  const state = tools.alignState();
+  assert.deepEqual([state.movable, state.anchored, state.canDistribute], [2, true, false]);
+  // A selected wire is not an item to align.
+  const w = addWire(store, 'i2c', { node: a, port: 'i2c' }, { node: b, port: 'i2c' });
+  store.setSelection([a, w]);
+  assert.equal(tools.alignState().canAlign, false);
+});
+
+test('notes are measured by their wrapped height, not treated as points', async () => {
+  const { store, tools } = await setup();
+  const t = addNote(store, 0, 0, 'a note whose text wraps onto several lines of its own');
+  const n = addNode(store, 'mcu', 300, 400);
+  store.setSelection([t, n]);
+  tools.alignSelection('bottom');
+  const note = store.doc.notes[0];
+  const node = store.doc.nodes[0];
+  assert.equal(note.y + noteHeight(note.text), node.y + nodeRect(node).h);
+});
+
+test('tidy spacing packs the run along its dominant axis in one step', async () => {
+  const { store, tools } = await setup();
+  addNode(store, 'mcu', 0, 0);
+  addNode(store, 'mcu', 400, 4);
+  addNode(store, 'mcu', 900, 0);
+  store.setSelection(store.doc.nodes.map((n) => n.id));
+  const depth = store.undoStack.length;
+  tools.tidySelection(20);
+  const w = nodeRect(store.doc.nodes[0]).w;
+  assert.deepEqual(store.doc.nodes.map((n) => n.x), [0, w + 20, (w + 20) * 2]);
+  assert.deepEqual(store.doc.nodes.map((n) => n.y), [0, 4, 0], 'the cross axis is left alone');
+  assert.equal(store.undoStack.length, depth + 1);
+});
+
+test('distributing gives equal gaps between edges and leaves the outer cards', async () => {
+  const { store, tools } = await setup();
+  const a = addNode(store, 'mcu', 0, 0);
+  const b = addNode(store, 'temp', 200, 0);
+  const c = addNode(store, 'mcu', 900, 0);
+  updateItem(store, b, { label: 'a considerably longer card label' });
+  store.setSelection([a, b, c]);
+  tools.distributeSelection('x');
+  const [n1, n2, n3] = store.doc.nodes;
+  assert.equal(n1.x, 0);
+  assert.equal(n3.x, 900);
+  const gap1 = n2.x - (n1.x + nodeRect(n1).w);
+  const gap2 = n3.x - (n2.x + nodeRect(n2).w);
+  assert.ok(Math.abs(gap1 - gap2) < 0.02, `${gap1} vs ${gap2}`);
 });

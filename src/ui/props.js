@@ -53,6 +53,54 @@ export function lockField(item) {
     + `${escAttr(on ? tr('Locked') : tr('Unlocked'))}</button></div>`;
 }
 
+// ---- Alignment ----
+// The toolbar has no room left for eight more buttons (it already wraps on a
+// narrow window), and these act on a multi-selection, which is exactly what
+// this panel is for — so the group lives here, under the item count.
+const ALIGN_ICONS = {
+  left: '<path d="M3 2.5v13"/><rect x="5.5" y="4.5" width="9.5" height="3.4" rx="1"/><rect x="5.5" y="10.1" width="6" height="3.4" rx="1"/>',
+  hcenter: '<path d="M9 2.5v13"/><rect x="4.2" y="4.5" width="9.6" height="3.4" rx="1"/><rect x="6" y="10.1" width="6" height="3.4" rx="1"/>',
+  right: '<path d="M15 2.5v13"/><rect x="3" y="4.5" width="9.5" height="3.4" rx="1"/><rect x="6.5" y="10.1" width="6" height="3.4" rx="1"/>',
+  top: '<path d="M2.5 3h13"/><rect x="4.5" y="5.5" width="3.4" height="9.5" rx="1"/><rect x="10.1" y="5.5" width="3.4" height="6" rx="1"/>',
+  vmiddle: '<path d="M2.5 9h13"/><rect x="4.5" y="4.2" width="3.4" height="9.6" rx="1"/><rect x="10.1" y="6" width="3.4" height="6" rx="1"/>',
+  bottom: '<path d="M2.5 15h13"/><rect x="4.5" y="3" width="3.4" height="9.5" rx="1"/><rect x="10.1" y="6.5" width="3.4" height="6" rx="1"/>',
+  x: '<rect x="2.2" y="4" width="3.2" height="10" rx="1"/><rect x="7.4" y="4" width="3.2" height="10" rx="1"/><rect x="12.6" y="4" width="3.2" height="10" rx="1"/>',
+  y: '<rect x="4" y="2.2" width="10" height="3.2" rx="1"/><rect x="4" y="7.4" width="10" height="3.2" rx="1"/><rect x="4" y="12.6" width="10" height="3.2" rx="1"/>',
+};
+
+// A number field hands back whatever was typed, so the bounds the markup
+// declares are enforced here too. A blank field means "unchanged", not zero.
+export function clampGap(value, fallback = 24) {
+  const n = Number(value);
+  if (value === '' || value == null || !Number.isFinite(n)) return fallback;
+  return Math.min(400, Math.max(0, Math.round(n)));
+}
+
+function alignButton(attr, value, label, enabled) {
+  return `<button class="align-btn" data-${attr}="${value}" title="${escAttr(label)}" aria-label="${escAttr(label)}"`
+    + `${enabled ? '' : ' disabled'}><svg viewBox="0 0 18 18" aria-hidden="true">${ALIGN_ICONS[value]}</svg></button>`;
+}
+
+// `ability` comes from src/align.js: how many items can move, and whether a
+// single locked item is deciding the edge. Pure, so the disabled states and
+// the anchor hint can be tested without a DOM.
+export function alignGroup(ability, gap) {
+  const align = [
+    ['left', tr('Align left')], ['hcenter', tr('Align horizontal centers')], ['right', tr('Align right')],
+    ['top', tr('Align top')], ['vmiddle', tr('Align vertical middles')], ['bottom', tr('Align bottom')],
+  ].map(([mode, label]) => alignButton('align', mode, label, ability.canAlign)).join('');
+  const spread = [
+    ['x', tr('Distribute horizontally — equal gaps')], ['y', tr('Distribute vertically — equal gaps')],
+  ].map(([axis, label]) => alignButton('distribute', axis, label, ability.canDistribute)).join('');
+  return `<label>${escAttr(tr('Align'))}</label><div class="align-grid">${align}${spread}</div>`
+    + (ability.anchored ? `<p class="align-hint">${escAttr(tr('Lined up on the locked item.'))}</p>` : '')
+    + `<label for="props-tidy-gap">${escAttr(tr('Tidy spacing'))}</label><div class="tidy-row">`
+    + `<input id="props-tidy-gap" type="number" min="0" max="400" step="4" value="${Number(gap)}"`
+    + ` aria-label="${escAttr(tr('Gap in pixels'))}">`
+    + `<button id="props-tidy" title="${escAttr(tr('Set one gap between the cards along their main axis'))}"`
+    + `${ability.canTidy ? '' : ' disabled'}>${escAttr(tr('Tidy'))}</button></div>`;
+}
+
 // Zone and swimlane color rows use the same swatch picker as net_draw
 // (no "Auto" — containers always carry an explicit color).
 function colorSwatchRow(current) {
@@ -173,8 +221,11 @@ function reportDelete({ kept }) {
   if (msg) toast(msg);
 }
 
-export function createPropsPanel({ store, editor }) {
+export function createPropsPanel({ store, editor, tools }) {
   const props = document.getElementById('props');
+  // The tidy gap is a setting, not a property of the selection: it outlives
+  // the panel rebuild that every selection change causes. Three grid steps.
+  let tidyGap = 24;
 
   function bind(item) {
     const guide = props.querySelector('#rdk-guide-download');
@@ -270,6 +321,26 @@ export function createPropsPanel({ store, editor }) {
     if (del) onPress(del, () => reportDelete(deleteItems(store, [item.id])));
   }
 
+  // Each action is one undo step; tools.js measures the selection and writes
+  // it. A disabled button is inert in the browser, but the guard also covers a
+  // keyboard activation arriving after the selection shrank.
+  function bindAlign() {
+    if (!tools) return;
+    const act = (selector, run) => props.querySelectorAll(selector).forEach((btn) => onPress(btn, () => {
+      if (!btn.disabled) run(btn);
+    }));
+    act('[data-align]', (btn) => tools.alignSelection(btn.dataset.align));
+    act('[data-distribute]', (btn) => tools.distributeSelection(btn.dataset.distribute));
+    const gapInput = props.querySelector('#props-tidy-gap');
+    if (gapInput) gapInput.addEventListener('change', () => { tidyGap = clampGap(gapInput.value); });
+    const tidy = props.querySelector('#props-tidy');
+    if (tidy) onPress(tidy, () => {
+      if (tidy.disabled) return;
+      tidyGap = clampGap(gapInput?.value);
+      tools.tidySelection(tidyGap);
+    });
+  }
+
   // What the panel currently shows, as the selection it was rendered for.
   let rendered = null;
 
@@ -302,8 +373,10 @@ export function createPropsPanel({ store, editor }) {
       // still unlocked, and unlocks once everything is.
       const next = nextLockState(store.doc, ids);
       props.innerHTML = panelHeader(tr('{n} items selected', { n: ids.length }), 'props')
+        + (tools ? alignGroup(tools.alignState(), tidyGap) : '')
         + (next === null ? '' : `<button id="props-lock" class="secondary">${escAttr(next ? tr('Lock all') : tr('Unlock all'))}</button>`)
         + `<button id="props-delete" class="danger">${escAttr(tr('Delete selection'))}</button>`;
+      bindAlign();
       const lockAll = document.getElementById('props-lock');
       // Read the selection again on the press: the label is from render time.
       if (lockAll) onPress(lockAll, () => {

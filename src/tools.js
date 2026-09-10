@@ -6,6 +6,7 @@ import {
   addWire, addZone, addSwimlane, addNote, updateItem, deleteItems, duplicateItems, findItem,
   rewireEnd, resolveBus, isLocked, nextLockState, setLock, lockedKeptMessage,
 } from './state.js';
+import { alignMoves, distributeMoves, tidyMoves, alignAbility } from './align.js';
 import { BUSES, BUS_ORDER } from './buses.js';
 import { nodePart } from './rdk/profiles.js';
 import { esc } from './render.js';
@@ -146,6 +147,75 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave })
         found.item.y = o.y + dy;
       }
     });
+  }
+
+  // ---- Align, distribute, tidy ----
+  // The rectangles the alignment math works on: every selected card, note, and
+  // zone, measured the way the canvas draws it. A card's width follows its
+  // content, so a right-align has to read nodeRect(), not a constant, or two
+  // cards of different widths would keep two different right edges.
+  function selectionRects() {
+    const rects = [];
+    for (const id of store.selection) {
+      const found = findItem(store.doc, id);
+      if (!found || found.type === 'wire') continue;
+      const it = found.item;
+      const box = found.type === 'node' ? nodeRect(it)
+        : found.type === 'note' ? { x: it.x, y: it.y, w: NOTE_W, h: noteHeight(it.text) }
+          : { x: it.x, y: it.y, w: it.w, h: it.h };
+      rects.push({ id, ...box, locked: isLocked(it) });
+    }
+    return rects;
+  }
+
+  // Apply computed positions as one undo step. A zone that moves carries the
+  // unlocked cards and notes inside it, exactly as dragging it does; a
+  // passenger that is itself in the selection keeps its own aligned position
+  // instead of the ride. Memberships are read before anything moves, so two
+  // zones travelling at once cannot steal each other's cards.
+  // Results are never snapped to the grid: snapping each item on its own would
+  // undo the alignment it was just given (a centered card's left edge is its
+  // center minus half its own width, which is rarely a grid multiple), and an
+  // even gap is not generally a whole number of grid steps.
+  function applyMoves(moves) {
+    if (!moves.length) return;
+    const own = new Set(moves.map((m) => m.id));
+    store.apply((doc) => {
+      const rides = new Map();
+      for (const m of moves) {
+        const found = findItem(doc, m.id);
+        if (found?.type !== 'zone') continue;
+        for (const mid of zoneMembers(doc, found.item)) {
+          if (own.has(mid) || rides.has(mid)) continue;
+          const p = findItem(doc, mid);
+          if (p && !isLocked(p.item)) rides.set(mid, { item: p.item, dx: m.x - found.item.x, dy: m.y - found.item.y });
+        }
+      }
+      for (const m of moves) {
+        const found = findItem(doc, m.id);
+        if (found) Object.assign(found.item, { x: m.x, y: m.y });
+      }
+      for (const r of rides.values()) {
+        r.item.x += r.dx;
+        r.item.y += r.dy;
+      }
+    });
+  }
+
+  function alignSelection(mode) {
+    applyMoves(alignMoves(selectionRects(), mode));
+  }
+
+  function distributeSelection(axis) {
+    applyMoves(distributeMoves(selectionRects(), axis));
+  }
+
+  function tidySelection(gap) {
+    applyMoves(tidyMoves(selectionRects(), { gap }));
+  }
+
+  function alignState() {
+    return alignAbility(selectionRects());
   }
 
   function hitMarquee(doc, m) {
@@ -677,5 +747,8 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave })
   });
   editor.addEventListener('blur', commitInlineEditor);
 
-  return { view, ui, setTool, zoomBy, zoomReset, zoomFit, toWorld };
+  return {
+    view, ui, setTool, zoomBy, zoomReset, zoomFit, toWorld,
+    alignSelection, distributeSelection, tidySelection, alignState,
+  };
 }
