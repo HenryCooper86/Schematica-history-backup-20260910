@@ -48,15 +48,16 @@ const store = new Store(loadAutosave() || newDoc());
 const renderer = createRenderer(svg);
 let dialogs = null;
 let explorer = null;
-const tools = createTools({
-  svg, store, requestRender: render, onToolChange: updateToolButtons,
-  onSave: () => dialogs?.saveJSON(),
-});
 // The part library lives in localStorage; reading `window.localStorage`
 // throws when site data is blocked, so it takes null and lives in memory.
 let storage = null;
 try { storage = window.localStorage; } catch { storage = null; }
 const library = createLibrary(storage);
+// tools reads the library to recognise a pasted custom card's template.
+const tools = createTools({
+  svg, store, requestRender: render, onToolChange: updateToolButtons,
+  onSave: () => dialogs?.saveJSON(), library,
+});
 const editor = initPartEditor({ store, library, svg, tools });
 // tools measures the selection for the panel's align controls.
 const propsPanel = createPropsPanel({ store, editor, tools });

@@ -7,16 +7,20 @@ import {
   rewireEnd, resolveBus, isLocked, nextLockState, setLock, lockedKeptMessage,
 } from './state.js';
 import { alignMoves, distributeMoves, tidyMoves, alignAbility } from './align.js';
+import {
+  buildClip, encodeClip, readClip, pasteInto, clipCount, copiedMessage, pastedMessage,
+  MAX_CLIP_ITEMS,
+} from './clipboard.js';
 import { BUSES, BUS_ORDER } from './buses.js';
 import { nodePart } from './rdk/profiles.js';
 import { esc } from './render.js';
 import { toast } from './ui/press.js';
-import { trd } from './i18n.js';
+import { tr, trd } from './i18n.js';
 
 // requestRender(kind): 'all' (default) rebuilds the diagram, 'view' only moves
 // the camera, 'overlay' only redraws drag feedback. Hover effects (ports,
 // wire highlight) are pure CSS, so moving the pointer never re-renders.
-export function createTools({ svg, store, requestRender, onToolChange, onSave }) {
+export function createTools({ svg, store, requestRender, onToolChange, onSave, library }) {
   const view = { x: 40, y: 40, zoom: 1 };
   // Animate starts off, as in net_draw: wires are solid until the toggle (or a
   // wire's own "Always" flow setting) turns their traffic on.
@@ -522,6 +526,87 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave })
     return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
   }
 
+  // ---- Copy, cut, paste ----
+  // The payload itself is built and validated in src/clipboard.js; this layer
+  // is only the clipboard API, the toasts, and the guards.
+
+  // What this tab copied last. A browser that denies the clipboard (a file://
+  // page, a denied permission, no secure context) still gets copy and paste
+  // within the tab, the way the PNG copy falls back to a download.
+  let memoryClip = null;
+
+  // Read-only view of the part library, to tell a pasted custom card whose
+  // template id this browser already knows from one it has never seen. A
+  // caller that has no library (a test, say) simply finds nothing.
+  const templates = library || { get: () => null };
+
+  // A dialog or a mid-request assistant may take the board over while the
+  // clipboard read is in flight; a paste that landed after that would edit a
+  // board the user is no longer driving.
+  function canEditNow() {
+    return !ui.locked && !document.querySelector('dialog[open]');
+  }
+
+  async function copySelection({ cut = false } = {}) {
+    const clip = buildClip(store.doc, [...store.selection]);
+    if (!clip) {
+      toast(tr('Select a part, zone, or note to copy.'));
+      return;
+    }
+    const n = clipCount(clip);
+    if (n > MAX_CLIP_ITEMS) {
+      toast(tr('A copy is limited to {max} items; this selection holds {n}.', { max: MAX_CLIP_ITEMS, n }));
+      return;
+    }
+    const text = encodeClip(clip);
+    memoryClip = text;
+    // Still inside the keypress, so the write carries its user activation.
+    const api = globalThis.navigator?.clipboard;
+    let shared = false;
+    if (api?.writeText) {
+      try {
+        await api.writeText(text);
+        shared = true;
+      } catch { /* denied: the in-tab copy above is the fallback */ }
+    }
+    // A locked item is copied but never removed, and is counted the way Delete
+    // counts it. A dialog or an assistant request that took the board over
+    // while the write was in flight removes nothing, so the notice says copied.
+    const removed = cut && canEditNow();
+    const kept = removed ? lockedKeptMessage(deleteItems(store, [...store.selection]).kept) : null;
+    toast([
+      copiedMessage(n, { cut: removed }),
+      kept,
+      shared ? null : tr('The clipboard was blocked, so this copy stays in this tab.'),
+    ].filter(Boolean).join(' '));
+  }
+
+  async function pasteClipboard() {
+    const api = globalThis.navigator?.clipboard;
+    let text = null;
+    if (api?.readText) {
+      try { text = await api.readText(); } catch { text = null; }
+    }
+    // A denied or empty read falls back to this tab's own copy; text that was
+    // read successfully is used as it is, so a paste never resurrects an
+    // older copy over what the user has since put on the clipboard.
+    if (!text) text = memoryClip;
+    if (!canEditNow()) return;
+    let clip;
+    let warnings;
+    try {
+      ({ clip, warnings } = readClip(text));
+    } catch (err) {
+      toast(err.message);
+      return;
+    }
+    const ids = pasteInto(store, clip, { templateFor: (lib) => templates.get(lib) });
+    store.setSelection(ids);
+    toast(warnings.length
+      ? tr('Pasted with warnings:\n\n{list}', { list: warnings.join('\n') })
+      : pastedMessage(ids.length));
+  }
+
   window.addEventListener('keydown', (e) => {
     // A modal dialog owns the keyboard: Escape closes it, nothing reaches the canvas.
     if (document.querySelector('dialog[open]')) return;
@@ -561,6 +646,24 @@ export function createTools({ svg, store, requestRender, onToolChange, onSave })
       e.preventDefault();
       const ids = duplicateItems(store, [...store.selection]);
       if (ids.length) store.setSelection(ids);
+      return;
+    }
+    // Copy, cut, and paste reach here only when no text field, dialog, or
+    // assistant request owns the keyboard, so the browser's own clipboard
+    // inside a text field keeps working untouched.
+    if (mod && e.key.toLowerCase() === 'c') {
+      e.preventDefault();
+      copySelection();
+      return;
+    }
+    if (mod && e.key.toLowerCase() === 'x') {
+      e.preventDefault();
+      copySelection({ cut: true });
+      return;
+    }
+    if (mod && e.key.toLowerCase() === 'v') {
+      e.preventDefault();
+      pasteClipboard();
       return;
     }
     if (e.key === 'Delete' || e.key === 'Backspace') {

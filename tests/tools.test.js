@@ -470,3 +470,127 @@ test('distributing gives equal gaps between edges and leaves the outer cards', a
   const gap2 = n3.x - (n2.x + nodeRect(n2).w);
   assert.ok(Math.abs(gap1 - gap2) < 0.02, `${gap1} vs ${gap2}`);
 });
+
+// A stand-in for navigator.clipboard: `deny` rejects both calls, the way a
+// browser without a secure context or a granted permission does.
+function fakeClipboard({ deny = false, text = '' } = {}) {
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  const state = { text };
+  const clipboard = {
+    writeText: async (t) => { if (deny) throw new Error('denied'); state.text = t; },
+    readText: async () => { if (deny) throw new Error('denied'); return state.text; },
+  };
+  Object.defineProperty(globalThis, 'navigator', { value: { clipboard }, configurable: true });
+  const restore = () => {
+    if (original) Object.defineProperty(globalThis, 'navigator', original);
+    else delete globalThis.navigator;
+  };
+  return { state, restore };
+}
+
+// The clipboard calls are awaited, so a dispatched keypress finishes a tick later.
+const settle = () => new Promise((resolve) => { setTimeout(resolve, 0); });
+
+// Two wired cards, both selected.
+function wiredPair(store) {
+  const a = addNode(store, 'mcu', 0, 0);
+  const b = addNode(store, 'temp', 300, 0);
+  addWire(store, 'i2c', { node: a, port: 'i2c' }, { node: b, port: 'i2c' });
+  store.setSelection([a, b]);
+  return { a, b };
+}
+
+test('Ctrl-C in a text field is left to the browser', async () => {
+  const { win, store, ev } = await setup();
+  const clip = fakeClipboard();
+  try {
+    wiredPair(store);
+    const field = makeEl({ tag: 'INPUT' });
+    const press = ev(field, { key: 'c', ctrlKey: true });
+    win.dispatch('keydown', press);
+    await settle();
+    assert.equal(press.prevented, false, 'the native copy is untouched');
+    assert.equal(clip.state.text, '', 'and nothing of ours reached the clipboard');
+  } finally { clip.restore(); }
+});
+
+test('Ctrl-C copies the selection and Ctrl-V pastes it as one undo step', async () => {
+  const { win, store, key, toastEl } = await setup();
+  const clip = fakeClipboard();
+  try {
+    wiredPair(store);
+    win.dispatch('keydown', key('c', { ctrlKey: true }));
+    await settle();
+    assert.match(clip.state.text, /"schematica":"clip"/);
+    assert.equal(toastEl.textContent, '3 items copied to the clipboard.', 'the wire counts too');
+    const before = store.undoStack.length;
+    const originals = store.doc.nodes.map((n) => n.id);
+    win.dispatch('keydown', key('v', { metaKey: true }));
+    await settle();
+    assert.equal(store.doc.nodes.length, 4);
+    assert.equal(store.doc.wires.length, 2);
+    assert.equal(store.undoStack.length, before + 1, 'one undo step');
+    assert.equal(store.selection.size, 3, 'exactly what was pasted is selected');
+    assert.equal(originals.some((id) => store.selection.has(id)), false, 'and none of the originals');
+    store.undo();
+    assert.equal(store.doc.nodes.length, 2);
+  } finally { clip.restore(); }
+});
+
+test('Ctrl-X copies a locked item but leaves it on the board, and says how many stayed', async () => {
+  const { win, store, key, toastEl } = await setup();
+  const clip = fakeClipboard();
+  try {
+    const { a } = wiredPair(store);
+    setLock(store, [a], true);
+    win.dispatch('keydown', key('x', { ctrlKey: true }));
+    await settle();
+    assert.equal(store.doc.nodes.length, 1, 'only the locked card is left');
+    assert.equal(store.doc.nodes[0].id, a);
+    assert.match(toastEl.textContent, /^3 items cut to the clipboard\. 1 locked item was kept\./);
+    assert.match(clip.state.text, new RegExp(`"${a}"`), 'the locked card still travelled');
+  } finally { clip.restore(); }
+});
+
+test('a denied clipboard keeps copy and paste working inside the tab, and says so', async () => {
+  const { win, store, key, toastEl } = await setup();
+  const clip = fakeClipboard({ deny: true });
+  try {
+    wiredPair(store);
+    win.dispatch('keydown', key('c', { ctrlKey: true }));
+    await settle();
+    assert.match(toastEl.textContent, /stays in this tab/);
+    win.dispatch('keydown', key('v', { ctrlKey: true }));
+    await settle();
+    assert.equal(store.doc.nodes.length, 4, 'the in-tab copy stood in for the clipboard');
+  } finally { clip.restore(); }
+});
+
+test('ordinary text on the clipboard leaves the board alone and explains itself', async () => {
+  const { win, store, key, toastEl } = await setup();
+  const clip = fakeClipboard({ text: 'a shopping list' });
+  try {
+    wiredPair(store);
+    const before = store.undoStack.length;
+    win.dispatch('keydown', key('v', { ctrlKey: true }));
+    await settle();
+    assert.equal(store.doc.nodes.length, 2);
+    assert.equal(store.undoStack.length, before, 'a refused paste costs no undo step');
+    assert.match(toastEl.textContent, /does not hold a copied selection/);
+  } finally { clip.restore(); }
+});
+
+test('copy, cut, and paste stay out while the assistant holds the canvas', async () => {
+  const { win, store, tools, key } = await setup();
+  const clip = fakeClipboard();
+  try {
+    wiredPair(store);
+    win.dispatch('keydown', key('c', { ctrlKey: true }));
+    await settle();
+    tools.ui.locked = true;
+    win.dispatch('keydown', key('v', { ctrlKey: true }));
+    win.dispatch('keydown', key('x', { ctrlKey: true }));
+    await settle();
+    assert.equal(store.doc.nodes.length, 2, 'nothing pasted and nothing cut');
+  } finally { clip.restore(); }
+});

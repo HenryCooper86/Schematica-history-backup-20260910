@@ -53,6 +53,7 @@ then Settings → Pages → deploy from branch `main`, root folder.
 | Pan / zoom | Space-drag or middle-drag; scroll wheel |
 | Undo / redo | `Ctrl/Cmd-Z`, `Ctrl/Cmd-Shift-Z` |
 | Duplicate | `Ctrl/Cmd-D` |
+| Copy / cut / paste | `Ctrl/Cmd-C`, `Ctrl/Cmd-X`, `Ctrl/Cmd-V` — within a board, into another board, or into another tab; a cut keeps locked items and says how many |
 | Lock | `K`, or the Lock toggle in the properties panel (Lock all / Unlock all for a multi-selection) — a locked node, zone, or note cannot be dragged, nudged, resized, or deleted, and wears a small padlock |
 | Delete | `Delete` / `Backspace` — a mixed selection loses its unlocked items and a notice says how many locked ones were kept |
 | Keyboard shortcuts | `?` or the **?** button in the zoom group — every shortcut, grouped, with ⌘ or Ctrl to match the platform |
@@ -116,6 +117,30 @@ snapping each item on its own would undo the alignment it was just given, since
 a centred card's left edge is its centre minus half its own width. Asking the
 assistant to rearrange the board afterwards lays the cards out again from
 scratch — alignment is an edit, not a constraint that persists.
+
+Copy writes the selection to the system clipboard as one JSON payload, so a
+paste lands in this board, in a board opened tomorrow, or in another tab.
+What travels: the selected cards, notes, and zones, every wire with both of its
+ends in the selection, and the definition of any custom part a copied card
+uses, so the paste draws correctly where that part has never been seen. What
+does not: a wire with one end outside the selection, because its other end
+would have nothing to land on; the cards a selected zone happens to contain but
+you did not select, exactly as with Duplicate; and the board's title, journey,
+and view. A paste mints new ids, remaps the copied wires onto them, is one undo
+step, and leaves precisely the pasted items selected. It lands 16px down and
+right when the originals are still on this board, and at the coordinates it was
+drawn at when the board has never held them, so a subsystem carried to another
+board arrives where it was; either way it steps further while it would land
+exactly on something, so pasting twice cascades instead of stacking out of
+sight. A pasted custom card keeps its link to a My parts template only when
+that template is the same part here — otherwise the card is drawn just as it
+was copied but stops claiming to be a stamp of a template it never came from,
+and nothing about a paste ever writes to My parts. The clipboard is untrusted
+input: a payload is validated exactly as a saved file is, one paste is capped
+at 500 items, and anything malformed produces a notice and leaves the board
+untouched. Copy and paste inside a text field remain the browser's own, and
+where a browser denies clipboard access the copy still crosses boards within
+the tab.
 
 The `?` overlay lists every shortcut the app has, grouped as Tools, Selection,
 View, Panels, and Editing. It reads from one table in the source, so it cannot
