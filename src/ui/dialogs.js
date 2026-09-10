@@ -3,12 +3,13 @@ import { checkLayout } from '../layout-checks.js';
 import { buildHTML } from '../html-export.js';
 // File and export actions: new/save/open, the export dialog (PNG, SVG, PDF,
 // seamless loop GIF), the BOM and design-rule dialogs, and share links.
-import { newDoc, deleteItems } from '../state.js';
+import { newDoc, deleteItems, lockedKeptMessage } from '../state.js';
 import { serialize, deserialize } from '../serialize.js';
 import { buildExportSVG, exportBounds, exportPNG, exportPDF, download, copyPNG } from '../export.js';
 import { encodeGIF } from '../gif.js';
 import { LOOP_MS, esc } from '../render.js';
-import { buildBOM, bomCSV, bomMarkdown, bomHeaders } from '../bom.js';
+import { buildBOM, bomCSV, bomMarkdown, bomHeaders, bomTotalMa, bomSummary } from '../bom.js';
+import { formatCurrent } from '../power.js';
 import { checkDoc } from '../drc.js';
 import { encodeShare } from '../share.js';
 import { toast, openModal } from './press.js';
@@ -28,7 +29,9 @@ export function initDialogs({ store }) {
   });
   document.getElementById('btn-save').addEventListener('click', saveJSON);
   document.getElementById('btn-remove').addEventListener('click', () => {
-    deleteItems(store, [...store.selection]);
+    // Locked items survive; say so, as the Delete key and the panel do.
+    const msg = lockedKeptMessage(deleteItems(store, [...store.selection]).kept);
+    if (msg) toast(msg);
   });
 
   // ---- Export dialog ----
@@ -157,12 +160,18 @@ export function initDialogs({ store }) {
     const body = bomRows.map((r) => (
       `<tr><td>${esc(r.kind === 'custom' ? r.part : trd(r.part))}</td><td>${esc(r.sublabel)}</td><td>${r.qty}</td>`
       + `<td class="wrap">${esc(r.refs.join(', '))}</td><td>${esc(r.addrs.join(', '))}</td>`
-      + `<td>${esc(r.rails.join(', '))}</td><td>${esc(r.statuses.join(', '))}</td>`
+      + `<td>${esc(r.rails.join(', '))}</td><td>${esc(formatCurrent(r.currentMa))}</td><td>${esc(r.statuses.join(', '))}</td>`
       + `<td>${esc(r.flags.join(', '))}</td><td class="wrap">${esc(r.notes.join('; '))}</td></tr>`
     )).join('');
     const head = bomHeaders().map((h) => `<th>${esc(h)}</th>`).join('');
+    // The board total sits in a foot row of the same shape as the lines above
+    // it, and only when something on the board declared a current.
+    const total = bomTotalMa(bomRows);
+    const foot = total == null ? '' : `<tfoot><tr><th>${esc(tr('Board total'))}</th><th></th><th></th><th></th><th></th>`
+      + `<th></th><th>${esc(formatCurrent(total))}</th><th></th><th></th><th></th></tr></tfoot>`;
     document.getElementById('bom-table').innerHTML = bomRows.length
-      ? `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`
+      ? `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody>${foot}</table>`
+        + bomSummary(store.doc).map((line) => `<p class="bom-summary">${esc(line)}</p>`).join('')
       : `<p style="padding:12px">${esc(tr('The board is empty - add some parts first.'))}</p>`;
   }
   document.getElementById('btn-bom').addEventListener('click', () => {
@@ -188,13 +197,19 @@ export function initDialogs({ store }) {
 
   // ---- Design rule check ----
   const drcDialog = document.getElementById('drc-dialog');
-  const levelLabel = (level) => (level === 'error' ? tr('ERROR') : tr('WARNING'));
+  const levelLabel = (level) => {
+    if (level === 'error') return tr('ERROR');
+    return level === 'info' ? tr('INFO') : tr('WARNING');
+  };
   let drcMode = 'design';
   for (const btn of document.querySelectorAll('[data-check-mode]')) btn.addEventListener('click', () => {
     drcMode = btn.dataset.checkMode;
     for (const tab of document.querySelectorAll('[data-check-mode]')) tab.setAttribute('aria-pressed', String(tab === btn));
     renderDRC();
   });
+  // An info finding reports a measurement, not a defect: a runtime estimate is
+  // nothing for the assistant to repair. Layout findings keep their own rule.
+  const fixable = (f) => (drcMode === 'design' ? f.level !== 'info' : !!f.supportedFixes?.length);
   function renderDRC() {
     const findings = drcMode === 'layout' ? checkLayout(store.doc) : checkDoc(store.doc);
     const list = document.getElementById('drc-list');
@@ -205,7 +220,7 @@ export function initDialogs({ store }) {
     list.innerHTML = (drcMode === 'layout' && findings.length === 200 ? `<p>${esc(tr('Showing the first 200 layout findings. Resolve some and check again.'))}</p>` : '') + findings.map((f, i) => (
       `<div class="drc-row"><span class="drc-level ${f.level}">${esc(levelLabel(f.level))}</span>`
       + `<span class="msg">${esc(f.message)}${f.suggestion ? `<small>${esc(f.suggestion)}</small>` : ''}</span>`
-      + `<button data-drc="${i}">${esc(tr('Select'))}</button>${drcMode === 'design' || f.supportedFixes?.length ? `<button data-drc-fix="${i}">${esc(tr('Fix'))}</button>` : ''}</div>`
+      + `<button data-drc="${i}">${esc(tr('Select'))}</button>${fixable(f) ? `<button data-drc-fix="${i}">${esc(tr('Fix'))}</button>` : ''}</div>`
     )).join('');
     list.querySelectorAll('[data-drc]').forEach((btn) => {
       btn.addEventListener('click', () => {

@@ -298,7 +298,9 @@ test('definitionFrom a built-in part keeps port ids, marks supply pins required,
   assert.deepEqual(d.icon, { kind: 'mcu' });
   assert.deepEqual(d.ports.map((p) => p.id), PARTS.mcu.ports.map((p) => p.id));
   assert.deepEqual(d.ports.filter((p) => p.required).map((p) => p.id), ['vcc', 'gnd']);
-  assert.deepEqual(d.fields, []);
+  // Customizing an MCU carries its power-budget currents into the definition.
+  assert.deepEqual(d.fields.map((fd) => fd.id), ['ityp', 'ipeak']);
+  assert.deepEqual(definitionFrom(nodePart({ kind: 'crystal' })).fields, [], 'a part with no schema has no fields');
   assert.deepEqual(d.ports.filter((p) => p.id.startsWith('gpio')).map((p) => p.name), ['GPIO', 'GPIO 2']);
   const t = definitionFrom(nodePart({ kind: 'threatactor' }));
   assert.equal(t.fields.find((f) => f.id === 'severity').options.length, 5, 'schema fields become plain choice fields');

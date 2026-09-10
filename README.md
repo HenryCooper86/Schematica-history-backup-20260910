@@ -67,9 +67,10 @@ then Settings → Pages → deploy from branch `main`, root folder.
 | Pan | `H` or hold Space — dedicated hand tool |
 | Fullscreen | ⛶ button in the zoom group |
 | Export dialog | Pixel dimensions with aspect lock and a transparent-background option that PNG and SVG both honor |
-| BOM | BOM button — bill of materials grouped by part number (qty, refs, addresses, rails, status, flags); CSV download or Markdown copy |
+| BOM | BOM button — bill of materials grouped by part number (qty, refs, addresses, rails, typical current, status, flags), with a board total; CSV download or Markdown copy |
+| Power budget | Give consumers a Typical and Peak current, supplies and regulators an Output current limit, and batteries a Capacity. Check adds them up per power rail; the BOM totals them. Written as `250mA`, `0.25 A`, `3.6uA`, `2 Ah`, or a bare number meaning milliamps |
 | Share | Share button — the whole board compressed into a copyable URL; opening the link loads it, no backend. Opened over a board you were working on, the link loads at once, keeps your board as a backup, and the notice offers to restore it |
-| Check | Check button — design rule checks: I2C address conflicts, unconnected power pins, floating parts, bus mismatches, lifecycle risks (the Sensor Node example passes them all) |
+| Check | Check button — design rule checks: I2C address conflicts, unconnected power pins, floating parts, bus mismatches, lifecycle risks, power budgets (the Sensor Node example passes them all) |
 | Assistant | `A` or the sparkle button — describe a board and it builds it, ask for a change and it edits the board, press Fix on a check finding or "Fix checks" and it resolves them, "Fill in details" fills part numbers from presets. Add files, a folder, or drop individual files to use local documents as sources; review, select, preview, or remove them before Send. Bring your own key: Claude by default, plus OpenRouter, Z.AI GLM, Moonshot Kimi, and any OpenAI-compatible endpoint. With `npm start`, your own backend calls the official provider URLs and streams replies, including Ollama Cloud via `https://ollama.com/v1`. The static edition still supports the optional worker in `relay/`. Each reply is one undo step and what it touched glows until your next click. The key is forwarded to your configured provider, saved in this browser only if you tick remember, and never included in the board, autosave, or share links |
 | Wire options | Select a wire — bus, label, arrowheads (→ or ↔), line style (solid, dashed, dotted, air gap), traffic flow, delete |
 | Custom parts | **+ New** under My parts in the palette defines a part: name, category, accent, an icon (a built-in one, initials, or an SVG path), typed ports on any side, and extra fields. It is saved to My parts (this browser) and placed on the board. **Customize…** on any built-in card starts from its definition, so an MCU with a second CAN port keeps its wires. **Edit part…** on a custom card changes it and, when it came from a template, offers to update its siblings. Export and Import move My parts between machines as a JSON file. Custom parts in a board file travel with it; an older build of the app opens them as custom boxes |
@@ -110,6 +111,25 @@ to the assistant. Moving cards remains manual unless you explicitly ask the
 assistant to rearrange the whole board. The assistant can request the same
 measured findings using `run_checks` with `include_layout: true`. The display
 is capped at 200 findings per check; curve checks use a half-pixel tolerance.
+
+**Check → Power budget** follows the power wires that are drawn. A supply or
+regulator output, and everything wired to it, is one rail; the currents its
+parts declare are added up and compared with what the supply says it can give.
+Over the limit is an error, over four fifths of it a warning, and a rail whose
+parts state what they draw while no supply states a limit is reported as one
+the budget cannot check. A regulator sits on two rails: it draws on its input
+and feeds its output, and where it states no input current of its own, its
+output rail's total is carried across unchanged — which ignores the conversion
+ratio and the efficiency, so it is about right for a linear regulator, high for
+a step-down converter and low for a step-up one. Peaks are summed and named but
+never judged, because whether two of them land in the same instant, and whether
+the bulk capacitance rides them out, is not something a sum of datasheet figures
+can say. A battery that states a capacity gets a runtime: capacity divided by
+the rail's typical current, with no duty cycle, no converter losses, no ageing
+and no cut-off voltage. Parts that state nothing are counted and named, never
+assumed to draw zero, and a board that fills none of the fields in raises no
+power findings at all. This is arithmetic on what the board says about itself;
+it does not simulate the supply, prove thermal headroom, or size a regulator.
 
 **Explore → Appearance** selects a dark, light, or system theme, remembered on
 this device. **Export theme** can override it for downloads; Automatic (SVG)

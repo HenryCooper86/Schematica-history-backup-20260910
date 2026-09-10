@@ -130,7 +130,11 @@ test('every threat part has a field schema with a severity; the new threats use 
   assert.ok(by('malware', 'type').options.includes('remote-access-trojan'));
   assert.ok(by('spoofing', 'target').options.includes('GNSS'));
   assert.ok(DISPOSITIONS.adversary && DISPOSITIONS.victim.color, 'disposition vocabulary');
-  assert.equal(PARTS.mcu.fields, undefined, 'hardware parts keep the part-number trio');
+  // A hardware part's own fields are the power-budget currents, and `trio`
+  // says it still carries the part number, address, and rail beside them.
+  assert.deepEqual(PARTS.mcu.fields.map((fd) => fd.id), ['ityp', 'ipeak']);
+  assert.equal(PARTS.mcu.trio, true, 'hardware parts keep the part-number trio');
+  assert.equal(PARTS.threatactor.trio, undefined, 'a threat replaces the trio instead');
 });
 
 test('network, security, and host parts carry IP address and DNS name fields; the ASN carries its number and prefix', () => {

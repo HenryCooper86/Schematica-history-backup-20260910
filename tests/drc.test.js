@@ -139,6 +139,103 @@ test('custom parts report unwired required ports by bus; optional ports and buil
   assert.ok(!findings.some((f) => /OUT|CAN|GND/.test(f.message)), 'optional and wired ports are silent');
 });
 
+// ---- Power budget ----
+// Every board below wires GND as well, so the only findings left are the ones
+// the budget rules raise.
+const powered = (supply, consumers) => {
+  const nodes = [supply, ...consumers];
+  const wires = [];
+  consumers.forEach((c, i) => {
+    wires.push(wire(`p${i}`, 'power', supply.id, 'out', c.id, 'vcc'));
+    wires.push(wire(`g${i}`, 'gnd', supply.id, 'gnd', c.id, 'gnd'));
+  });
+  return doc(nodes, wires);
+};
+const budget = (d) => checkDoc(d).filter((f) => f.rule.startsWith('power-') || f.rule === 'battery-runtime');
+
+test('a rail drawing more than its supply is rated for is an error that names both numbers', () => {
+  const d = powered(node('LDO', 'regulator', { fields: { imax: '600mA' } }), [
+    node('MCU', 'mcu', { fields: { ityp: '500mA' } }),
+    node('Radio', 'wifi', { fields: { ityp: '250mA' } }),
+  ]);
+  const [f] = budget(d);
+  assert.equal(f.level, 'error');
+  assert.equal(f.rule, 'power-budget');
+  assert.equal(f.message, 'LDO can supply 600 mA, but the parts on its rail draw 750 mA.');
+  assert.deepEqual(f.ids, ['LDO', 'MCU', 'Radio'], 'the supply and its consumers are the selection');
+});
+
+test('over four fifths of the limit is a warning, and under it nothing is said', () => {
+  const under = powered(node('LDO', 'regulator', { fields: { imax: '1A' } }), [node('MCU', 'mcu', { fields: { ityp: '800mA' } })]);
+  assert.deepEqual(budget(under), [], '800 of 1000 is exactly four fifths, which is still within budget');
+  const over = powered(node('LDO', 'regulator', { fields: { imax: '1A' } }), [node('MCU', 'mcu', { fields: { ityp: '810mA' } })]);
+  const [f] = budget(over);
+  assert.equal(f.level, 'warning');
+  assert.equal(f.rule, 'power-budget');
+  assert.equal(f.message, 'LDO can supply 1 A and the parts on its rail already draw 810 mA.');
+});
+
+test('peaks and unstated parts are reported beside the sum, never folded into it', () => {
+  const d = powered(node('LDO', 'regulator', { fields: { imax: '600mA' } }), [
+    node('MCU', 'mcu', { fields: { ityp: '500mA', ipeak: '900mA' } }),
+    node('Radio', 'wifi', { fields: { ityp: '250mA' } }),
+    node('LED', 'led'),
+  ]);
+  const [f] = budget(d);
+  assert.equal(f.message, 'LDO can supply 600 mA, but the parts on its rail draw 750 mA.'
+    + ' Peaks add up to 1.15 A. One more part on this rail declares no current.');
+  const two = powered(node('LDO', 'regulator', { fields: { imax: '600mA' } }), [
+    node('MCU', 'mcu', { fields: { ityp: '700mA' } }), node('LED', 'led'), node('Buzz', 'buzzer'),
+  ]);
+  assert.match(budget(two)[0].message, /2 more parts on this rail declare no current\.$/);
+});
+
+test('a rail whose consumers state a current but whose supply states no limit is an info finding', () => {
+  const d = powered(node('LDO', 'regulator'), [node('MCU', 'mcu', { fields: { ityp: '120mA' } })]);
+  const [f] = budget(d);
+  assert.equal(f.level, 'info');
+  assert.equal(f.rule, 'power-budget-unknown');
+  assert.equal(f.message, 'LDO declares no output current limit, so the 120 mA on its rail cannot be checked.');
+  assert.deepEqual(f.ids, ['LDO', 'MCU']);
+});
+
+test('a board that fills in no currents at all is as quiet as it was before the fields existed', () => {
+  assert.deepEqual(budget(powered(node('LDO', 'regulator'), [node('MCU', 'mcu'), node('LED', 'led')])), []);
+});
+
+test('a battery with a capacity reports a runtime, and says what it leaves out', () => {
+  const d = doc(
+    [node('Pack', 'battery', { fields: { capacity: '2000mAh' } }), node('LDO', 'regulator', { fields: { imax: '600mA' } }),
+      node('MCU', 'mcu', { fields: { ityp: '100mA' } })],
+    [wire('w1', 'power', 'Pack', 'out', 'LDO', 'in'), wire('w2', 'gnd', 'Pack', 'gnd', 'LDO', 'gnd'),
+      wire('w3', 'power', 'LDO', 'out', 'MCU', 'vcc'), wire('w4', 'gnd', 'LDO', 'gnd', 'MCU', 'gnd')],
+  );
+  const findings = budget(d);
+  assert.deepEqual(findings.map((f) => f.rule), ['battery-runtime'], 'the load carries across the regulator, so nothing is unknown');
+  assert.equal(findings[0].level, 'info');
+  assert.equal(findings[0].message, 'Pack holds 2000 mAh; at 100 mA that is about 20 h, ignoring duty cycle and conversion efficiency.');
+  assert.deepEqual(findings[0].ids, ['Pack']);
+});
+
+test('a capacity with nothing drawing on the rail reports no runtime at all', () => {
+  const d = powered(node('Pack', 'battery', { fields: { capacity: '2000mAh' } }), [node('MCU', 'mcu')]);
+  assert.deepEqual(budget(d), []);
+});
+
+test('power findings sort under errors and warnings and read in Chinese', () => {
+  initI18n({ storage: null });
+  const d = powered(node('LDO', 'regulator'), [node('MCU', 'mcu', { fields: { ityp: '120mA' } })]);
+  const levels = checkDoc(d).map((f) => f.level);
+  assert.deepEqual(levels, [...levels].sort((a, b) => ({ error: 0, warning: 1, info: 2 }[a] - { error: 0, warning: 1, info: 2 }[b])));
+  setLang('zh');
+  try {
+    const zh = checkDoc(d).find((f) => f.rule === 'power-budget-unknown');
+    assert.equal(zh.message, 'LDO 未声明输出电流上限，因此无法校核其电压轨上的 120 mA。');
+  } finally {
+    setLang('en');
+  }
+});
+
 test('design-rule messages follow the interface language and keep their rule ids', () => {
   initI18n({ storage: null });
   const doc = { schema: 2, title: '', nodes: [node('a', 'mcu'), node('b', 'temp', { addr: '0x76' }), node('c', 'temp', { addr: '0x76' })], wires: [

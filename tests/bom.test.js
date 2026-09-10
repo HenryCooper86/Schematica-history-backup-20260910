@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildBOM, bomCSV, bomMarkdown } from '../src/bom.js';
+import { buildBOM, bomCSV, bomMarkdown, bomTotalMa, bomSummary } from '../src/bom.js';
 import { initI18n, setLang } from '../src/i18n.js';
 
 const node = (id, kind, label, sublabel, extra = {}) => ({
@@ -46,8 +46,8 @@ test('buildBOM output is sorted and empty doc yields empty list', () => {
 test('bomCSV escapes quotes, commas, and newlines correctly', () => {
   const csv = bomCSV(buildBOM(sampleDoc()));
   const lines = csv.split('\n');
-  assert.equal(lines[0], 'Part,Part number,Qty,Refs,Addresses,Rails,Status,Flags,Notes');
-  assert.equal(lines.length, 4);
+  assert.equal(lines[0], 'Part,Part number,Qty,Refs,Addresses,Rails,Typ. current,Status,Flags,Notes');
+  assert.equal(lines.length, 4, 'no board total row while nothing declares a current');
   assert.ok(csv.includes('"has ""quotes"", commas"'), 'quoted cell with doubled quotes');
   assert.ok(csv.includes('Base servo; Elbow servo'));
 });
@@ -93,7 +93,7 @@ test('an export names catalogue parts in the interface language and leaves custo
   setLang('zh');
   try {
     const csv = bomCSV(rows).split('\n');
-    assert.equal(csv[0], '部件,型号,数量,位号,地址,电压轨,状态,标记,备注');
+    assert.equal(csv[0], '部件,型号,数量,位号,地址,电压轨,典型电流,状态,标记,备注');
     assert.ok(csv.some((l) => l.startsWith('微控制器,')), bomCSV(rows));
     assert.ok(csv.some((l) => l.startsWith('Battery,')), 'the author\'s own name is not translated');
     const md = bomMarkdown(rows).split('\n');
@@ -105,6 +105,48 @@ test('an export names catalogue parts in the interface language and leaves custo
   }
   assert.ok(bomCSV(rows).includes('\nMCU,'), 'English is unchanged');
   assert.ok(bomMarkdown(rows).includes('| MCU |'), 'English is unchanged');
+});
+
+test('a line carries the typical current of all its copies and the table totals them', () => {
+  const doc = {
+    schema: 2, title: 'T', wires: [], zones: [], notes: [], journey: [],
+    nodes: [
+      node('n1', 'servo', 'Base', 'MG996R', { fields: { ityp: '250mA' } }),
+      node('n2', 'servo', 'Elbow', 'MG996R', { fields: { ityp: '250mA' } }),
+      node('n3', 'mcu', 'Brain', 'STM32F4', { fields: { ipeak: '90mA' } }),
+      node('n4', 'temp', 'Temp', 'BME280'),
+    ],
+  };
+  const rows = buildBOM(doc);
+  assert.equal(rows.find((r) => r.sublabel === 'MG996R').currentMa, 500, 'two servos are two draws');
+  assert.equal(rows.find((r) => r.sublabel === 'STM32F4').currentMa, 90, 'a peak stands in for a missing typical');
+  assert.equal(rows.find((r) => r.sublabel === 'BME280').currentMa, null, 'unstated is not zero');
+  assert.equal(bomTotalMa(rows), 590);
+
+  const csv = bomCSV(rows).split('\n');
+  assert.equal(csv[0].split(',')[6], 'Typ. current');
+  assert.equal(csv.find((l) => l.startsWith('Servo,')).split(',')[6], '500 mA');
+  assert.equal(csv.at(-1), 'Board total,,,,,,590 mA,,,');
+  const md = bomMarkdown(rows).split('\n');
+  assert.equal(md[1], '|---|---|---|---|---|---|---|---|---|---|', 'ten columns of dashes');
+  assert.equal(md.at(-1), '| Board total |  |  |  |  |  | 590 mA |  |  |  |');
+});
+
+test('the summary states the board total and the runtime of a cell that declares one', () => {
+  const doc = {
+    schema: 2, title: 'T', zones: [], notes: [], journey: [],
+    nodes: [
+      node('b', 'battery', 'Pack', '18650', { fields: { capacity: '3000mAh' } }),
+      node('m', 'mcu', 'Brain', 'ESP32', { fields: { ityp: '150mA' } }),
+    ],
+    wires: [{ id: 'w1', bus: 'power', from: { node: 'b', port: 'out' }, to: { node: 'm', port: 'vcc' }, label: '', arrow: null, style: null, flow: null }],
+  };
+  assert.deepEqual(bomSummary(doc), [
+    'Declared typical current: 150 mA.',
+    'Pack at 3000 mAh: about 20 h at 150 mA, ignoring duty cycle and efficiency.',
+  ]);
+  assert.deepEqual(bomSummary({ ...doc, nodes: [node('t', 'temp', 'Temp', 'BME280')], wires: [] }), [],
+    'a board that declares nothing says nothing');
 });
 
 test('custom nodes group by template, or by name without one, and show the definition name', () => {

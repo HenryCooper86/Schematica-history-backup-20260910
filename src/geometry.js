@@ -36,13 +36,16 @@ export function nodeMeta(node) {
   const part = partOf(node);
   // Mono lines under the label: the part number (threats have none), then a
   // schema part's fields (severity has its own tag), or else the hardware
-  // address and rail. A custom part shows all of them. At most three lines.
+  // address and rail. A custom part shows all of them. A part marked `trio`
+  // keeps the address and rail even though it has fields — its fields are
+  // extra data (the power budget's currents), not a replacement identity.
+  // At most three lines.
   const lines = [];
   if (!part.threat) lines.push(['sublabel', node.sublabel]);
   if (part.custom) {
     lines.push(['addr', node.addr], ['rail', node.rail]);
     for (const fd of part.fields || []) lines.push([`fields.${fd.id}`, node.fields?.[fd.id]]);
-  } else if (part.fields) {
+  } else if (part.fields && !part.trio) {
     for (const fd of part.fields) if (fd.id !== 'severity') lines.push([`fields.${fd.id}`, node.fields?.[fd.id]]);
   } else {
     lines.push(['addr', node.addr], ['rail', node.rail]);

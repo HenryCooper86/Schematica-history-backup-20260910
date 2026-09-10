@@ -20,8 +20,8 @@ test('board text has one line per item and carries every id', () => {
   const lines = text.split('\n');
   assert.equal(lines[0], 'board "Weather Station"');
   assert.ok(lines.includes('zone z1 "Power" members: n1 n2 n3 n4'), text);
-  assert.ok(lines.includes('node n5 mcu "MCU" pn=ESP32-S3 rail=3.3V status=production notes="Deep sleep between readings; wake every 10 min."'), text);
-  assert.ok(lines.includes('node n6 temp "Temp sensor" pn=BME280 addr=0x76 rail=3.3V status=production'), text);
+  assert.ok(lines.includes('node n5 mcu "MCU" pn=ESP32-S3 rail=3.3V status=production ityp=100mA ipeak=355mA notes="Deep sleep between readings; wake every 10 min."'), text);
+  assert.ok(lines.includes('node n6 temp "Temp sensor" pn=BME280 addr=0x76 rail=3.3V status=production ityp=3.6uA ipeak=0.72mA'), text);
   assert.ok(lines.includes('wire w6 i2c n5.i2c -- n6.i2c'), text);
   assert.ok(lines.includes('wire w4 power n4.out -- n5.vcc "3V3"'), text);
   assert.ok(lines.includes('note t1 "All logic runs on the 3.3V rail"'), text);
@@ -62,7 +62,9 @@ test('every example renders without throwing and stays stable', () => {
 });
 
 test('partLine shows kind, name, ports with buses, and schema fields', () => {
-  assert.equal(partLine(PARTS.temp), 'temp  Temp sensor  ports: vcc(power), gnd(gnd), i2c(i2c)');
+  assert.equal(partLine(PARTS.crystal), 'crystal  Crystal  ports: osc(gpio)');
+  // A hardware part's schema fields are its power-budget currents.
+  assert.equal(partLine(PARTS.temp), 'temp  Temp sensor  ports: vcc(power), gnd(gnd), i2c(i2c)  fields: ityp, ipeak');
   assert.match(partLine(PARTS.threatactor), /^threatactor  .+  ports: .+  fields: .*severity\[info\|low\|medium\|high\|critical\].*  \[threat\]$/);
 });
 

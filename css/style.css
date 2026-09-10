@@ -1194,6 +1194,13 @@ g.node:hover .ports,
   background: var(--bg1);
 }
 #bom-table tr:last-child td { border-bottom: none; }
+/* The total row is a th row, so undo the sticky heading treatment it would
+   otherwise inherit and let it read as a footer instead. */
+#bom-table tfoot th { position: static; text-transform: none; font-size: 11.5px; letter-spacing: 0; color: var(--text); border-top: 1px solid var(--line2); border-bottom: none; background: none; }
+/* The summary lines sit inside the table's scroll box; index.html has no
+   other slot for them. */
+.bom-summary { margin: 0; padding: 7px 9px 0; color: var(--muted); font-size: 11.5px; }
+.bom-summary:last-child { padding-bottom: 8px; }
 
 #drc-list { max-height: 320px; overflow: auto; margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
 .drc-row {
@@ -1218,6 +1225,7 @@ g.node:hover .ports,
 }
 .drc-level.error { color: #fca5a5; border: 1px solid #7f1d1d; background: #2a1215; }
 .drc-level.warning { color: #fcd34d; border: 1px solid #92610e; background: #211a09; }
+.drc-level.info { color: #93c5fd; border: 1px solid #1e40af; background: #0e1729; }
 .drc-row .msg { flex: 1; }
 .drc-row button {
   flex: none;

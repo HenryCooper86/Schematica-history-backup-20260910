@@ -98,8 +98,12 @@ function nodeFields(item, doc) {
   const part = partOf(item);
   let html = propField(tr('Label'), `<input type="text" data-prop="label" value="${escAttr(item.label)}">`);
   if (!part.threat) html += partNumberField(item);
+  // A schema normally replaces the address/rail pair (threat and network parts
+  // carry their own vocabulary instead). `trio` marks a schema that only *adds*
+  // fields - current draw, say - so those parts keep the pair as well.
   if (part.custom) html += addrRailFields(item) + (part.fields ? schemaFields(part, item, doc) : '');
-  else html += part.fields ? schemaFields(part, item, doc) : addrRailFields(item);
+  else if (part.fields) html += (part.trio ? addrRailFields(item) : '') + schemaFields(part, item, doc);
+  else html += addrRailFields(item);
   html += propField(tr('Notes'), `<textarea data-prop="notes" placeholder="${escAttr(tr('Free-form notes...'))}">${escAttr(item.notes)}</textarea>`);
   html += `<label>${escAttr(tr('Lifecycle'))}</label><div class="chips">${NODE_STATUSES.map((st) => (
     `<button class="chip${item.status === st ? ' active' : ''}" data-status="${st}">${statusLabels()[st]}</button>`

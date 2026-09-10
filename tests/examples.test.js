@@ -7,6 +7,7 @@ import { nodePart } from '../src/rdk/profiles.js';
 import { getPart } from '../src/palette.js';
 import { nodeRect } from '../src/geometry.js';
 import { checkDoc } from '../src/drc.js';
+import { parseCurrentMa, parseCapacityMah } from '../src/power.js';
 import { presetsFor } from '../src/presets.js';
 
 test('there are at least three examples with unique ids and names', () => {
@@ -70,6 +71,40 @@ test('the D-Robotics and Horizon boards use the vendor presets and the new buses
   assert.ok(adas.doc.nodes.some((n) => n.kind === 'adas' && /Journey 6/.test(n.sublabel)), 'ADAS controller runs a Journey 6');
   assert.ok(adas.doc.nodes.some((n) => /Horizon/.test(n.notes)), 'a Horizon stack is named in the notes');
   assert.ok(adas.doc.wires.some((w) => w.bus === 'gmsl') && adas.doc.wires.some((w) => w.bus === 't1'), 'ADAS board wires GMSL cameras and T1 Ethernet');
+});
+
+// Current figures are only worth shipping where a real datasheet backs them,
+// so the boards that carry them carry a few, and every value must be a figure
+// the parser actually reads.
+test('the boards that declare currents use field ids their part knows and figures the parser reads', () => {
+  const declaring = new Set();
+  for (const ex of EXAMPLES) {
+    for (const n of ex.doc.nodes) {
+      const ids = new Set((nodePart(n).fields || []).map((fd) => fd.id));
+      for (const [id, value] of Object.entries(n.fields || {})) {
+        assert.ok(ids.has(id), `${ex.id}/${n.id}: ${n.kind} has no field "${id}"`);
+        if (id === 'ityp' || id === 'ipeak' || id === 'imax') {
+          assert.notEqual(parseCurrentMa(value), null, `${ex.id}/${n.id}.${id} = "${value}"`);
+          declaring.add(ex.id);
+        }
+        if (id === 'capacity') {
+          assert.notEqual(parseCapacityMah(value), null, `${ex.id}/${n.id}.capacity = "${value}"`);
+          declaring.add(ex.id);
+        }
+      }
+    }
+  }
+  for (const id of ['weather-station', 'drone-fc', 'ev-bms']) assert.ok(declaring.has(id), `${id} shows the power budget`);
+});
+
+test('the weather station budgets its 3.3V rail and estimates how long the cell lasts', () => {
+  const b = EXAMPLES.find((e) => e.id === 'weather-station');
+  const rules = checkDoc(b.doc).filter((f) => f.rule.startsWith('power-') || f.rule === 'battery-runtime');
+  assert.deepEqual(rules.map((f) => f.rule).sort(), ['battery-runtime', 'power-budget-unknown']);
+  assert.match(rules.find((f) => f.rule === 'battery-runtime').message, /2000 mAh; at 100 mA that is about 20 h/);
+  // The charger passes the cell's rail through, so the runtime is measured
+  // against what the regulator carries across, not against nothing.
+  assert.match(rules.find((f) => f.rule === 'power-budget-unknown').message, /^Regulator declares no output current limit/);
 });
 
 test('the sensor node board passes every design rule, so users can see what clean looks like', () => {

@@ -33,7 +33,7 @@ export const TOOLS = [
   },
   {
     name: 'run_checks',
-    description: 'Run the design-rule checks on the current board: I2C address conflicts, unconnected power pins and required ports, floating parts, bus mismatches, lifecycle risks. Returns findings with the ids involved. Set include_layout to true to also receive layout findings with measured evidence and supported repairs.',
+    description: 'Run the design-rule checks on the current board: I2C address conflicts, unconnected power pins and required ports, floating parts, bus mismatches, lifecycle risks, and power budgets against a supply\'s declared output limit. Returns findings with the ids involved. Set include_layout to true to also receive layout findings with measured evidence and supported repairs.',
     input_schema: { type: 'object', properties: { include_layout: { type: 'boolean' } }, additionalProperties: false },
     strict: true,
   },
@@ -50,7 +50,7 @@ export const TOOLS = [
   },
   {
     name: 'arrange',
-    description: 'Lay the whole board out again from scratch. Moves every card; use only when the user asks to tidy or rearrange.',
+    description: 'Lay the whole board out again from scratch. Moves every card except locked ones, which stay where they are; use only when the user asks to tidy or rearrange.',
     input_schema: EMPTY,
     strict: true,
   },
