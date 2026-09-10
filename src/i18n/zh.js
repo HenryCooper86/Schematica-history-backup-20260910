@@ -2,6 +2,9 @@
 // their English names. Grouped by the surface that shows them. Identity
 // entries mark Latin terms that stay Latin on purpose.
 export default {
+  "The board's text and API key pass through this website's server to your chosen provider. The server does not store your key. Remember saves it only in this browser.": "板图文本和 API 密钥经本站服务器发送到您选择的服务商。服务器不会存储密钥。“记住”仅将其保存在此浏览器中。",
+  'For Ollama Cloud, use https://ollama.com/v1 and your Ollama API key. The website server connects to the provider and streams the reply. Use List models to choose a model. Custom Base URLs must be enabled by the server operator.': '使用 Ollama Cloud 时，请填写 https://ollama.com/v1 和您的 Ollama API 密钥。本站服务器直接连接服务商并流式返回回复。点击“列出模型”选择模型。自定义基础 URL 须由服务器管理员启用。',
+  "Moonshot's Kimi models through this website's server. Base URL: https://api.moonshot.ai/v1. Keys come from platform.kimi.ai.": "经本站服务器使用 Moonshot 的 Kimi 模型。基础 URL：https://api.moonshot.ai/v1。密钥来自 platform.kimi.ai。",
   "Use stops for overview": "使用停靠点生成概览",
   "Guided story": "导览故事",
   "Copy moment": "复制当前时刻",

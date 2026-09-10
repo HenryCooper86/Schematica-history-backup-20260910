@@ -4,6 +4,7 @@
 import { sseParser, readStream } from './stream.js';
 import { ProviderError, mapHttpError, networkError, MAX_TOOL_INPUT } from './errors.js';
 import { tr } from '../../i18n.js';
+import { providerFetch } from './transport.js';
 
 const VERSION = '2023-06-01';
 const MAX_TOKENS = 16000;
@@ -146,7 +147,7 @@ export function anthropicProvider({ baseUrl, apiKey, model, effort, fetchImpl = 
   const url = `${String(baseUrl).replace(/\/+$/, '')}/v1/messages`;
   async function post(body, signal) {
     try {
-      return await fetchImpl(url, {
+      return await providerFetch(url, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
@@ -156,7 +157,7 @@ export function anthropicProvider({ baseUrl, apiKey, model, effort, fetchImpl = 
         },
         body: JSON.stringify(body),
         signal,
-      });
+      }, fetchImpl);
     } catch (err) {
       if (err?.name === 'AbortError') throw err;
       throw networkError('Anthropic', err);

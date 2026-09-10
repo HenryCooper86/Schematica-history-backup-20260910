@@ -2,6 +2,7 @@
 // browser, a Map in tests) and every access is guarded: storage may be
 // blocked. The key lives in memory unless "remember" is ticked, and never
 // touches the document, autosave, share links, or exports.
+import { BACKEND } from './runtime.js';
 
 // Each provider names the adapter that speaks its wire format (`anthropic`,
 // `openai` for every chat-completions endpoint), its public base URL,
@@ -10,11 +11,26 @@
 // "List models" fetches the live catalogue where the endpoint offers one.
 // ollama.com answers a CORS preflight with 405 and api.moonshot.ai sends no
 // allow-origin header (both verified 2026-09-06), so no browser page can call
-// them directly. Those two providers go through the relay in relay/: a small
+// them directly. On static hosting those providers use the relay in relay/: a small
 // Cloudflare Worker that forwards the request, key included, and adds the
 // headers. This is the deployment's own relay; the Base URL field takes any
 // other (relay/README.md deploys one in two commands).
 export const RELAY = 'https://schematica-relay.henrycooper86.workers.dev';
+
+// Move only our former default relay URLs to the official provider when
+// running on the backend. User-supplied endpoints retain their exact route.
+export function backendBaseUrl(baseUrl, backend = BACKEND) {
+  if (!backend || !baseUrl) return baseUrl;
+  const base = baseUrl.replace(/\/+$/, '');
+  if (base === `${RELAY}/ollama.com` || base === `${RELAY}/ollama.com/v1`) return 'https://ollama.com/v1';
+  if (base === `${RELAY}/api.moonshot.ai/v1`) return 'https://api.moonshot.ai/v1';
+  return baseUrl;
+}
+
+export const BACKEND_HELP = {
+  openai: 'For Ollama Cloud, use https://ollama.com/v1 and your Ollama API key. The website server connects to the provider and streams the reply. Use List models to choose a model. Custom Base URLs must be enabled by the server operator.',
+  kimi: 'Moonshot\'s Kimi models through this website\'s server. Base URL: https://api.moonshot.ai/v1. Keys come from platform.kimi.ai.',
+};
 
 export const PROVIDERS = {
   anthropic: {
@@ -25,7 +41,9 @@ export const PROVIDERS = {
   openai: {
     name: 'OpenAI-compatible', adapter: 'openai', baseUrl: 'https://api.openai.com/v1', model: '', needsKey: true,
     models: [],
-    help: `Any chat-completions endpoint with function calling. For Ollama Cloud, use ${RELAY}/ollama.com/v1, a key from ollama.com/settings/keys, and a model such as glm-5.3. Local Ollama: http://localhost:11434/v1, key "ollama", with OLLAMA_ORIGINS set to this site's origin. "List models" fetches the catalogue.`,
+    help: BACKEND
+      ? BACKEND_HELP.openai
+      : `Any chat-completions endpoint with function calling. For Ollama Cloud, use ${RELAY}/ollama.com/v1, a key from ollama.com/settings/keys, and a model such as glm-5.3. Local Ollama: http://localhost:11434/v1, key "ollama", with OLLAMA_ORIGINS set to this site's origin. "List models" fetches the catalogue.`,
   },
   openrouter: {
     name: 'OpenRouter', adapter: 'openai', baseUrl: 'https://openrouter.ai/api/v1', model: '', needsKey: true,
@@ -38,9 +56,11 @@ export const PROVIDERS = {
     help: 'Z.AI\'s GLM models over their OpenAI-compatible endpoint. Keys come from z.ai.',
   },
   kimi: {
-    name: 'Kimi (Moonshot)', adapter: 'openai', baseUrl: `${RELAY}/api.moonshot.ai/v1`, model: 'kimi-k3', needsKey: true,
+    name: 'Kimi (Moonshot)', adapter: 'openai', baseUrl: BACKEND ? 'https://api.moonshot.ai/v1' : `${RELAY}/api.moonshot.ai/v1`, model: 'kimi-k3', needsKey: true,
     models: ['kimi-k3', 'kimi-k2.6', 'kimi-k2.7-code'],
-    help: 'Moonshot\'s Kimi models over their OpenAI-compatible endpoint, through the relay because api.moonshot.ai does not answer browser requests. Keys come from platform.kimi.ai.',
+    help: BACKEND
+      ? BACKEND_HELP.kimi
+      : 'Moonshot\'s Kimi models over their OpenAI-compatible endpoint, through the relay because api.moonshot.ai does not answer browser requests. Keys come from platform.kimi.ai.',
   },
 };
 export const EFFORTS = ['low', 'medium', 'high'];
@@ -66,8 +86,10 @@ const DEFAULTS = { provider: 'anthropic', model: '', baseUrl: '', effort: 'mediu
 // Keep migrated credentials in their old slot so an existing OpenAI key is
 // never overwritten. Only this migration may select the legacy key slot.
 function migrateSettings(s) {
+  const baseUrl = backendBaseUrl(s.baseUrl);
+  if (baseUrl !== s.baseUrl) s = { ...s, baseUrl, tools: null };
   if (s.provider !== 'ollamacloud') return s;
-  const base = (s.baseUrl || `${RELAY}/ollama.com`).replace(/\/+$/, '');
+  const base = (s.baseUrl || (BACKEND ? 'https://ollama.com' : `${RELAY}/ollama.com`)).replace(/\/+$/, '');
   return { ...s, provider: 'openai', model: s.model || 'glm-5.3', baseUrl: base.endsWith('/v1') ? base : `${base}/v1`, keyProvider: 'ollamacloud', tools: null };
 }
 

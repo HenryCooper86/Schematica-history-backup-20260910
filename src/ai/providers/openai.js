@@ -3,6 +3,7 @@
 import { sseParser, readStream } from './stream.js';
 import { ProviderError, mapHttpError, networkError, MAX_TOOL_INPUT } from './errors.js';
 import { tr } from '../../i18n.js';
+import { providerFetch } from './transport.js';
 
 const STOP = { stop: 'end', tool_calls: 'tool_use', length: 'max_tokens', content_filter: 'refusal' };
 
@@ -97,10 +98,10 @@ export function openaiProvider({ baseUrl, apiKey, model, fetchImpl = globalThis.
     async chat({ system, messages, tools, signal, onText }) {
       let res;
       try {
-        res = await fetchImpl(`${base}/chat/completions`, {
+        res = await providerFetch(`${base}/chat/completions`, {
           method: 'POST', headers: headers(apiKey), signal,
           body: JSON.stringify(toOpenAIRequest({ model, system, messages, tools })),
-        });
+        }, fetchImpl);
       } catch (err) {
         if (err?.name === 'AbortError') throw err;
         throw networkError('the endpoint', err, base);
@@ -116,7 +117,7 @@ export function openaiProvider({ baseUrl, apiKey, model, fetchImpl = globalThis.
 export async function listOpenAIModels({ baseUrl, apiKey, fetchImpl = globalThis.fetch }) {
   const base = String(baseUrl).replace(/\/+$/, '');
   let res;
-  try { res = await fetchImpl(`${base}/models`, { headers: headers(apiKey) }); } catch (err) { throw networkError('the endpoint', err, base); }
+  try { res = await providerFetch(`${base}/models`, { headers: headers(apiKey) }, fetchImpl); } catch (err) { throw networkError('the endpoint', err, base); }
   if (!res.ok) throw mapHttpError(res.status, await res.text(), 'The endpoint');
   const j = await res.json();
   return (j.data || []).map((m) => m.id).filter(Boolean).sort();

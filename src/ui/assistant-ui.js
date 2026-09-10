@@ -4,6 +4,7 @@
 import { createSettings, PROVIDERS, EFFORTS, estimateCost, THREAD_KEY } from '../ai/settings.js';
 import { makeProvider, probeTools } from '../ai/providers/index.js';
 import { listOpenAIModels } from '../ai/providers/openai.js';
+import { BACKEND } from '../ai/runtime.js';
 import { runRequest, runSingleShot } from '../ai/agent.js';
 import { createExecutor } from '../ai/tools.js';
 import { boardText } from '../ai/context.js';
@@ -17,7 +18,9 @@ import { escAttr, toast, onPress } from './press.js';
 import { initAssistantDocuments } from './assistant-documents.js';
 import { tr, trd, onLanguageChange, getLang } from '../i18n.js';
 
-const privacy = () => tr('The board\'s text and API key are sent to your chosen endpoint, through a relay when configured. Keys are saved in this browser only when you choose Remember.');
+const privacy = () => BACKEND
+  ? tr('The board\'s text and API key pass through this website\'s server to your chosen provider. The server does not store your key. Remember saves it only in this browser.')
+  : tr('The board\'s text and API key are sent to your chosen endpoint, through a relay when configured. Keys are saved in this browser only when you choose Remember.');
 const intro = () => tr('Describe a board and it builds it; ask for a change and it edits the one you have. Every reply is a single undo step.');
 
 // Lucide icons (ISC, see THIRD_PARTY_NOTICES.md), the same stroke family as

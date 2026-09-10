@@ -14,7 +14,7 @@ import { PRESETS } from '../src/presets.js';
 import { RDK_PRODUCTS } from '../src/rdk/catalogue.js';
 import { VIDEO_FORMATS } from '../src/recorder.js';
 import { SIDES } from '../src/custom.js';
-import { PROVIDERS, EFFORTS } from '../src/ai/settings.js';
+import { PROVIDERS, EFFORTS, BACKEND_HELP } from '../src/ai/settings.js';
 import { EXAMPLE_GROUPS } from '../src/examples.js';
 import { FLAG_META } from '../src/render.js';
 
@@ -95,6 +95,7 @@ for (const p of RDK_PRODUCTS) {
 for (const f of VIDEO_FORMATS) data.add(f.label);
 for (const s of SIDES) data.add(s);
 for (const p of Object.values(PROVIDERS)) data.add(p.help);
+for (const help of Object.values(BACKEND_HELP)) data.add(help);
 for (const e of EFFORTS) data.add(e);
 for (const g of EXAMPLE_GROUPS) data.add(g);
 for (const f of Object.values(FLAG_META)) data.add(f.label);

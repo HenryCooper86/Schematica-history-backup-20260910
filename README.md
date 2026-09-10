@@ -10,18 +10,24 @@ review.
 
 The UI defaults to a dark, high-contrast canvas (Explore → Appearance also offers light and system themes): shaded cards with tinted icon badges, slate wires that leave each card toward the other, and a label pill on every wire naming its bus. Cards size themselves to their content: the part number, interface address, and voltage rail appear as mono lines under the name. Beyond hardware, the palette carries Network, Security & Edge, Process Flow (real flowchart shapes), and Threats parts, from threat actors, malware, and C2 servers to vulnerabilities, misconfigurations, exploits, supply-chain compromise, DDoS, on-path attackers, sensor spoofing, stolen credentials, data exfiltration, and physical tampering, so a board can put a firewall, a decision diamond, and a threat actor next to an MCU.
 
-No build step or application server: static HTML + ES modules + SVG. PDF.js
+No build step: HTML + ES modules + SVG, with an optional Node.js backend
+for server-side AI connections. PDF.js
 and Mammoth are pinned and bundled for local document extraction, then loaded
 only when a PDF or DOCX needs them.
 
 ## Run it
 
 ```bash
-python3 -m http.server 8000
-# open http://localhost:8000
+npm start
+# Node.js 22+, open http://localhost:3000
 ```
 
-Any static file server works. To publish on GitHub Pages: push this repo,
+This serves both the website and its AI backend. Use Ollama's official
+Base URL, `https://ollama.com/v1`, in assistant settings; requests go through
+your own server to Ollama. See [backend and Lightsail deployment](docs/backend.md).
+
+For the static edition, any static file server works (for example,
+`python3 -m http.server 8000`). To publish that edition on GitHub Pages: push this repo,
 then Settings → Pages → deploy from branch `main`, root folder.
 
 ## Use it
@@ -62,7 +68,7 @@ then Settings → Pages → deploy from branch `main`, root folder.
 | BOM | BOM button — bill of materials grouped by part number (qty, refs, addresses, rails, status, flags); CSV download or Markdown copy |
 | Share | Share button — the whole board compressed into a copyable URL; opening the link loads it, no backend. Opened over a board you were working on, the link loads at once, keeps your board as a backup, and the notice offers to restore it |
 | Check | Check button — design rule checks: I2C address conflicts, unconnected power pins, floating parts, bus mismatches, lifecycle risks (the Sensor Node example passes them all) |
-| Assistant | `A` or the sparkle button — describe a board and it builds it, ask for a change and it edits the board, press Fix on a check finding or "Fix checks" and it resolves them, "Fill in details" fills part numbers from presets. Add files, a folder, or drop individual files to use local documents as sources; review, select, preview, or remove them before Send. Bring your own key: Claude by default, plus OpenRouter, Z.AI GLM, Moonshot Kimi, and any OpenAI-compatible endpoint (including local Ollama and Ollama Cloud via `/v1`). Kimi and Ollama Cloud refuse browser requests, so they go through the small relay worker in `relay/` (deploy your own in two commands; see relay/README.md). Each reply is one undo step and what it touched glows until your next click. The key is sent to your configured endpoint (through the relay for Kimi and Ollama Cloud), saved in this browser only if you tick remember, and never included in the board, autosave, or share links |
+| Assistant | `A` or the sparkle button — describe a board and it builds it, ask for a change and it edits the board, press Fix on a check finding or "Fix checks" and it resolves them, "Fill in details" fills part numbers from presets. Add files, a folder, or drop individual files to use local documents as sources; review, select, preview, or remove them before Send. Bring your own key: Claude by default, plus OpenRouter, Z.AI GLM, Moonshot Kimi, and any OpenAI-compatible endpoint. With `npm start`, your own backend calls the official provider URLs and streams replies, including Ollama Cloud via `https://ollama.com/v1`. The static edition still supports the optional worker in `relay/`. Each reply is one undo step and what it touched glows until your next click. The key is forwarded to your configured provider, saved in this browser only if you tick remember, and never included in the board, autosave, or share links |
 | Wire options | Select a wire — bus, label, arrowheads (→ or ↔), line style (solid, dashed, dotted, air gap), traffic flow, delete |
 | Custom parts | **+ New** under My parts in the palette defines a part: name, category, accent, an icon (a built-in one, initials, or an SVG path), typed ports on any side, and extra fields. It is saved to My parts (this browser) and placed on the board. **Customize…** on any built-in card starts from its definition, so an MCU with a second CAN port keeps its wires. **Edit part…** on a custom card changes it and, when it came from a template, offers to update its siblings. Export and Import move My parts between machines as a JSON file. Custom parts in a board file travel with it; an older build of the app opens them as custom boxes |
 
